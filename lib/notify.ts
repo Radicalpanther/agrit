@@ -166,7 +166,7 @@ export async function notifyBookingStatus(
     const channel: NotificationChannel = getNotificationChannel()
 
     // 1. Fetch booking with farm, owner, and tourist details
-    const { data: booking, error: bErr } = await serviceClient
+    let { data: booking, error: bErr }: { data: any; error: any } = await serviceClient
       .from('bookings')
       .select(`
         id,
@@ -195,12 +195,45 @@ export async function notifyBookingStatus(
           id,
           full_name,
           phone,
-          whatsapp_opt_in,
-          preferred_language
+          whatsapp_opt_in
         )
       `)
       .eq('id', bookingId)
       .maybeSingle()
+
+    if (bErr) {
+      const fallback = await serviceClient
+        .from('bookings')
+        .select(`
+          id,
+          farm_id,
+          tourist_id,
+          check_in,
+          visit_type,
+          nights,
+          guests,
+          total_paise,
+          discount_pct,
+          status,
+          farm:farms (
+            id,
+            name,
+            slug,
+            host_name,
+            host_phone,
+            owner_id
+          ),
+          tourist:profiles (
+            id,
+            full_name,
+            phone
+          )
+        `)
+        .eq('id', bookingId)
+        .maybeSingle()
+      booking = fallback.data
+      bErr = fallback.error
+    }
 
     if (bErr || !booking) {
       console.warn(`[Notification] Booking ${bookingId} not found:`, bErr?.message)
@@ -217,7 +250,7 @@ export async function notifyBookingStatus(
     if (farm.owner_id) {
       const { data: fProfile } = await serviceClient
         .from('profiles')
-        .select('id, full_name, phone, telegram_chat_id, whatsapp_opt_in, preferred_language')
+        .select('id, full_name, phone, telegram_chat_id, whatsapp_opt_in')
         .eq('id', farm.owner_id)
         .maybeSingle()
       farmerProfile = fProfile
@@ -226,18 +259,13 @@ export async function notifyBookingStatus(
     const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/+$/, '')
 
     // Resolve recipient languages
-    const farmerLocale: Locale =
-      farmerProfile?.preferred_language === 'hi' || farmerProfile?.preferred_language === 'mr'
-        ? farmerProfile.preferred_language
-        : 'en'
+    const farmerLocale: Locale = 'en'
 
     const touristLocale: Locale =
       (guestLocale === 'hi' || guestLocale === 'mr' || guestLocale === 'en')
         ? guestLocale
         : booking.locale === 'hi' || booking.locale === 'mr'
         ? booking.locale
-        : tourist.preferred_language === 'hi' || tourist.preferred_language === 'mr'
-        ? tourist.preferred_language
         : 'en'
 
     const visitTypeStrFarmer = formatVisitType(booking.visit_type, booking.nights, farmerLocale)

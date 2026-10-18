@@ -380,7 +380,7 @@ export async function POST(request: Request) {
           return NextResponse.json({ ok: true })
         }
 
-        const { data: pendingBookings } = await serviceClient
+        let { data: pendingBookings, error: pErr }: { data: any[] | null; error: any } = await serviceClient
           .from('bookings')
           .select(`
             id,
@@ -402,6 +402,28 @@ export async function POST(request: Request) {
           .order('created_at', { ascending: false })
           .limit(10)
 
+        if (pErr) {
+          const fallback = await serviceClient
+            .from('bookings')
+            .select(`
+              id,
+              visit_type,
+              nights,
+              check_in,
+              guests,
+              total_paise,
+              discount_pct,
+              status,
+              farm:farms(name),
+              tourist:profiles(full_name, phone)
+            `)
+            .in('farm_id', farmIds)
+            .eq('status', 'pending')
+            .order('created_at', { ascending: false })
+            .limit(10)
+          pendingBookings = fallback.data
+        }
+
         if (!pendingBookings || pendingBookings.length === 0) {
           await sendTelegramMessage(
             chatId,
@@ -411,8 +433,8 @@ export async function POST(request: Request) {
         }
 
         for (const b of pendingBookings) {
-          const guestName = b.guest_name || (b.tourist as any)?.full_name || 'Guest'
-          const guestPhone = b.guest_phone || (b.tourist as any)?.phone || ''
+          const guestName = (b as any).guest_name || (b.tourist as any)?.full_name || 'Guest'
+          const guestPhone = (b as any).guest_phone || (b.tourist as any)?.phone || ''
 
           const { data: reservations } = await serviceClient
             .from('product_reservations')
@@ -430,7 +452,7 @@ export async function POST(request: Request) {
               visit_type: b.visit_type,
               nights: b.nights,
               check_in: b.check_in,
-              arrival_time: b.arrival_time,
+              arrival_time: (b as any).arrival_time,
               guests: b.guests,
               total_paise: b.total_paise,
               discount_pct: b.discount_pct,
@@ -470,7 +492,7 @@ export async function POST(request: Request) {
 
         const today = getTodayKolkata()
         // Query next 10 upcoming and pending bookings
-        let { data: bookings } = await serviceClient
+        let { data: bookings, error: bErr }: { data: any[] | null; error: any } = await serviceClient
           .from('bookings')
           .select(`
             id,
@@ -491,9 +513,31 @@ export async function POST(request: Request) {
           .order('check_in', { ascending: true })
           .limit(10)
 
+        if (bErr) {
+          const fallback = await serviceClient
+            .from('bookings')
+            .select(`
+              id,
+              check_in,
+              nights,
+              visit_type,
+              guests,
+              total_paise,
+              status,
+              farm:farms(name),
+              tourist:profiles(full_name, phone)
+            `)
+            .in('farm_id', farmIds)
+            .in('status', ['pending', 'confirmed'])
+            .gte('check_in', today)
+            .order('check_in', { ascending: true })
+            .limit(10)
+          bookings = fallback.data
+        }
+
         if (!bookings || bookings.length === 0) {
           // Fallback to recent bookings if none are in the future
-          const { data: recent } = await serviceClient
+          let { data: recent, error: rErr }: { data: any[] | null; error: any } = await serviceClient
             .from('bookings')
             .select(`
               id,
@@ -512,6 +556,27 @@ export async function POST(request: Request) {
             .in('status', ['pending', 'confirmed'])
             .order('created_at', { ascending: false })
             .limit(10)
+
+          if (rErr) {
+            const fallbackRecent = await serviceClient
+              .from('bookings')
+              .select(`
+                id,
+                check_in,
+                nights,
+                visit_type,
+                guests,
+                total_paise,
+                status,
+                farm:farms(name),
+                tourist:profiles(full_name, phone)
+              `)
+              .in('farm_id', farmIds)
+              .in('status', ['pending', 'confirmed'])
+              .order('created_at', { ascending: false })
+              .limit(10)
+            recent = fallbackRecent.data
+          }
 
           bookings = recent
         }

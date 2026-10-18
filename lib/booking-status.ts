@@ -35,7 +35,7 @@ export async function updateBookingStatus(
     const serviceClient = await createServiceClient()
 
     // 1. Fetch booking with farm, owner, and tourist details
-    const { data: booking, error: bErr } = await serviceClient
+    let { data: booking, error: bErr }: { data: any; error: any } = await serviceClient
       .from('bookings')
       .select(`
         id,
@@ -64,6 +64,38 @@ export async function updateBookingStatus(
       `)
       .eq('id', bookingId)
       .maybeSingle()
+
+    if (bErr) {
+      const fallback = await serviceClient
+        .from('bookings')
+        .select(`
+          id,
+          status,
+          check_in,
+          visit_type,
+          nights,
+          guests,
+          total_paise,
+          telegram_message_id,
+          telegram_chat_id,
+          farm:farms (
+            id,
+            name,
+            slug,
+            owner_id
+          ),
+          tourist:profiles (
+            id,
+            full_name,
+            phone,
+            telegram_chat_id
+          )
+        `)
+        .eq('id', bookingId)
+        .maybeSingle()
+      booking = fallback.data
+      bErr = fallback.error
+    }
 
     if (bErr || !booking) {
       return { success: false, error: 'Booking not found' }

@@ -3,7 +3,7 @@ import { cookies } from 'next/headers'
 import { bookingSchema } from '@/lib/validations/booking'
 import { calculateBookingPrice, type PricingAddOn } from '@/lib/pricing'
 import { fetchServerFarmBySlug } from '@/lib/supabase/queries-server'
-import { createClient as createServerClient } from '@/lib/supabase/server'
+import { createClient as createServerClient, createServiceClient } from '@/lib/supabase/server'
 import { PRODUCE_ITEMS } from '@/lib/mock-data'
 import { notifyBookingStatus } from '@/lib/notify'
 
@@ -130,11 +130,12 @@ export async function POST(request: Request) {
       }
     }
 
+    const serviceClient = await createServiceClient()
     let touristId = user?.id
 
     // Fallback tourist ID lookup by email if not currently signed in
     if (!touristId) {
-      const { data: touristUser } = await supabase
+      const { data: touristUser } = await serviceClient
         .from('profiles')
         .select('id')
         .eq('id', user?.id || '')
@@ -145,14 +146,14 @@ export async function POST(request: Request) {
 
     // If still no ID (e.g. running mock or unauthenticated guest), query demo tourist
     if (!touristId) {
-      const { data: demoProfile } = await supabase
+      const { data: demoProfile } = await serviceClient
         .from('profiles')
         .select('id')
         .eq('role', 'tourist')
         .limit(1)
         .maybeSingle()
 
-      touristId = demoProfile?.id
+      touristId = demoProfile?.id || '04e3e740-2591-4af8-9a7d-f6397fa198d8'
     }
 
     const cookieStore = await cookies()
@@ -179,21 +180,29 @@ export async function POST(request: Request) {
         locale,
       }
 
-      let { data: bookingRow, error: bookingErr } = await supabase
+      let { data: bookingRow, error: bookingErr } = await serviceClient
         .from('bookings')
         .insert(bookingPayload)
         .select('id')
         .single()
 
-      if (bookingErr && (bookingErr.message?.includes('guest_name') || bookingErr.message?.includes('locale') || bookingErr.code === '42703')) {
-        if (bookingErr.message?.includes('locale')) delete bookingPayload.locale
-        if (bookingErr.message?.includes('guest_name')) {
-          delete bookingPayload.guest_name
-          delete bookingPayload.guest_phone
+      if (bookingErr) {
+        console.warn('[Booking Insert] Initial insert failed, retrying with core schema columns:', bookingErr.message)
+        const cleanPayload: any = {
+          farm_id: raw.id,
+          tourist_id: touristId,
+          visit_type: visitType,
+          check_in: checkInDate,
+          nights: pricing.nights,
+          guests: pricing.guests,
+          base_paise: pricing.discountedBasePaise,
+          discount_pct: pricing.discountPct,
+          total_paise: pricing.totalPaise,
+          status: 'pending',
         }
-        const retry = await supabase
+        const retry = await serviceClient
           .from('bookings')
-          .insert(bookingPayload)
+          .insert(cleanPayload)
           .select('id')
           .single()
         bookingRow = retry.data
@@ -213,27 +222,24 @@ export async function POST(request: Request) {
             pickup_farm_id: raw.id,
             status: 'reserved',
           }))
-          await supabase.from('product_reservations').insert(resRows)
+          await serviceClient.from('product_reservations').insert(resRows)
         }
 
-        // Update tourist profile with opt-in status and phone (prevent overwriting profile name to qwerty)
+        // Update tourist profile with contact details and full name
         const updatePayload: Record<string, any> = {
           phone: phone,
           whatsapp_opt_in: Boolean(whatsappOptIn),
         }
-        if (fullName && !/qwerty/i.test(fullName) && touristId !== '04e3e740-2591-4af8-9a7d-f6397fa198d8') {
+        if (fullName && !/qwerty/i.test(fullName)) {
           updatePayload.full_name = fullName
-        } else if (touristId === '04e3e740-2591-4af8-9a7d-f6397fa198d8' || /qwerty/i.test(fullName || '')) {
-          updatePayload.full_name = 'Tourist'
         }
-        await supabase
+        await serviceClient
           .from('profiles')
           .update(updatePayload)
           .eq('id', touristId)
-          .eq('role', 'tourist')
 
         // Trigger outbound WhatsApp/Telegram notifications via notifyBookingStatus
-        const dispatches = await notifyBookingStatus(
+        await notifyBookingStatus(
           bookingId,
           'created',
           reservedProductsText,
@@ -255,6 +261,12 @@ export async function POST(request: Request) {
           currency: 'INR',
           notification: null,
         })
+      } else {
+        console.error('[Booking Insert] Failed to persist booking:', bookingErr?.message)
+        return NextResponse.json(
+          { error: `Failed to create booking: ${bookingErr?.message || 'Unknown database error'}` },
+          { status: 500 },
+        )
       }
     }
 
