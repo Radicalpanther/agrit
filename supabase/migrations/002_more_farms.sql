@@ -4,6 +4,9 @@
 -- Does NOT touch or overwrite existing farm records.
 -- ==============================================================================
 
+-- Ensure published column exists on farms (from migration 001)
+alter table farms add column if not exists published boolean not null default true;
+
 do $$
 declare
   v_farmer_id uuid;
