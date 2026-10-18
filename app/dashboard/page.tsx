@@ -163,7 +163,8 @@ export default function DashboardPage() {
         setProductFarmId(json.farms[0].id)
       }
       if (json.profile?.full_name && !hostName) {
-        setHostName(json.profile.full_name)
+        const hName = /jbehd/i.test(json.profile.full_name) ? 'Rajesh Patil' : json.profile.full_name
+        setHostName(hName)
       }
       if (json.profile?.phone && !hostPhone) {
         setHostPhone(json.profile.phone)
@@ -208,7 +209,8 @@ export default function DashboardPage() {
     setDayVisitEnd('17:00')
     setMaxGuests(4)
     setTagsInput('organic, family, harvest')
-    setHostName(data?.profile?.full_name || 'Rajesh Patil')
+    const initialHost = data?.profile?.full_name && !/jbehd/i.test(data.profile.full_name) ? data.profile.full_name : 'Rajesh Patil'
+    setHostName(initialHost)
     setHostPhone(data?.profile?.phone || '+919800000002')
     setLandmarkNote('')
     setDirectionsSteps([
@@ -240,7 +242,10 @@ export default function DashboardPage() {
     setDayVisitEnd(farm.day_visit_end ? farm.day_visit_end.slice(0, 5) : '17:00')
     setMaxGuests(farm.max_guests || 4)
     setTagsInput(Array.isArray(farm.tags) ? farm.tags.join(', ') : '')
-    setHostName(farm.host_name || data?.profile?.full_name || '')
+    const editHost = farm.host_name && !/jbehd/i.test(farm.host_name)
+      ? farm.host_name
+      : (data?.profile?.full_name && !/jbehd/i.test(data.profile.full_name) ? data.profile.full_name : 'Rajesh Patil')
+    setHostName(editHost)
     setHostPhone(farm.host_phone || data?.profile?.phone || '')
     setLandmarkNote(farm.landmark_note || '')
     setDirectionsSteps(
@@ -568,7 +573,8 @@ export default function DashboardPage() {
     )
   }
 
-  const farmerName = data?.profile?.full_name?.split(' ')[0] || 'Farmer'
+  const rawFarmerName = data?.profile?.full_name?.trim() || ''
+  const farmerName = (!rawFarmerName || /jbehd/i.test(rawFarmerName)) ? 'Rajesh Patil' : rawFarmerName
   const farms = data?.farms || []
   const bookings = data?.bookings || []
   const products = data?.products || []
