@@ -231,8 +231,16 @@ export function SearchBar() {
     router.push(queryString ? `/explore?${queryString}` : '/explore')
   }
 
-  // Find human label of selected experience
-  const selectedExpObj = EXPERIENCES.find((e) => e.value === experienceValue)
+  // Filter experiences when typing in the experience box
+  const filteredExperiences = experienceValue.trim()
+    ? EXPERIENCES.filter(
+        (exp) =>
+          exp.label.toLowerCase().includes(experienceValue.toLowerCase()) ||
+          exp.value.toLowerCase().includes(experienceValue.toLowerCase()) ||
+          exp.desc.toLowerCase().includes(experienceValue.toLowerCase()) ||
+          exp.category.toLowerCase().includes(experienceValue.toLowerCase()),
+      )
+    : EXPERIENCES
 
   return (
     <div className="search-wrap" style={{ position: 'relative', zIndex: 40 }}>
@@ -244,7 +252,7 @@ export function SearchBar() {
           ref={whereRef}
           style={{ position: 'relative', cursor: 'pointer' }}
           onClick={() => {
-            setWhereOpen(true)
+            setWhereOpen((prev) => !prev)
             setWhenOpen(false)
             setExperienceOpen(false)
           }}
@@ -256,11 +264,18 @@ export function SearchBar() {
               name="where"
               placeholder="Himachal, Kashmir, Coorg, Assam..."
               value={whereValue}
-              onChange={(e) => setWhereValue(e.target.value)}
+              onChange={(e) => {
+                setWhereValue(e.target.value)
+                setWhereOpen(true)
+              }}
               onFocus={() => {
                 setWhereOpen(true)
                 setWhenOpen(false)
                 setExperienceOpen(false)
+              }}
+              onClick={(e) => {
+                e.stopPropagation()
+                setWhereOpen(true)
               }}
               autoComplete="off"
             />
@@ -304,6 +319,7 @@ export function SearchBar() {
                 zIndex: 100,
                 cursor: 'default',
               }}
+              onMouseDown={(e) => e.stopPropagation()}
               onClick={(e) => e.stopPropagation()}
             >
               <div
@@ -423,7 +439,7 @@ export function SearchBar() {
           ref={whenRef}
           style={{ position: 'relative', cursor: 'pointer' }}
           onClick={() => {
-            setWhenOpen(true)
+            setWhenOpen((prev) => !prev)
             setWhereOpen(false)
             setExperienceOpen(false)
           }}
@@ -435,11 +451,18 @@ export function SearchBar() {
               name="when"
               placeholder="Any date, month or season"
               value={whenValue}
-              onChange={(e) => setWhenValue(e.target.value)}
+              onChange={(e) => {
+                setWhenValue(e.target.value)
+                setWhenOpen(true)
+              }}
               onFocus={() => {
                 setWhenOpen(true)
                 setWhereOpen(false)
                 setExperienceOpen(false)
+              }}
+              onClick={(e) => {
+                e.stopPropagation()
+                setWhenOpen(true)
               }}
               autoComplete="off"
             />
@@ -483,6 +506,7 @@ export function SearchBar() {
                 zIndex: 100,
                 cursor: 'default',
               }}
+              onMouseDown={(e) => e.stopPropagation()}
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header with Switcher Tabs */}
@@ -801,70 +825,65 @@ export function SearchBar() {
           ref={experienceRef}
           style={{ position: 'relative', cursor: 'pointer' }}
           onClick={() => {
-            setExperienceOpen(true)
+            setExperienceOpen((prev) => !prev)
             setWhereOpen(false)
             setWhenOpen(false)
           }}
         >
           <Compass size={18} />
           <span>Experience</span>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              width: '100%',
-              marginTop: '3px',
-            }}
-          >
-            <span
-              style={{
-                fontSize: '13px',
-                color: selectedExpObj ? 'var(--ink)' : 'var(--muted)',
-                fontWeight: selectedExpObj ? 700 : 400,
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                paddingRight: '6px',
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <input
+              name="experience"
+              placeholder="Any activity or stay"
+              value={experienceValue}
+              onChange={(e) => {
+                setExperienceValue(e.target.value)
+                setExperienceOpen(true)
               }}
-            >
-              {selectedExpObj ? selectedExpObj.label : 'Any activity'}
-            </span>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              {experienceValue && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setExperienceValue('')
-                  }}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    padding: '2px',
-                    color: 'var(--muted)',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                  }}
-                  aria-label="Clear activity"
-                >
-                  <X size={14} />
-                </button>
-              )}
-              <ChevronDown
-                size={15}
-                style={{
-                  color: 'var(--muted)',
-                  transform: experienceOpen ? 'rotate(180deg)' : 'none',
-                  transition: 'transform 0.2s ease',
+              onFocus={() => {
+                setExperienceOpen(true)
+                setWhereOpen(false)
+                setWhenOpen(false)
+              }}
+              onClick={(e) => {
+                e.stopPropagation()
+                setExperienceOpen(true)
+              }}
+              autoComplete="off"
+            />
+            {experienceValue && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setExperienceValue('')
                 }}
-              />
-            </div>
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  padding: '2px',
+                  color: 'var(--muted)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+                aria-label="Clear activity"
+              >
+                <X size={14} />
+              </button>
+            )}
+            <ChevronDown
+              size={15}
+              style={{
+                color: 'var(--muted)',
+                transform: experienceOpen ? 'rotate(180deg)' : 'none',
+                transition: 'transform 0.2s ease',
+                flexShrink: 0,
+                pointerEvents: 'none',
+              }}
+            />
           </div>
-
-          <input type="hidden" name="experience" value={experienceValue} />
 
           {/* EXPERIENCE CUSTOM POPUP */}
           {experienceOpen && (
@@ -872,7 +891,7 @@ export function SearchBar() {
               style={{
                 position: 'absolute',
                 top: 'calc(100% + 8px)',
-                right: 0,
+                left: 0,
                 width: 'min(410px, 92vw)',
                 maxHeight: '380px',
                 overflowY: 'auto',
@@ -883,6 +902,7 @@ export function SearchBar() {
                 zIndex: 100,
                 cursor: 'default',
               }}
+              onMouseDown={(e) => e.stopPropagation()}
               onClick={(e) => e.stopPropagation()}
             >
               <div
@@ -932,15 +952,17 @@ export function SearchBar() {
                   gap: '8px',
                 }}
               >
-                {EXPERIENCES.map((exp) => {
-                  const isSelected = experienceValue === exp.value
+                {filteredExperiences.map((exp) => {
+                  const isSelected =
+                    experienceValue.toLowerCase() === exp.label.toLowerCase() ||
+                    experienceValue.toLowerCase() === exp.value.toLowerCase()
 
                   return (
                     <button
                       key={exp.value}
                       type="button"
                       onClick={() => {
-                        setExperienceValue(exp.value)
+                        setExperienceValue(exp.label)
                         setExperienceOpen(false)
                       }}
                       style={{
@@ -1010,6 +1032,29 @@ export function SearchBar() {
                   )
                 })}
               </div>
+
+              {filteredExperiences.length === 0 && (
+                <div
+                  style={{
+                    padding: '18px 10px',
+                    textAlign: 'center',
+                    color: 'var(--muted)',
+                    fontSize: '12px',
+                  }}
+                >
+                  No curated activity found for &quot;{experienceValue}&quot;
+                  <div
+                    style={{
+                      fontSize: '11px',
+                      color: 'var(--forest)',
+                      fontWeight: 600,
+                      marginTop: '4px',
+                    }}
+                  >
+                    Click &quot;Search farms&quot; to search all listings!
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </label>
