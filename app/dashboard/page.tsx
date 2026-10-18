@@ -21,6 +21,8 @@ import {
   Sparkles,
   Info,
   Compass,
+  Upload,
+  Image as ImageIcon,
 } from 'lucide-react'
 import { formatRupees } from '@/lib/money'
 import { LocationPicker } from '@/components/LocationPicker'
@@ -98,6 +100,9 @@ export default function DashboardPage() {
   const [imageUrl, setImageUrl] = useState(
     'https://i.ibb.co/CsKRHJv0/images.jpg',
   )
+  const [galleryImages, setGalleryImages] = useState<string[]>([])
+  const [additionalImageUrl, setAdditionalImageUrl] = useState('')
+  const [isUploadingImages, setIsUploadingImages] = useState(false)
   const [lat, setLat] = useState(17.0016)
   const [lng, setLng] = useState(73.312)
   const [published, setPublished] = useState(true)
@@ -208,9 +213,9 @@ export default function DashboardPage() {
       'Follow hand-painted farm stay signboard at the crossroad',
     ])
     setSelectedCropIds([])
-    setImageUrl(
-      'https://i.ibb.co/CsKRHJv0/images.jpg',
-    )
+    setImageUrl('https://i.ibb.co/CsKRHJv0/images.jpg')
+    setGalleryImages(['https://i.ibb.co/CsKRHJv0/images.jpg'])
+    setAdditionalImageUrl('')
     setLat(17.0016)
     setLng(73.312)
     setPublished(true)
@@ -244,12 +249,84 @@ export default function DashboardPage() {
       ? farm.crops.map((fc: any) => fc.crop?.id || fc.crop_id).filter(Boolean)
       : []
     setSelectedCropIds(existingCropIds)
-    setImageUrl(farm.image_url || '')
+    const farmPrimaryImage = farm.image_url || ''
+    setImageUrl(farmPrimaryImage)
+    const existingImgs: string[] = Array.isArray(farm.images) && farm.images.length > 0
+      ? farm.images
+      : (farmPrimaryImage ? [farmPrimaryImage] : [])
+    setGalleryImages(existingImgs)
+    setAdditionalImageUrl('')
     setLat(Number(farm.lat) || 17.0016)
     setLng(Number(farm.lng) || 73.312)
     setPublished(farm.published !== false)
     setListingFormError(null)
     setIsListingModalOpen(true)
+  }
+
+  // Handle uploading multiple image files via FileReader
+  const handleMultipleFilesUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+    setIsUploadingImages(true)
+    const fileList = Array.from(files)
+    let processed = 0
+    const loadedDataUrls: string[] = []
+
+    fileList.forEach((file) => {
+      const reader = new FileReader()
+      reader.onload = (event) => {
+        const result = event.target?.result as string
+        if (result) loadedDataUrls.push(result)
+        processed++
+        if (processed === fileList.length) {
+          setGalleryImages((prev) => {
+            const updated = [...prev, ...loadedDataUrls]
+            if (!imageUrl && updated.length > 0) {
+              setImageUrl(updated[0])
+            }
+            return updated
+          })
+          setIsUploadingImages(false)
+        }
+      }
+      reader.onerror = () => {
+        processed++
+        if (processed === fileList.length) {
+          setGalleryImages((prev) => [...prev, ...loadedDataUrls])
+          setIsUploadingImages(false)
+        }
+      }
+      reader.readAsDataURL(file)
+    })
+    e.target.value = ''
+  }
+
+  // Handle adding an image URL to gallery
+  const handleAddImageUrl = () => {
+    const trimmed = additionalImageUrl.trim()
+    if (!trimmed) return
+    const formatted = trimmed.includes('ibb.co/R4TRDhPH')
+      ? 'https://i.ibb.co/CsKRHJv0/images.jpg'
+      : trimmed
+    if (!galleryImages.includes(formatted)) {
+      setGalleryImages((prev) => {
+        const updated = [...prev, formatted]
+        if (!imageUrl) setImageUrl(formatted)
+        return updated
+      })
+    }
+    setAdditionalImageUrl('')
+  }
+
+  // Handle removing an image from gallery
+  const handleRemoveGalleryImage = (indexToRemove: number) => {
+    setGalleryImages((prev) => {
+      const updated = prev.filter((_, idx) => idx !== indexToRemove)
+      if (imageUrl === prev[indexToRemove] && updated.length > 0) {
+        setImageUrl(updated[0])
+      }
+      return updated
+    })
   }
 
   // Handle Save Listing (Create / Update)
@@ -266,6 +343,14 @@ export default function DashboardPage() {
     const cleanSteps = directionsSteps
       .map((s) => s.trim())
       .filter((s) => s.length > 0)
+
+    const effectiveImageUrl = imageUrl.trim().includes('ibb.co/R4TRDhPH')
+      ? 'https://i.ibb.co/CsKRHJv0/images.jpg'
+      : (imageUrl.trim() || galleryImages[0] || 'https://i.ibb.co/CsKRHJv0/images.jpg')
+
+    const cleanGallery = Array.from(
+      new Set([effectiveImageUrl, ...galleryImages].filter(Boolean)),
+    )
 
     const payload = {
       name: name.trim(),
@@ -284,9 +369,8 @@ export default function DashboardPage() {
       landmarkNote: landmarkNote.trim(),
       directionsSteps: cleanSteps,
       cropIds: selectedCropIds,
-      imageUrl: imageUrl.trim().includes('ibb.co/R4TRDhPH')
-        ? 'https://i.ibb.co/CsKRHJv0/images.jpg'
-        : imageUrl.trim(),
+      imageUrl: effectiveImageUrl,
+      images: cleanGallery,
       lat: Number(lat),
       lng: Number(lng),
       published,
@@ -1414,18 +1498,213 @@ export default function DashboardPage() {
                 </label>
               </div>
 
-              {/* Photo URL */}
-              <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'flex', flexDirection: 'column', gap: '5px', marginBottom: '14px' }}>
-                Photo image URL *
-                <input
-                  required
-                  type="url"
-                  value={imageUrl}
-                  onChange={(e) => setImageUrl(e.target.value)}
-                  placeholder="https://images.unsplash.com/..."
-                  style={{ border: '1px solid var(--line)', padding: '9px 11px', fontSize: '13px' }}
-                />
-              </label>
+              {/* Photo & Multi-Image Gallery */}
+              <div style={{ border: '1px solid var(--line)', background: '#fafbfa', padding: '14px', marginBottom: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink)' }}>
+                    Farm photos & gallery ({galleryImages.length} photo{galleryImages.length === 1 ? '' : 's'})
+                  </label>
+                  <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
+                    First photo or selected cover is shown as primary
+                  </span>
+                </div>
+
+                {/* Primary Cover Image URL */}
+                <label style={{ fontSize: '11px', color: 'var(--muted)', display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '10px' }}>
+                  Primary cover image URL *
+                  <input
+                    required
+                    type="url"
+                    value={imageUrl}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      setImageUrl(val)
+                      if (val && !galleryImages.includes(val)) {
+                        setGalleryImages((prev) => [val, ...prev])
+                      }
+                    }}
+                    placeholder="https://..."
+                    style={{ border: '1px solid var(--line)', padding: '8px 10px', fontSize: '12px', background: '#fff' }}
+                  />
+                </label>
+
+                {/* Multi-image file uploader & URL adder */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
+                  <div>
+                    <input
+                      type="file"
+                      id="farm-multi-image-upload"
+                      multiple
+                      accept="image/*"
+                      style={{ display: 'none' }}
+                      onChange={handleMultipleFilesUpload}
+                    />
+                    <label
+                      htmlFor="farm-multi-image-upload"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        border: '1px dashed var(--line)',
+                        background: '#ffffff',
+                        padding: '9px 12px',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        color: 'var(--forest)',
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                        height: '100%',
+                      }}
+                    >
+                      <Upload size={14} />
+                      {isUploadingImages ? 'Reading files...' : 'Upload multiple photos'}
+                    </label>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <input
+                      type="url"
+                      value={additionalImageUrl}
+                      onChange={(e) => setAdditionalImageUrl(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          handleAddImageUrl()
+                        }
+                      }}
+                      placeholder="Or paste image URL"
+                      style={{ flex: 1, border: '1px solid var(--line)', padding: '8px 10px', fontSize: '12px', background: '#fff' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddImageUrl}
+                      style={{
+                        background: 'var(--forest)',
+                        color: '#fff',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        padding: '0 12px',
+                        border: 'none',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      + Add
+                    </button>
+                  </div>
+                </div>
+
+                {/* Image thumbnails preview strip */}
+                {galleryImages.length > 0 && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      gap: '8px',
+                      padding: '8px',
+                      background: '#ffffff',
+                      border: '1px solid var(--line)',
+                      maxHeight: '180px',
+                      overflowY: 'auto',
+                    }}
+                  >
+                    {galleryImages.map((imgSrc, idx) => {
+                      const isCover = imgSrc === imageUrl
+                      return (
+                        <div
+                          key={idx}
+                          style={{
+                            position: 'relative',
+                            width: '74px',
+                            height: '74px',
+                            border: isCover ? '2px solid var(--forest)' : '1px solid var(--line)',
+                            background: '#f4f6f2',
+                            flexShrink: 0,
+                          }}
+                        >
+                          {/* Thumbnail preview */}
+                          <img
+                            src={imgSrc}
+                            alt={`Farm preview ${idx + 1}`}
+                            style={{
+                              width: '100%',
+                              height: '100%',
+                              objectFit: 'cover',
+                              display: 'block',
+                            }}
+                          />
+
+                          {/* Cover badge */}
+                          {isCover ? (
+                            <span
+                              style={{
+                                position: 'absolute',
+                                bottom: 0,
+                                left: 0,
+                                right: 0,
+                                background: 'var(--forest)',
+                                color: '#fff',
+                                fontSize: '9px',
+                                fontWeight: 700,
+                                textAlign: 'center',
+                                padding: '1px 0',
+                                textTransform: 'uppercase',
+                              }}
+                            >
+                              Cover
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setImageUrl(imgSrc)}
+                              title="Set as primary cover"
+                              style={{
+                                position: 'absolute',
+                                bottom: 0,
+                                left: 0,
+                                right: 0,
+                                background: 'rgba(0,0,0,0.65)',
+                                color: '#fff',
+                                fontSize: '9px',
+                                border: 'none',
+                                cursor: 'pointer',
+                                padding: '2px 0',
+                                textAlign: 'center',
+                              }}
+                            >
+                              Set cover
+                            </button>
+                          )}
+
+                          {/* Delete image button */}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveGalleryImage(idx)}
+                            title="Remove photo"
+                            style={{
+                              position: 'absolute',
+                              top: 2,
+                              right: 2,
+                              width: '18px',
+                              height: '18px',
+                              background: '#c0392b',
+                              color: '#fff',
+                              border: 'none',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              padding: 0,
+                            }}
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
 
               {/* Directions steps */}
               <div style={{ marginBottom: '16px' }}>

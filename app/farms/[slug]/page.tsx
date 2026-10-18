@@ -135,6 +135,35 @@ export default async function FarmDetailPage({
       <div className="booking-photo">
         <FarmImage src={farm.image} alt={farm.name} />
       </div>
+      {Array.isArray(farm.images) && farm.images.length > 1 && (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(76px, 1fr))',
+            gap: '8px',
+            marginTop: '8px',
+            marginBottom: '14px',
+          }}
+        >
+          {farm.images.map((img: string, idx: number) => (
+            <div
+              key={idx}
+              style={{
+                height: '56px',
+                border: '1px solid var(--line)',
+                overflow: 'hidden',
+                background: 'var(--cream)',
+              }}
+            >
+              <FarmImage
+                src={img}
+                alt={`${farm.name} photo ${idx + 1}`}
+                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+              />
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="booking-copy">
         <p className="section-kicker">Your rural reset</p>

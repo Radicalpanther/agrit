@@ -71,6 +71,7 @@ export async function PUT(
       landmark_note: parsed.data.landmarkNote || '',
       directions_steps: parsed.data.directionsSteps,
       image_url: parsed.data.imageUrl,
+      images: parsed.data.images || [],
       lat: parsed.data.lat,
       lng: parsed.data.lng,
       published: parsed.data.published ?? true,
@@ -84,8 +85,9 @@ export async function PUT(
       .select('*')
       .single()
 
-    if (updateError && updateError.message?.includes('published')) {
-      delete updatePayload.published
+    if (updateError && (updateError.message?.includes('published') || updateError.message?.includes('images'))) {
+      if (updateError.message?.includes('published')) delete updatePayload.published
+      if (updateError.message?.includes('images')) delete updatePayload.images
       const retry = await serviceClient
         .from('farms')
         .update(updatePayload)

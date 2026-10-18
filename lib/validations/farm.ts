@@ -18,6 +18,7 @@ export const farmListingSchema = z.object({
   directionsSteps: z.array(z.string().trim()).default([]),
   cropIds: z.array(z.string().uuid()).default([]),
   imageUrl: z.string().trim().min(5, 'Valid image URL is required'),
+  images: z.array(z.string().trim()).default([]),
   lat: z.coerce.number().min(-90).max(90).default(18.5204),
   lng: z.coerce.number().min(-180).max(180).default(73.8567),
   published: z.boolean().default(true),

@@ -38,6 +38,7 @@ export function mapDbFarmToFarm(row: any): Farm {
     organicPct: row.organic_pct !== null && row.organic_pct !== undefined ? Number(row.organic_pct) : 85,
     hostName: row.host_name || 'Rajesh Patil',
     hostPhone: row.host_phone || '+919800000002',
+    images: Array.isArray(row.images) ? row.images : (row.image_url ? [row.image_url] : []),
   }
 }
 

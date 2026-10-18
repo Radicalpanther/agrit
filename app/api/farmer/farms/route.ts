@@ -84,6 +84,7 @@ export async function POST(request: Request) {
       landmark_note: parsed.data.landmarkNote || '',
       directions_steps: parsed.data.directionsSteps,
       image_url: parsed.data.imageUrl,
+      images: parsed.data.images || [],
       lat: parsed.data.lat,
       lng: parsed.data.lng,
       published: parsed.data.published ?? true,
@@ -91,7 +92,7 @@ export async function POST(request: Request) {
       organic_pct: 85,
     }
 
-    // Insert farm, handling optional published column gracefully if migration pending
+    // Insert farm, handling optional columns gracefully if migration pending
     let newFarm: any = null
     let { data: inserted, error: insertError } = await serviceClient
       .from('farms')
@@ -99,8 +100,9 @@ export async function POST(request: Request) {
       .select('*')
       .single()
 
-    if (insertError && insertError.message?.includes('published')) {
-      delete farmPayload.published
+    if (insertError && (insertError.message?.includes('published') || insertError.message?.includes('images'))) {
+      if (insertError.message?.includes('published')) delete farmPayload.published
+      if (insertError.message?.includes('images')) delete farmPayload.images
       const retry = await serviceClient
         .from('farms')
         .insert(farmPayload)
