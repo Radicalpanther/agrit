@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import {
@@ -18,6 +19,7 @@ import { VerifiedBadge } from '@/components/VerifiedBadge'
 import { EcoScore } from '@/components/EcoScore'
 import { FarmReviews } from '@/components/FarmReviews'
 import { FarmImage } from '@/components/FarmImage'
+import { FarmProductsBlock } from '@/components/FarmProductsBlock'
 
 export function generateStaticParams() {
   return getAllFarms().map((farm) => ({
@@ -131,42 +133,20 @@ export default async function FarmDetailPage({
 
             {/* Products from this farm */}
             {products.length > 0 && (
-              <div id="products" style={{ marginTop: '36px', borderTop: '1px solid var(--line)', paddingTop: '24px' }}>
-                <p className="section-kicker">Reserve and collect at the farm</p>
-                <h2 style={{ fontSize: '20px', letterSpacing: '-0.5px', margin: '4px 0 6px', color: 'var(--ink)' }}>
-                  Products from this farm
-                </h2>
-                <p style={{ fontSize: '12px', color: 'var(--muted)', margin: '0 0 16px' }}>
-                  Reserve fresh harvests to collect at the farm. Pay directly to the host family upon arrival.
-                </p>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
-                  {products.map((prod) => (
-                    <div
-                      key={prod.id}
-                      style={{
-                        border: '1px solid var(--line)',
-                        background: '#ffffff',
-                        padding: '12px 14px',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                      }}
-                    >
-                      <div>
-                        <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>
-                          {prod.name}
-                        </div>
-                        <div style={{ fontSize: '11px', color: 'var(--muted)' }}>
-                          {prod.unit} {prod.detail ? `· ${prod.detail}` : ''}
-                        </div>
-                      </div>
-                      <div style={{ fontWeight: 700, fontSize: '13px', color: 'var(--forest)' }}>
-                        {formatRupees(prod.price_paise)}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <Suspense
+                fallback={
+                  <div id="products" style={{ marginTop: '36px', scrollMarginTop: '90px', color: 'var(--muted)', fontSize: '12px' }}>
+                    Loading farm products...
+                  </div>
+                }
+              >
+                <FarmProductsBlock
+                  farmSlug={farm.slug}
+                  farmId={farm.id}
+                  farmName={farm.name}
+                  products={products}
+                />
+              </Suspense>
             )}
 
             {/* Nearby farms block within 15 km */}
@@ -181,8 +161,9 @@ export default async function FarmDetailPage({
                 </p>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
                   {nearbyProducts.map((prod) => (
-                    <div
+                    <Link
                       key={prod.id}
+                      href={`/farms/${prod.farm.slug}?product=${prod.id}#products`}
                       style={{
                         border: '1px solid var(--line)',
                         background: '#ffffff',
@@ -190,6 +171,15 @@ export default async function FarmDetailPage({
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center',
+                        textDecoration: 'none',
+                        color: 'inherit',
+                        transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = 'var(--forest)'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = 'var(--line)'
                       }}
                     >
                       <div>
@@ -200,10 +190,25 @@ export default async function FarmDetailPage({
                           {prod.unit} · {prod.farm.name} ({prod.farm.distanceKm} km away)
                         </div>
                       </div>
-                      <div style={{ fontWeight: 700, fontSize: '13px', color: 'var(--forest)' }}>
-                        {formatRupees(prod.pricePaise)}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ fontWeight: 700, fontSize: '13px', color: 'var(--forest)' }}>
+                          {formatRupees(prod.pricePaise)}
+                        </div>
+                        <span
+                          style={{
+                            background: 'var(--mint)',
+                            color: 'var(--forest)',
+                            fontSize: '10.5px',
+                            fontWeight: 700,
+                            padding: '4px 8px',
+                            borderRadius: '2px',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          Reserve &rarr;
+                        </span>
                       </div>
-                    </div>
+                    </Link>
                   ))}
                 </div>
               </div>

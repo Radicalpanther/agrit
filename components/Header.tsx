@@ -125,11 +125,11 @@ export function Header() {
         >
           Explore farms
         </Link>
-        <a href="/#harvest-calendar" onClick={() => setMenuOpen(false)}>
-          Seasonal harvest
-        </a>
         <a href="/#produce" onClick={() => setMenuOpen(false)}>
           Farm-fresh produce
+        </a>
+        <a href="/#harvest-calendar" onClick={() => setMenuOpen(false)}>
+          Seasonal harvest
         </a>
         <a href="/#story" onClick={() => setMenuOpen(false)}>
           About us

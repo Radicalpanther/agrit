@@ -228,10 +228,12 @@ export async function getFarmDetails({ slug }: GetFarmDetailsParams) {
         duration_min: a.duration_min,
       })),
       products: (farm.products || []).map((p: any) => ({
+        id: p.id,
         name: p.name,
         unit: p.unit,
         price_inr: Math.round(p.price_paise / 100),
         in_stock: p.stock > 0,
+        url: `/farms/${farm.slug}?product=${p.id}#products`,
       })),
       url: `/farms/${farm.slug}`,
     }

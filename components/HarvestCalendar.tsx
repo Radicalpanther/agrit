@@ -141,7 +141,7 @@ export function HarvestCalendar() {
     <section
       className="section"
       id="harvest-calendar"
-      style={{ paddingBottom: '90px' }}
+      style={{ paddingBottom: '90px', scrollMarginTop: '85px' }}
     >
       {/* Section Header */}
       <div style={{ marginBottom: '22px' }}>
