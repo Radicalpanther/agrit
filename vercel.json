@@ -1,5 +1,5 @@
 {
-  "installCommand": "pnpm install --ignore-dep-scripts",
+  "installCommand": "pnpm install --ignore-scripts",
   "crons": [
     {
       "path": "/api/cron/reminders",
