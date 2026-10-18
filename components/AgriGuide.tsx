@@ -178,18 +178,18 @@ export function AgriGuide() {
         aria-label={
           isOpen
             ? t('closeAriaLabel')
-            : 'Open AgriGuide chat, Ask the agri bot'
+            : 'Open AgriGuide chat, Ask the AgriBot!'
         }
         aria-expanded={isOpen}
         aria-controls="agriguide-chat-panel"
-        title="Ask the agri bot!"
+        title="Ask the AgriBot!"
       >
         {isOpen ? (
           <X size={20} strokeWidth={2.2} />
         ) : (
           <>
             <Bot size={18} strokeWidth={2.2} className="agriguide-launcher-icon" />
-            <span className="agriguide-launcher-label">Ask the agri bot!</span>
+            <span className="agriguide-launcher-label">Ask the AgriBot!</span>
           </>
         )}
       </button>
