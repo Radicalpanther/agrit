@@ -551,8 +551,12 @@ button { border:0; cursor:pointer; color:inherit; background:none; }
   }
   .print-break-inside-avoid,
   .arrival-times-box,
+  .arrival-schedule-box,
   .emergency-table-container,
-  .landmarks-milestones-box {
+  .emergency-protocol-box,
+  .landmarks-milestones-box,
+  .gps-coordinate-box,
+  .travel-safety-card-content > div {
     break-inside: avoid !important;
     page-break-inside: avoid !important;
   }

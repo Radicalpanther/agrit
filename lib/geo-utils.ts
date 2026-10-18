@@ -1,5 +1,3 @@
-import QRCode from 'qrcode'
-
 const CODE_ALPHABET = '23456789CFGHJMPQRVWX'
 
 /**
@@ -68,7 +66,6 @@ export function calculateEstimatedDeparture(
 ): string | null {
   if (!targetTimeStr || !driveTimeSeconds || driveTimeSeconds <= 0) return null
 
-  // Parse target time string (e.g. "09:00", "09:00:00", "12:00 PM", "1:30 PM")
   let targetHours = 9
   let targetMinutes = 0
 
@@ -85,14 +82,12 @@ export function calculateEstimatedDeparture(
   targetHours = h
   targetMinutes = m
 
-  // Drive time minutes + 30 min buffer
   const driveMinutes = Math.round(driveTimeSeconds / 60)
   const totalSubMinutes = driveMinutes + 30
 
-  let totalTargetMin = targetHours * 60 + targetMinutes
+  const totalTargetMin = targetHours * 60 + targetMinutes
   let departureMin = totalTargetMin - totalSubMinutes
 
-  // Handle midnight roll-over if needed
   if (departureMin < 0) {
     departureMin = (departureMin % 1440) + 1440
   }
@@ -104,108 +99,131 @@ export function calculateEstimatedDeparture(
   return `${pad(depH)}:${pad(depM)}`
 }
 
-/**
- * Client-side QR code generator as PNG Data URL.
- */
-export async function generateQrDataUrl(
-  text: string,
-  options?: { margin?: number; width?: number; darkColor?: string },
-): Promise<string> {
-  try {
-    return await QRCode.toDataURL(text, {
-      margin: options?.margin ?? 1,
-      width: options?.width ?? 240,
-      color: {
-        dark: options?.darkColor ?? '#17352b',
-        light: '#ffffff',
-      },
-      errorCorrectionLevel: 'M',
-    })
-  } catch (err) {
-    console.error('Failed to generate QR code:', err)
-    return ''
-  }
-}
-
-/**
- * Merges turn-by-turn road steps and farm curated landmarks into 4 to 8 milestones.
- */
-export function mergeRouteMilestones(
-  routeSteps: any[],
-  farmLandmarks: any[],
-  totalDistanceKm?: number,
-): Array<{
+export interface RouteMilestone {
   name: string
   type: string
   note?: string
   distance_from_origin_km?: number
   distance_km_to_farm?: number
-}> {
-  const result: Array<{
-    name: string
-    type: string
-    note?: string
-    distance_from_origin_km?: number
-    distance_km_to_farm?: number
-  }> = []
+  lat?: number
+  lng?: number
+  isNearFarm?: boolean
+}
 
+/**
+ * Merges turn-by-turn road steps and farm curated landmarks with strict filtering:
+ * Only major towns / cities and highway changes (NH/NE/SH/Expressway), >= 3 km,
+ * >= 10% spacing along the route, deduplicated highways, plus farm curated landmarks.
+ * If fewer than 2 qualify, returns an empty array.
+ */
+export function mergeRouteMilestones(
+  routeSteps: any[],
+  farmLandmarks: any[],
+  totalDistanceKm?: number,
+): RouteMilestone[] {
+  const result: RouteMilestone[] = []
   const totalKm = Number(totalDistanceKm) || 0
+  const minSpacing = Math.max(4, totalKm * 0.1)
 
-  // 1. Process farm curated landmarks
-  if (Array.isArray(farmLandmarks) && farmLandmarks.length > 0) {
-    farmLandmarks.forEach((lm) => {
-      const distToFarm =
-        typeof lm.distance_km_to_farm === 'number'
-          ? lm.distance_km_to_farm
-          : undefined
-      const distFromOrigin =
-        totalKm && distToFarm !== undefined ? Math.max(0, totalKm - distToFarm) : undefined
+  // 1. Process route steps
+  if (Array.isArray(routeSteps) && routeSteps.length > 0) {
+    let accumulatedMeters = 0
+    let lastRecordedKm = -minSpacing
+    const seenHighwayNames = new Set<string>()
+
+    for (const step of routeSteps) {
+      accumulatedMeters += step.distance || 0
+      const currentKm = accumulatedMeters / 1000
+
+      if ((step.distance || 0) < 3000) continue
+
+      const name = (step.name || '').trim()
+      const ref = (step.ref || '').trim()
+      const combined = `${ref} ${name}`.trim()
+      if (!combined) continue
+
+      if (
+        /flyover|bridge|junction|roundabout|service road|crossroad|ramp|toll|chowk|signal/i.test(
+          combined,
+        )
+      ) {
+        continue
+      }
+
+      const isHighway = /NH|NE|SH|Expressway|National Highway|State Highway/i.test(combined)
+      const hasNamedTown =
+        name.length > 2 &&
+        !/road|street|bypass|highway|expressway|corridor|route/i.test(name)
+
+      if (!isHighway && !hasNamedTown) continue
+
+      const highwayMatch = combined.match(/(?:NH|NE|SH|Expressway)[ -]?\d+/i)
+      const highwayKey = highwayMatch ? highwayMatch[0].toUpperCase() : ''
+      if (highwayKey && seenHighwayNames.has(highwayKey)) {
+        continue
+      }
+
+      if (currentKm - lastRecordedKm < minSpacing) {
+        continue
+      }
+
+      if (highwayKey) seenHighwayNames.add(highwayKey)
+      lastRecordedKm = currentKm
+
+      const label = ref ? (name ? `${ref} (${name})` : ref) : name
+      const stepLocation = step.maneuver?.location
+      const stepLng = Array.isArray(stepLocation) ? stepLocation[0] : undefined
+      const stepLat = Array.isArray(stepLocation) ? stepLocation[1] : undefined
 
       result.push({
-        name: lm.name,
-        type: lm.type || 'town',
-        note: lm.note || '',
-        distance_km_to_farm: distToFarm,
-        distance_from_origin_km: distFromOrigin ? Number(distFromOrigin.toFixed(1)) : undefined,
+        name: label,
+        type: isHighway ? 'highway_corridor' : 'town',
+        note: `${currentKm.toFixed(1)} km from start`,
+        distance_from_origin_km: Number(currentKm.toFixed(1)),
+        distance_km_to_farm: totalKm ? Math.max(0, Number((totalKm - currentKm).toFixed(1))) : undefined,
+        lat: stepLat,
+        lng: stepLng,
+      })
+
+      if (result.length >= 6) break
+    }
+  }
+
+  // 2. Process farm curated landmarks
+  if (Array.isArray(farmLandmarks) && farmLandmarks.length > 0) {
+    farmLandmarks.forEach((lm) => {
+      const name = (lm.name || '').trim()
+      if (!name) return
+
+      const dist =
+        typeof lm.distance_km_to_farm === 'number'
+          ? lm.distance_km_to_farm
+          : typeof lm.distance_km_to_farm === 'string' && lm.distance_km_to_farm.trim()
+          ? Number(lm.distance_km_to_farm)
+          : undefined
+
+      result.push({
+        name,
+        type: lm.type || 'landmark',
+        note: dist !== undefined ? `near farm (${dist} km to gate)` : 'near farm',
+        distance_km_to_farm: dist,
+        distance_from_origin_km:
+          totalKm && dist !== undefined ? Math.max(0, Number((totalKm - dist).toFixed(1))) : undefined,
+        isNearFarm: true,
       })
     })
   }
 
-  // 2. Extract highway refs or turn towns from route steps if available
-  if (Array.isArray(routeSteps) && routeSteps.length > 0) {
-    let accumulatedDistMeters = 0
-    routeSteps.forEach((step) => {
-      accumulatedDistMeters += step.distance || 0
-      const ref = step.ref || ''
-      const name = step.name || ''
-      if ((ref || name) && !result.some((r) => r.name.toLowerCase().includes(name.toLowerCase()))) {
-        const isHighway = /NH|SH|Expressway|National Highway|State Highway/i.test(ref || name)
-        if (isHighway || step.maneuver?.type === 'turn') {
-          const stepKm = Number((accumulatedDistMeters / 1000).toFixed(1))
-          const distToFarm = totalKm ? Math.max(0, Number((totalKm - stepKm).toFixed(1))) : undefined
-          result.push({
-            name: ref ? `${ref} (${name || 'Highway Corridor'})` : name,
-            type: isHighway ? 'highway_junction' : 'town',
-            note: step.maneuver?.instruction || 'Follow road signs',
-            distance_from_origin_km: stepKm,
-            distance_km_to_farm: distToFarm,
-          })
-        }
-      }
-    })
-  }
+  // If fewer than 2 qualify, hide the section
+  if (result.length < 2) return []
 
-  // Sort by distance from origin (or reverse distance to farm)
+  // Sort by distance from start
   result.sort((a, b) => {
     if (a.distance_from_origin_km !== undefined && b.distance_from_origin_km !== undefined) {
       return a.distance_from_origin_km - b.distance_from_origin_km
     }
-    if (a.distance_km_to_farm !== undefined && b.distance_km_to_farm !== undefined) {
-      return b.distance_km_to_farm - a.distance_km_to_farm
-    }
     return 0
   })
 
-  // Return a clean list of 4 to 8 milestones
-  return result.slice(0, 8)
+  return result
 }

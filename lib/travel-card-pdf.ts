@@ -1,12 +1,6 @@
 import { jsPDF } from 'jspdf'
-import {
-  encodePlusCode,
-  formatDms,
-  calculateEstimatedDeparture,
-  generateQrDataUrl,
-  mergeRouteMilestones,
-} from '@/lib/geo-utils'
-import { generateDualMaps } from '@/lib/pdf/map-capture'
+import { NOTO_SANS_BASE64 } from '@/lib/pdf/noto-font'
+import { formatDms } from '@/lib/geo-utils'
 
 export interface TravelCardPdfOptions {
   farm: {
@@ -25,7 +19,13 @@ export interface TravelCardPdfOptions {
     directionsSteps?: string[]
     landmark_note?: string | null
     landmarkNote?: string | null
-    landmarks?: any[]
+    landmarks?: Array<{
+      name: string
+      type?: string
+      note?: string
+      distance_km_to_farm?: number | string
+      [key: string]: any
+    }>
     nearby_services?: any
     nearbyServices?: any
     allows_day_visit?: boolean
@@ -39,7 +39,16 @@ export interface TravelCardPdfOptions {
     last_safe_arrival?: string | null
     host_contact_hours?: string | null
     rules?: string[]
-    activities?: any[]
+    activities?: Array<{
+      id?: string
+      name: string
+      duration_min?: number
+      sort_hint?: string
+      kind?: string
+      is_paid?: boolean
+      price_paise?: number
+      [key: string]: any
+    }>
     crops?: any[]
     [key: string]: any
   }
@@ -70,15 +79,598 @@ export interface TravelCardPdfOptions {
   } | null
 }
 
-/**
- * Redesigns and generates a complete, professional, 2-page A4 Travel Safety Card PDF.
- * Uses real selectable text, vector shapes, embedded QR codes, and clickable links.
- */
+// ============================================================================
+// FORMATTING HELPERS
+// ============================================================================
+
+export function format12HourTime(timeStr?: string | null): string {
+  if (!timeStr) return ''
+  const clean = timeStr.trim()
+  const m = clean.match(/^(\d{1,2}):(\d{2})(?::\d{2})?(?:\s*(AM|PM))?$/i)
+  if (!m) return clean
+  let h = parseInt(m[1], 10)
+  const min = m[2]
+  const ampm = m[3]?.toUpperCase()
+  if (ampm) {
+    return `${h}:${min} ${ampm}`
+  }
+  const period = h >= 12 ? 'PM' : 'AM'
+  if (h === 0) h = 12
+  else if (h > 12) h -= 12
+  return `${h}:${min} ${period}`
+}
+
+function parseTimeToMinutes(timeStr?: string | null): number | null {
+  if (!timeStr) return null
+  const m = timeStr.trim().match(/^(\d{1,2}):(\d{2})(?::\d{2})?(?:\s*(AM|PM))?$/i)
+  if (!m) return null
+  let h = parseInt(m[1], 10)
+  const min = parseInt(m[2], 10)
+  const ampm = m[3]?.toUpperCase()
+  if (ampm === 'PM' && h < 12) h += 12
+  if (ampm === 'AM' && h === 12) h = 0
+  return h * 60 + min
+}
+
+export function formatIstDate(dateStr?: string | null): string {
+  if (!dateStr) return 'Scheduled'
+  try {
+    const d = new Date(dateStr.includes('T') ? dateStr : `${dateStr}T12:00:00+05:30`)
+    if (isNaN(d.getTime())) return dateStr
+    return new Intl.DateTimeFormat('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    }).format(d)
+  } catch {
+    return dateStr
+  }
+}
+
+export function computeSuggestedDeparture(
+  checkInDateStr?: string | null,
+  gateReportTimeStr?: string | null,
+  driveTimeSeconds?: number | null,
+): string | null {
+  if (!checkInDateStr || !gateReportTimeStr || !driveTimeSeconds || driveTimeSeconds <= 0) {
+    return null
+  }
+
+  const cleanTime = gateReportTimeStr.trim()
+  const m = cleanTime.match(/^(\d{1,2}):(\d{2})/i)
+  if (!m) return null
+  let h = parseInt(m[1], 10)
+  const min = parseInt(m[2], 10)
+  if (/PM/i.test(cleanTime) && h < 12) h += 12
+  if (/AM/i.test(cleanTime) && h === 12) h = 0
+
+  const dateMatch = checkInDateStr.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  let visitDate: Date
+  if (dateMatch) {
+    const yr = parseInt(dateMatch[1], 10)
+    const mo = parseInt(dateMatch[2], 10) - 1
+    const dy = parseInt(dateMatch[3], 10)
+    visitDate = new Date(Date.UTC(yr, mo, dy, h - 5, min - 30))
+  } else {
+    visitDate = new Date(
+      `${checkInDateStr}T${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}:00+05:30`,
+    )
+  }
+
+  if (isNaN(visitDate.getTime())) return null
+
+  // Subtract drive time + 60 min safety buffer
+  const totalSubMs = (driveTimeSeconds + 3600) * 1000
+  const departureDate = new Date(visitDate.getTime() - totalSubMs)
+
+  // Omit line if departure moment is already in the past
+  if (departureDate.getTime() < Date.now()) {
+    return null
+  }
+
+  const timeStr = new Intl.DateTimeFormat('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  }).format(departureDate)
+
+  const dayStr = new Intl.DateTimeFormat('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  }).format(departureDate)
+
+  return `Latest suggested departure: ${timeStr}, ${dayStr} (estimate)`
+}
+
+function extractCoordinates(geometry: any): Array<[number, number]> {
+  if (!geometry) return []
+  if (Array.isArray(geometry)) {
+    return geometry
+      .map((pt: any): [number, number] | null => {
+        if (Array.isArray(pt) && pt.length >= 2) return [Number(pt[0]), Number(pt[1])]
+        if (pt && typeof pt.lat === 'number' && typeof pt.lng === 'number') {
+          return [pt.lat, pt.lng]
+        }
+        return null
+      })
+      .filter((p): p is [number, number] => p !== null)
+  }
+  if (geometry.type === 'LineString' && Array.isArray(geometry.coordinates)) {
+    // GeoJSON is [lng, lat] -> convert to [lat, lng]
+    return geometry.coordinates.map((coord: [number, number]) => [coord[1], coord[0]])
+  }
+  return []
+}
+
+// ============================================================================
+// MAJOR LANDMARKS FILTER
+// ============================================================================
+
+export interface MajorLandmark {
+  name: string
+  info: string
+  shortLabel: string
+  lat?: number
+  lng?: number
+  isNearFarm?: boolean
+}
+
+export function filterMajorLandmarks(
+  routeSteps: any[],
+  farmLandmarks: any[],
+  totalDistanceKm: number,
+): MajorLandmark[] {
+  const result: MajorLandmark[] = []
+  const totalKm = Number(totalDistanceKm) || 0
+  const minSpacing = Math.max(4, totalKm * 0.1) // 10% spacing rule
+
+  // 1. Filter route steps hard
+  if (Array.isArray(routeSteps) && routeSteps.length > 0) {
+    let accumulatedMeters = 0
+    let lastRecordedKm = -minSpacing
+    const seenHighwayNames = new Set<string>()
+
+    for (const step of routeSteps) {
+      accumulatedMeters += step.distance || 0
+      const currentKm = accumulatedMeters / 1000
+
+      // Ignore steps shorter than 3 km
+      if ((step.distance || 0) < 3000) continue
+
+      const name = (step.name || '').trim()
+      const ref = (step.ref || '').trim()
+      const combined = `${ref} ${name}`.trim()
+
+      if (!combined) continue
+
+      // Ignore flyovers, bridges, junctions, roundabouts, local roads, ramps
+      if (
+        /flyover|bridge|junction|roundabout|service road|crossroad|ramp|toll|chowk|signal/i.test(
+          combined,
+        )
+      ) {
+        continue
+      }
+
+      const isHighway = /NH|NE|SH|Expressway|National Highway|State Highway/i.test(combined)
+      const hasNamedTown =
+        name.length > 2 &&
+        !/road|street|bypass|highway|expressway|corridor|route/i.test(name)
+
+      if (!isHighway && !hasNamedTown) continue
+
+      // Deduplicate highway names
+      const highwayMatch = combined.match(/(?:NH|NE|SH|Expressway)[ -]?\d+/i)
+      const highwayKey = highwayMatch ? highwayMatch[0].toUpperCase() : ''
+      if (highwayKey && seenHighwayNames.has(highwayKey)) {
+        continue
+      }
+
+      // Enforce minimum spacing along route (10% of total distance)
+      if (currentKm - lastRecordedKm < minSpacing) {
+        continue
+      }
+
+      if (highwayKey) seenHighwayNames.add(highwayKey)
+      lastRecordedKm = currentKm
+
+      const label = ref ? (name ? `${ref} (${name})` : ref) : name
+      const shortLabel = ref || (name.length > 14 ? name.slice(0, 12) : name)
+      const stepLocation = step.maneuver?.location
+      const stepLng = Array.isArray(stepLocation) ? stepLocation[0] : undefined
+      const stepLat = Array.isArray(stepLocation) ? stepLocation[1] : undefined
+
+      result.push({
+        name: label,
+        shortLabel,
+        info: `${currentKm.toFixed(1)} km from start`,
+        lat: stepLat,
+        lng: stepLng,
+      })
+
+      if (result.length >= 6) break
+    }
+  }
+
+  // 2. Merge farm curated landmarks (marked 'near farm' with distance to farm)
+  if (Array.isArray(farmLandmarks) && farmLandmarks.length > 0) {
+    farmLandmarks.forEach((lm) => {
+      const name = (lm.name || '').trim()
+      if (!name) return
+
+      const dist =
+        typeof lm.distance_km_to_farm === 'number'
+          ? `${lm.distance_km_to_farm} km`
+          : lm.distance_km_to_farm
+          ? `${lm.distance_km_to_farm} km`
+          : ''
+
+      const infoText = dist ? `near farm (${dist} to gate)` : 'near farm'
+
+      result.push({
+        name,
+        shortLabel: name.length > 14 ? `${name.slice(0, 12)}…` : name,
+        info: infoText,
+        isNearFarm: true,
+      })
+    })
+  }
+
+  // If fewer than 2 qualify, hide section
+  if (result.length < 2) return []
+
+  return result
+}
+
+// ============================================================================
+// CURSOR-BASED FLOW LAYOUT ENGINE
+// ============================================================================
+
+class PdfFlowDoc {
+  doc: jsPDF
+  margin = 15 // mm
+  contentWidth = 180 // mm (210 - 30)
+  pageHeight = 297 // mm
+  maxY = 278 // mm (footer area starts at 283mm)
+  y = 15 // mm cursor
+
+  constructor() {
+    this.doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4',
+      compress: true,
+    })
+
+    try {
+      this.doc.addFileToVFS('NotoSans.ttf', NOTO_SANS_BASE64)
+      this.doc.addFont('NotoSans.ttf', 'NotoSans', 'normal')
+      this.doc.addFont('NotoSans.ttf', 'NotoSans', 'bold')
+      this.doc.setFont('NotoSans', 'normal')
+    } catch (e) {
+      console.warn('Failed to register NotoSans, using helvetica fallback', e)
+      this.doc.setFont('helvetica', 'normal')
+    }
+  }
+
+  ensureSpace(neededHeight: number) {
+    if (this.y + neededHeight > this.maxY) {
+      this.doc.addPage()
+      this.y = this.margin
+    }
+  }
+
+  sectionTitle(title: string, minFollowupHeight = 25) {
+    this.ensureSpace(3.2 + 4.6 + minFollowupHeight)
+    if (this.y > this.margin) {
+      this.y += 3.2 // Spacing before section
+    }
+    this.doc.setFont('NotoSans', 'bold')
+    this.doc.setFontSize(10.5)
+    this.doc.setTextColor(20, 50, 35) // #143223
+    this.doc.text(title.toUpperCase(), this.margin, this.y + 3.2)
+    this.y += 4.6
+  }
+
+  paragraph(
+    text: string,
+    options?: {
+      fontSize?: number
+      bold?: boolean
+      color?: [number, number, number]
+      lineHeight?: number
+      hangingIndent?: number
+      spacingAfter?: number
+    },
+  ) {
+    if (!text || !text.trim()) return
+    const fontSize = options?.fontSize ?? 9
+    const bold = options?.bold ?? false
+    const color = options?.color ?? [45, 55, 50]
+    const lineHeight = options?.lineHeight ?? 3.9
+    const hangingIndent = options?.hangingIndent ?? 0
+    const spacingAfter = options?.spacingAfter ?? 1.5
+
+    this.doc.setFont('NotoSans', bold ? 'bold' : 'normal')
+    this.doc.setFontSize(fontSize)
+    this.doc.setTextColor(...color)
+
+    const lines: string[] = this.doc.splitTextToSize(text, this.contentWidth - hangingIndent)
+    const needed = lines.length * lineHeight + spacingAfter
+
+    this.ensureSpace(needed)
+    lines.forEach((line, idx) => {
+      const x = this.margin + (idx > 0 ? hangingIndent : 0)
+      this.doc.text(line, x, this.y + fontSize * 0.3528)
+      this.y += lineHeight
+    })
+    this.y += spacingAfter
+  }
+
+  /**
+   * Draws a container box whose total height is strictly measured from contents.
+   */
+  drawBox(
+    builderFn: (box: BoxBuilder) => void,
+    options?: {
+      bg?: [number, number, number]
+      border?: [number, number, number]
+      padding?: number
+      spacingAfter?: number
+    },
+  ) {
+    const padding = options?.padding ?? 2.2
+    const spacingAfter = options?.spacingAfter ?? 2.2
+    const bg = options?.bg ?? [249, 251, 248]
+    const border = options?.border ?? [220, 228, 218]
+
+    const builder = new BoxBuilder(this.doc, this.contentWidth - padding * 2)
+    builderFn(builder)
+
+    const totalHeight = builder.computeHeight(padding)
+    this.ensureSpace(totalHeight + spacingAfter)
+
+    const boxTop = this.y
+
+    // Background & rounded border
+    this.doc.setFillColor(...bg)
+    this.doc.setDrawColor(...border)
+    this.doc.setLineWidth(0.35)
+    this.doc.roundedRect(this.margin, boxTop, this.contentWidth, totalHeight, 2, 2, 'FD')
+
+    // Render contents inside box
+    builder.render(this.margin + padding, boxTop + padding)
+
+    this.y = boxTop + totalHeight + spacingAfter
+  }
+
+  /**
+   * Draws a balanced two-column section
+   */
+  twoColumn(
+    col1Fn: (b: BoxBuilder) => void,
+    col2Fn: (b: BoxBuilder) => void,
+    options?: { gap?: number; spacingAfter?: number },
+  ) {
+    const gap = options?.gap ?? 5
+    const colWidth = (this.contentWidth - gap) / 2
+    const spacingAfter = options?.spacingAfter ?? 2.5
+
+    const b1 = new BoxBuilder(this.doc, colWidth)
+    const b2 = new BoxBuilder(this.doc, colWidth)
+
+    col1Fn(b1)
+    col2Fn(b2)
+
+    const h1 = b1.computeHeight(0)
+    const h2 = b2.computeHeight(0)
+    const maxH = Math.max(h1, h2)
+
+    this.ensureSpace(maxH + spacingAfter)
+
+    const topY = this.y
+    b1.render(this.margin, topY)
+    b2.render(this.margin + colWidth + gap, topY)
+
+    this.y = topY + maxH + spacingAfter
+  }
+}
+
+// ============================================================================
+// BOX BUILDER FOR PRECISE HEIGHT MEASUREMENT
+// ============================================================================
+
+interface BoxItem {
+  height: number
+  render: (doc: jsPDF, x: number, y: number, width: number) => void
+}
+
+class BoxBuilder {
+  doc: jsPDF
+  width: number
+  items: BoxItem[] = []
+
+  constructor(doc: jsPDF, width: number) {
+    this.doc = doc
+    this.width = width
+  }
+
+  addText(
+    text: string,
+    options?: {
+      fontSize?: number
+      bold?: boolean
+      color?: [number, number, number]
+      lineHeight?: number
+    },
+  ) {
+    if (!text || !text.trim()) return
+    const fontSize = options?.fontSize ?? 8.5
+    const bold = options?.bold ?? false
+    const color = options?.color ?? [45, 55, 50]
+    const lineHeight = options?.lineHeight ?? 3.8
+
+    this.doc.setFont('NotoSans', bold ? 'bold' : 'normal')
+    this.doc.setFontSize(fontSize)
+
+    const lines: string[] = this.doc.splitTextToSize(text, this.width)
+    const height = lines.length * lineHeight
+
+    this.items.push({
+      height,
+      render: (doc, x, y) => {
+        doc.setFont('NotoSans', bold ? 'bold' : 'normal')
+        doc.setFontSize(fontSize)
+        doc.setTextColor(...color)
+        lines.forEach((line, idx) => {
+          doc.text(line, x, y + idx * lineHeight + fontSize * 0.3528)
+        })
+      },
+    })
+  }
+
+  addKeyValue(
+    label: string,
+    value: string,
+    options?: {
+      labelWidth?: number
+      fontSize?: number
+      valueColor?: [number, number, number]
+    },
+  ) {
+    if (!value || !value.trim()) return
+    const fontSize = options?.fontSize ?? 8.5
+    const labelWidth = options?.labelWidth ?? 44
+    const valueColor = options?.valueColor ?? [40, 50, 45]
+    const valueWidth = this.width - labelWidth - 2
+
+    this.doc.setFont('NotoSans', 'normal')
+    this.doc.setFontSize(fontSize)
+
+    const lines: string[] = this.doc.splitTextToSize(value, valueWidth)
+    const lineHeight = 3.6
+    const height = Math.max(lines.length * lineHeight, 3.8)
+
+    this.items.push({
+      height,
+      render: (doc, x, y) => {
+        doc.setFont('NotoSans', 'bold')
+        doc.setFontSize(fontSize)
+        doc.setTextColor(20, 50, 35)
+        doc.text(label, x, y + fontSize * 0.3528)
+
+        doc.setFont('NotoSans', 'normal')
+        doc.setTextColor(...valueColor)
+        lines.forEach((line, idx) => {
+          doc.text(line, x + labelWidth, y + idx * lineHeight + fontSize * 0.3528)
+        })
+      },
+    })
+  }
+
+  addClickableButtonWithUrl(
+    buttonText: string,
+    url: string,
+    options?: {
+      isPrimary?: boolean
+      buttonHeight?: number
+    },
+  ) {
+    const isPrimary = options?.isPrimary ?? false
+    const buttonHeight = options?.buttonHeight ?? 6.5
+
+    this.doc.setFont('NotoSans', 'normal')
+    this.doc.setFontSize(8)
+    const urlLines: string[] = this.doc.splitTextToSize(url, this.width - 2)
+    const urlLineHeight = 3.2
+    const urlHeight = urlLines.length * urlLineHeight + 1.0
+
+    const totalHeight = buttonHeight + 1.0 + urlHeight
+
+    this.items.push({
+      height: totalHeight,
+      render: (doc, x, y, width) => {
+        // Draw Button Rectangle
+        if (isPrimary) {
+          doc.setFillColor(20, 50, 35)
+          doc.setDrawColor(20, 50, 35)
+          doc.roundedRect(x, y, width, buttonHeight, 1.5, 1.5, 'F')
+          doc.setTextColor(255, 255, 255)
+        } else {
+          doc.setFillColor(242, 247, 240)
+          doc.setDrawColor(180, 205, 178)
+          doc.setLineWidth(0.3)
+          doc.roundedRect(x, y, width, buttonHeight, 1.5, 1.5, 'FD')
+          doc.setTextColor(20, 50, 35)
+        }
+
+        doc.setFont('NotoSans', 'bold')
+        doc.setFontSize(8.5)
+        const btnTextWidth = doc.getTextWidth(buttonText)
+        doc.text(buttonText, x + (width - btnTextWidth) / 2, y + buttonHeight / 2 + 1.1)
+
+        // Real clickable link over full button rectangle
+        doc.link(x, y, width, buttonHeight, { url })
+
+        // URL printed beneath in small grey text
+        doc.setFont('NotoSans', 'normal')
+        doc.setFontSize(8)
+        doc.setTextColor(100, 105, 100)
+        urlLines.forEach((uLine, uIdx) => {
+          doc.text(uLine, x + 0.5, y + buttonHeight + 2.2 + uIdx * urlLineHeight)
+        })
+      },
+    })
+  }
+
+  addRawItem(
+    height: number,
+    renderFn: (doc: jsPDF, x: number, y: number, width: number) => void,
+  ) {
+    this.items.push({ height, render: renderFn })
+  }
+
+  itemSpacing = 1.2
+
+  computeHeight(padding: number): number {
+    if (this.items.length === 0) return padding * 2
+    const itemsSum = this.items.reduce((acc, it) => acc + it.height, 0)
+    const internalSpacing = (this.items.length - 1) * this.itemSpacing
+    return itemsSum + internalSpacing + padding * 2
+  }
+
+  render(startX: number, startY: number) {
+    let curY = startY
+    this.items.forEach((item) => {
+      item.render(this.doc, startX, curY, this.width)
+      curY += item.height + this.itemSpacing
+    })
+  }
+}
+
+// ============================================================================
+// MAIN GENERATOR FUNCTION
+// ============================================================================
+
 export async function generateTravelSafetyCardPdf(
   options: TravelCardPdfOptions,
 ): Promise<jsPDF> {
-  const { farm, bookingId, guestName, checkInDate, visitType, guests, bookingStatus, source, routeInfo } =
-    options
+  const {
+    farm,
+    bookingId,
+    guestName,
+    checkInDate,
+    visitType = 'day',
+    guests = 2,
+    bookingStatus = 'Confirmed',
+    source,
+    routeInfo,
+  } = options
 
   const destLat = Number(farm.lat) || 17.0016
   const destLng = Number(farm.lng) || 73.312
@@ -96,735 +688,733 @@ export async function generateTravelSafetyCardPdf(
       : ['Follow main road towards village', 'Look for AgriTrails wooden board at the gate']
 
   const landmarkNote = farm.landmark_note || farm.landmarkNote || null
-  const landmarks = Array.isArray(farm.landmarks) ? farm.landmarks : []
+  const farmLandmarks = Array.isArray(farm.landmarks) ? farm.landmarks : []
   const nearbyServices = farm.nearby_services || farm.nearbyServices || {}
 
-  // Coordinates
   const dms = formatDms(destLat, destLng)
-  const plusCode = encodePlusCode(destLat, destLng)
 
-  // Navigation URLs
   const directionsUrl = source
     ? `https://www.google.com/maps/dir/?api=1&origin=${source.lat},${source.lng}&destination=${destLat},${destLng}&travelmode=driving`
     : `https://www.google.com/maps/dir/?api=1&destination=${destLat},${destLng}&travelmode=driving`
 
   const destinationUrl = `https://www.google.com/maps/search/?api=1&query=${destLat},${destLng}`
-  const bookingRefShort = bookingId ? bookingId.slice(0, 8).toUpperCase() : 'CONFIRMED'
+  const bookingRefShort = bookingId
+    ? bookingId.replace(/-/g, '').slice(0, 8).toUpperCase()
+    : 'CONFIRMED'
 
-  // Pre-generate QR codes and Map images concurrently
-  const [directionsQr, destinationQr, bookingQr, dualMaps] = await Promise.all([
-    generateQrDataUrl(directionsUrl, { width: 180, margin: 1 }),
-    generateQrDataUrl(destinationUrl, { width: 180, margin: 1 }),
-    generateQrDataUrl(`https://agritrails.dev/farms/${farm.slug || ''}`, { width: 140, margin: 1 }),
-    generateDualMaps({
-      origin: source,
-      destination: { lat: destLat, lng: destLng, name: farmName },
-      routeGeometry: routeInfo?.geometry,
-      distanceKm: routeInfo?.distanceKm,
-      durationText: routeInfo?.durationText,
-    }),
-  ])
-
-  // Initialize jsPDF A4 portrait
-  const doc = new jsPDF({
-    orientation: 'portrait',
-    unit: 'pt',
-    format: 'a4',
-    compress: true,
-  })
-
-  const pageWidth = doc.internal.pageSize.getWidth() // 595.28 pt
-  const margin = 42
-  const contentWidth = pageWidth - margin * 2 // 511.28 pt
-
-  const nowFormatted = new Intl.DateTimeFormat('en-IN', {
-    timeZone: 'Asia/Kolkata',
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(new Date())
+  // Initialize Layout Engine
+  const flow = new PdfFlowDoc()
+  const doc = flow.doc
 
   // ============================================================================
-  // PAGE 1: HEADER, ARRIVAL SCHEDULE, NAVIGATION & MAPS
+  // 1. HEADER: Green Band & Farm Header
   // ============================================================================
+  const headerBandHeight = 12
+  doc.setFillColor(20, 50, 35) // #143223
+  doc.rect(flow.margin, flow.y, flow.contentWidth, headerBandHeight, 'F')
 
-  // 1. Top Green Header Band
-  let y = 36
-  doc.setFillColor(30, 58, 43) // Forest green #1e3a2b
-  doc.rect(margin, y, contentWidth, 42, 'F')
-
-  // AgriTrails Wordmark / Logo mark on Header
   doc.setTextColor(255, 255, 255)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(13)
-  doc.text('AGRITRAILS  TRAVEL & ROUTE MAP', margin + 14, y + 23)
+  doc.setFont('NotoSans', 'bold')
+  doc.setFontSize(10.5)
+  doc.text('AGRITRAILS TRAVEL AND ROUTE MAP', flow.margin + 5, flow.y + 5.2)
 
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8.5)
-  doc.setTextColor(215, 235, 222)
-  doc.text('OFFLINE RURAL ACCESS & EMERGENCY NAVIGATION - KEEP SAVED', margin + 14, y + 35)
+  doc.setFont('NotoSans', 'normal')
+  doc.setFontSize(8)
+  doc.setTextColor(205, 224, 213)
+  doc.text('Offline Rural Access & Practical Travel Guide', flow.margin + 5, flow.y + 9.5)
 
-  y += 50 // Advance with generous space to prevent any overlap
+  flow.y += headerBandHeight + 4 // 4mm gap
 
-  // 2. Farm Name, Location & Verified Tag
-  doc.setTextColor(23, 53, 43)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(16)
-  const splitTitle = doc.splitTextToSize(farmName, contentWidth - 110)
-  doc.text(splitTitle, margin, y + 4)
+  // Farm Name, Location & Verified Tag
+  doc.setFont('NotoSans', 'bold')
+  doc.setFontSize(18)
+  doc.setTextColor(20, 50, 35)
 
-  // Verified Badge on Right
-  const badgeX = pageWidth - margin - 105
+  const nameLines = doc.splitTextToSize(farmName, flow.contentWidth - 46)
+  doc.text(nameLines, flow.margin, flow.y + 5.5)
+
+  // Verified Tag on the right, inside the margin
+  const tagWidth = 38
+  const tagHeight = 6
+  const tagX = flow.margin + flow.contentWidth - tagWidth
+  const tagY = flow.y + 0.5
+
   doc.setFillColor(232, 244, 235)
-  doc.roundedRect(badgeX, y - 8, 105, 18, 3, 3, 'F')
-  doc.setTextColor(30, 85, 55)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8.5)
-  doc.text('VERIFIED BY AGRITRAILS', badgeX + 7, y + 4)
+  doc.setDrawColor(184, 220, 191)
+  doc.setLineWidth(0.3)
+  doc.roundedRect(tagX, tagY, tagWidth, tagHeight, 1.5, 1.5, 'FD')
+  doc.setFont('NotoSans', 'bold')
+  doc.setFontSize(8)
+  doc.setTextColor(20, 85, 43)
+  doc.text('Verified by AgriTrails', tagX + 3, tagY + 4.2)
 
-  y += splitTitle.length * 15 + 4
+  flow.y += nameLines.length * 6.5 + 1.0
 
   // Location line
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9.5)
-  doc.setTextColor(83, 104, 93)
-  doc.text(`${place} · ${region}`, margin, y)
-  y += 14
-
-  // 3. Booking Summary Strip
-  doc.setFillColor(248, 250, 246)
-  doc.setDrawColor(220, 228, 218)
-  doc.setLineWidth(0.8)
-  doc.roundedRect(margin, y, contentWidth, 36, 4, 4, 'FD')
-
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8.5)
-  doc.setTextColor(30, 58, 43)
-  doc.text('REF:', margin + 10, y + 14)
-  doc.setFont('courier', 'bold')
+  doc.setFont('NotoSans', 'normal')
   doc.setFontSize(9)
-  doc.text(bookingRefShort, margin + 35, y + 14)
-
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8.5)
-  doc.text('GUEST:', margin + 115, y + 14)
-  doc.setFont('helvetica', 'normal')
-  doc.text(guestName || 'Registered Guest', margin + 155, y + 14)
-
-  doc.setFont('helvetica', 'bold')
-  doc.text('VISIT:', margin + 270, y + 14)
-  doc.setFont('helvetica', 'normal')
-  doc.text(visitType === 'day' ? 'Day Visit' : 'Overnight Stay', margin + 305, y + 14)
-
-  doc.setFont('helvetica', 'bold')
-  doc.text('STATUS:', margin + 395, y + 14)
-  doc.setFont('helvetica', 'bold')
-  doc.setTextColor(bookingStatus === 'confirmed' ? 36 : 180, bookingStatus === 'confirmed' ? 120 : 100, 30)
-  doc.text((bookingStatus || 'CONFIRMED').toUpperCase(), margin + 440, y + 14)
-
-  // Second row of strip
   doc.setTextColor(83, 104, 93)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8.5)
-  doc.text('CHECK-IN DATE:', margin + 10, y + 28)
-  doc.setFont('helvetica', 'normal')
-  doc.text(checkInDate || 'Scheduled', margin + 85, y + 28)
+  doc.text(`${place} · ${region}`, flow.margin, flow.y + 2.5)
+  flow.y += 5
 
-  doc.setFont('helvetica', 'bold')
-  doc.text('GUESTS:', margin + 175, y + 28)
-  doc.setFont('helvetica', 'normal')
-  doc.text(`${guests || 2} Persons`, margin + 225, y + 28)
+  // ============================================================================
+  // 2. BOOKING SUMMARY: 2-Column Grid Box
+  // ============================================================================
+  flow.drawBox((box) => {
+    const colW = (box.width - 6) / 2
+    const statusColor: [number, number, number] =
+      bookingStatus.toLowerCase() === 'confirmed'
+        ? [24, 110, 48]
+        : bookingStatus.toLowerCase() === 'declined'
+        ? [180, 40, 40]
+        : [190, 100, 20]
 
-  if (bookingQr) {
-    doc.addImage(bookingQr, 'PNG', pageWidth - margin - 32, y + 3, 30, 30)
-  }
+    box.addRawItem(14, (d, x, y) => {
+      // Row 1: Ref & Guest
+      d.setFont('NotoSans', 'bold')
+      d.setFontSize(8.5)
+      d.setTextColor(20, 50, 35)
+      d.text('Reference:', x, y + 2.8)
+      d.setFont('NotoSans', 'bold')
+      d.setTextColor(40, 50, 45)
+      d.text(bookingRefShort, x + 22, y + 2.8)
 
-  y += 44
+      d.setFont('NotoSans', 'bold')
+      d.setTextColor(20, 50, 35)
+      d.text('Guest:', x + colW + 4, y + 2.8)
+      d.setFont('NotoSans', 'normal')
+      d.setTextColor(40, 50, 45)
+      d.text(guestName || 'Registered Guest', x + colW + 18, y + 2.8)
 
-  // 4. Section 1: ARRIVAL & REPORTING SCHEDULE (Prominent Box)
-  doc.setFillColor(251, 252, 249)
-  doc.setDrawColor(30, 58, 43)
-  doc.setLineWidth(1)
-  doc.roundedRect(margin, y, contentWidth, 54, 4, 4, 'FD')
+      // Row 2: Visit type & Check-in date
+      d.setFont('NotoSans', 'bold')
+      d.setTextColor(20, 50, 35)
+      d.text('Visit Type:', x, y + 7.4)
+      d.setFont('NotoSans', 'normal')
+      d.setTextColor(40, 50, 45)
+      d.text(visitType === 'day' ? 'Day Visit' : 'Overnight Stay', x + 22, y + 7.4)
 
-  doc.setFillColor(30, 58, 43)
-  doc.rect(margin + 10, y + 8, 3, 11, 'F')
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9)
-  doc.setTextColor(30, 58, 43)
-  doc.text('ARRIVAL & REPORTING SCHEDULE', margin + 18, y + 17)
+      d.setFont('NotoSans', 'bold')
+      d.setTextColor(20, 50, 35)
+      d.text('Date:', x + colW + 4, y + 7.4)
+      d.setFont('NotoSans', 'normal')
+      d.setTextColor(40, 50, 45)
+      d.text(formatIstDate(checkInDate), x + colW + 18, y + 7.4)
 
-  // Times row
-  const dayStart = farm.day_visit_start || farm.dayVisitStart || '09:00'
+      // Row 3: Guests & Status
+      d.setFont('NotoSans', 'bold')
+      d.setTextColor(20, 50, 35)
+      d.text('Guests:', x, y + 12.0)
+      d.setFont('NotoSans', 'normal')
+      d.setTextColor(40, 50, 45)
+      d.text(`${guests} Persons`, x + 22, y + 12.0)
+
+      d.setFont('NotoSans', 'bold')
+      d.setTextColor(20, 50, 35)
+      d.text('Status:', x + colW + 4, y + 12.0)
+      d.setFont('NotoSans', 'bold')
+      d.setTextColor(...statusColor)
+      d.text(bookingStatus.toUpperCase(), x + colW + 18, y + 12.0)
+    })
+  })
+
+  // ============================================================================
+  // 3. REPORTING TIMES BOX (Prominent)
+  // ============================================================================
+  const dayStart = farm.day_visit_start || farm.dayVisitStart || '09:30'
   const dayEnd = farm.day_visit_end || farm.dayVisitEnd || '17:00'
-  const checkInTime = farm.check_in_time || '12:00 PM'
-  const checkOutTime = farm.check_out_time || '10:00 AM'
-  const lastArrival = farm.last_safe_arrival || '06:00 PM (before dark)'
-  const hostHours = farm.host_contact_hours || '07:00 AM - 09:00 PM'
+  const checkInTime = farm.check_in_time || '1:00 PM'
+  const checkOutTime = farm.check_out_time || '11:00 AM'
+  const hostHours = farm.host_contact_hours || '7:00 AM - 9:00 PM'
 
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8.5)
-  doc.setTextColor(23, 53, 43)
+  // Gate report time
+  const gateReportBy =
+    visitType === 'day'
+      ? format12HourTime(dayStart)
+      : format12HourTime(checkInTime)
 
-  let scheduleText = ''
-  if (visitType === 'day') {
-    scheduleText = `Gate Report: ${dayStart}   ·   Day Visit Hours: ${dayStart} to ${dayEnd}   ·   Last Safe Arrival: ${lastArrival}`
-  } else {
-    scheduleText = `Overnight Check-in: ${checkInTime}   ·   Check-out: ${checkOutTime}   ·   Last Safe Arrival: ${lastArrival}`
+  // Visit hours or Check-in/Check-out
+  const hoursText =
+    visitType === 'day'
+      ? `${format12HourTime(dayStart)} - ${format12HourTime(dayEnd)}`
+      : `Check-in: ${format12HourTime(checkInTime)} | Check-out: ${format12HourTime(checkOutTime)}`
+
+  // Last safe arrival condition: only if stored and earlier than visit end time
+  let safeArrivalValid: string | null = null
+  if (farm.last_safe_arrival) {
+    const endMinutes = parseTimeToMinutes(visitType === 'day' ? dayEnd : checkOutTime)
+    const arrivalMinutes = parseTimeToMinutes(farm.last_safe_arrival)
+    if (endMinutes && arrivalMinutes && arrivalMinutes < endMinutes) {
+      safeArrivalValid = format12HourTime(farm.last_safe_arrival)
+    }
   }
-  doc.text(scheduleText, margin + 12, y + 32)
 
-  // "Plan to leave by HH:MM" suggestion with 30 min buffer
+  flow.drawBox(
+    (box) => {
+      box.addText('ARRIVAL & REPORTING SCHEDULE', {
+        bold: true,
+        fontSize: 9,
+        color: [20, 50, 35],
+      })
+      box.addKeyValue('Report at farm gate by:', gateReportBy, { labelWidth: 42 })
+      box.addKeyValue(
+        visitType === 'day' ? 'Day Visit Hours:' : 'Stay Timings:',
+        hoursText,
+        { labelWidth: 42 },
+      )
+      if (hostHours) {
+        box.addKeyValue('Host Reachable Hours:', hostHours, { labelWidth: 42 })
+      }
+      if (safeArrivalValid) {
+        box.addKeyValue('Last Safe Arrival:', `${safeArrivalValid} (before dark)`, {
+          labelWidth: 42,
+        })
+      }
+    },
+    { bg: [251, 252, 249], border: [20, 50, 35] },
+  )
+
+  // ============================================================================
+  // 4. NAVIGATION BOX: Farm Gate GPS & Clickable Buttons
+  // ============================================================================
+  flow.drawBox((box) => {
+    box.addText('FARM GATE NAVIGATION & COORDINATES', {
+      bold: true,
+      fontSize: 9,
+      color: [20, 50, 35],
+    })
+    box.addKeyValue(
+      'GPS Coordinates:',
+      `${destLat.toFixed(6)}° N, ${destLng.toFixed(6)}° E  (DMS: ${dms.text})`,
+      { labelWidth: 32 },
+    )
+
+    box.addClickableButtonWithUrl('Open route in Google Maps', directionsUrl, {
+      isPrimary: true,
+      buttonHeight: 6.2,
+    })
+    box.addClickableButtonWithUrl('Open farm gate pin', destinationUrl, {
+      isPrimary: false,
+      buttonHeight: 6.2,
+    })
+  })
+
+  // ============================================================================
+  // 5. ROUTE SUMMARY
+  // ============================================================================
+  const originName = source?.name || 'Not specified'
+  const distanceKm = routeInfo?.distanceKm ? Number(routeInfo.distanceKm).toFixed(1) : ''
+  const durationText = routeInfo?.durationText || ''
+
+  flow.sectionTitle('Route Summary')
+
+  if (source && distanceKm) {
+    flow.paragraph(
+      `Origin: ${originName} | Distance: ${distanceKm} km | Drive time: ${durationText}`,
+      { bold: true, fontSize: 8.5, color: [20, 50, 35] },
+    )
+  } else {
+    flow.paragraph(
+      'Origin: Not specified | Select your starting city on the booking page to see the full route and drive estimates.',
+      { fontSize: 8.5, color: [80, 90, 85] },
+    )
+  }
+
+  // Long journey plain note if drive is > 10 hours (36000 seconds)
   const driveSecs =
     routeInfo?.durationSeconds ||
-    (routeInfo?.distanceKm ? Math.round((Number(routeInfo.distanceKm) / 45) * 3600) : 0)
+    (distanceKm ? Math.round((Number(distanceKm) / 45) * 3600) : 0)
 
-  const targetArrival = visitType === 'day' ? dayStart : '13:00'
-  const plannedDeparture = calculateEstimatedDeparture(targetArrival, driveSecs)
-
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  doc.setTextColor(83, 104, 93)
-  const planNote = plannedDeparture
-    ? `Suggestion: Plan to leave by ${plannedDeparture} (computed from ~${routeInfo?.durationText || 'drive time'} + 30m safety buffer, labeled estimate). Host contact hours: ${hostHours}.`
-    : `Host contact hours: ${hostHours}. Drive with caution along rural single-lane roads.`
-  doc.text(planNote, margin + 12, y + 46)
-
-  y += 62
-
-  // 5. Section 2: NAVIGATION & GPS COORDINATES
-  doc.setFillColor(246, 248, 244)
-  doc.setDrawColor(220, 228, 218)
-  doc.setLineWidth(0.8)
-  doc.roundedRect(margin, y, contentWidth, 78, 4, 4, 'FD')
-
-  // GPS Coordinates Left Column
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8.5)
-  doc.setTextColor(30, 58, 43)
-  doc.text('TARGET FARM GATE GPS COORDINATES:', margin + 10, y + 14)
-
-  doc.setFont('courier', 'bold')
-  doc.setFontSize(12)
-  doc.setTextColor(23, 53, 43)
-  doc.text(`${destLat.toFixed(6)}° N, ${destLng.toFixed(6)}° E`, margin + 10, y + 29)
-
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  doc.setTextColor(83, 104, 93)
-  doc.text(`DMS: ${dms.text}`, margin + 10, y + 41)
-  doc.text(`Plus Code: ${plusCode}   (Save in vehicle GPS or Google Maps)`, margin + 10, y + 53)
-
-  // Interactive Styled Buttons with real clickable links and printed QR codes
-  const btnW = 120
-  const btnH = 24
-
-  // Button 1: Open in Google Maps
-  const btn1X = margin + 250
-  const btn1Y = y + 12
-  doc.setFillColor(30, 58, 43)
-  doc.roundedRect(btn1X, btn1Y, btnW, btnH, 3, 3, 'F')
-  doc.setTextColor(255, 255, 255)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8.5)
-  doc.text('Open Google Maps', btn1X + 16, btn1Y + 15)
-  doc.link(btn1X, btn1Y, btnW, btnH, { url: directionsUrl })
-
-  // Short URL text
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(6.5)
-  doc.setTextColor(83, 104, 93)
-  doc.text('maps.google.com/directions', btn1X + 8, btn1Y + 34)
-
-  // QR 1 next to button
-  if (directionsQr) {
-    doc.addImage(directionsQr, 'PNG', btn1X + btnW + 8, y + 6, 42, 42)
-    doc.link(btn1X + btnW + 8, y + 6, 42, 42, { url: directionsUrl })
-  }
-
-  // Button 2: Open Destination Pin
-  const btn2X = margin + 250
-  const btn2Y = y + 44
-  doc.setFillColor(255, 255, 255)
-  doc.setDrawColor(30, 58, 43)
-  doc.setLineWidth(1)
-  doc.roundedRect(btn2X, btn2Y, btnW, btnH, 3, 3, 'FD')
-  doc.setTextColor(30, 58, 43)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8.5)
-  doc.text('Open Destination Pin', btn2X + 13, btn2Y + 15)
-  doc.link(btn2X, btn2Y, btnW, btnH, { url: destinationUrl })
-
-  // Short URL text
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(6.5)
-  doc.setTextColor(83, 104, 93)
-  doc.text('maps.google.com/search', btn2X + 15, btn2Y + 31)
-
-  // QR 2 next to destination button
-  if (destinationQr) {
-    doc.addImage(destinationQr, 'PNG', btn2X + btnW + 8, y + 36, 40, 40)
-    doc.link(btn2X + btnW + 8, y + 36, 40, 40, { url: destinationUrl })
-  }
-
-  y += 88
-
-  // 6. Section 3: MAPS (Overview & Close-up Side by Side)
-  const mapW = (contentWidth - 12) / 2 // ~249 pt
-  const mapH = 145
-
-  // Map 1: Overview
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8.5)
-  doc.setTextColor(30, 58, 43)
-  doc.text(
-    source
-      ? `1. ROUTE OVERVIEW (${routeInfo?.distanceKm || '—'} km · ${routeInfo?.durationText || 'Direct'})`
-      : '1. ROUTE OVERVIEW (APPROACH CORRIDOR)',
-    margin,
-    y,
-  )
-
-  if (dualMaps.overviewMapDataUrl) {
-    doc.addImage(dualMaps.overviewMapDataUrl, 'JPEG', margin, y + 6, mapW, mapH, undefined, 'FAST')
-    doc.setDrawColor(200, 210, 200)
-    doc.setLineWidth(0.8)
-    doc.rect(margin, y + 6, mapW, mapH, 'S')
-  }
-
-  // Map 2: Close-up (Last 5-10 km)
-  doc.text('2. FARM GATE VICINITY (LAST 5-10 KM)', margin + mapW + 12, y)
-
-  if (dualMaps.closeUpMapDataUrl) {
-    doc.addImage(
-      dualMaps.closeUpMapDataUrl,
-      'JPEG',
-      margin + mapW + 12,
-      y + 6,
-      mapW,
-      mapH,
-      undefined,
-      'FAST',
-    )
-    doc.setDrawColor(200, 210, 200)
-    doc.setLineWidth(0.8)
-    doc.rect(margin + mapW + 12, y + 6, mapW, mapH, 'S')
-  }
-
-  y += mapH + 18
-
-  // Small attribution caption
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(7.5)
-  doc.setTextColor(115, 130, 120)
-  doc.text(
-    'Map tiles © OpenStreetMap contributors & CARTO · Clean vector route displayed if offline. Save offline maps in advance.',
-    margin,
-    y,
-  )
-
-  // Page 1 Footer Rule and Text
-  renderFooter(doc, pageWidth, margin, contentWidth, bookingRefShort, nowFormatted, 1, 2)
-
-  // ============================================================================
-  // PAGE 2: LANDMARKS, ACTIVITIES & EXPERIENCES, SAFETY PROTOCOL
-  // ============================================================================
-  doc.addPage('a4', 'portrait')
-
-  let p2Y = 36
-
-  // Page 2 Compact Header Band
-  doc.setFillColor(30, 58, 43)
-  doc.rect(margin, p2Y, contentWidth, 26, 'F')
-  doc.setTextColor(255, 255, 255)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9)
-  doc.text(`AGRITRAILS  ·  ${farmName.toUpperCase()}  ·  REF: ${bookingRefShort}`, margin + 12, p2Y + 16)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  doc.setTextColor(215, 235, 222)
-  doc.text('PAGE 2: ROUTE LANDMARKS, EXPERIENCES & SAFETY', pageWidth - margin - 230, p2Y + 16)
-
-  p2Y += 38
-
-  // 1. Major Landmarks & Turn Milestones
-  doc.setFillColor(30, 58, 43)
-  doc.rect(margin, p2Y, 3, 10, 'F')
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10)
-  doc.setTextColor(30, 58, 43)
-  doc.text('MAJOR LANDMARKS & ROUTE MILESTONES', margin + 8, p2Y + 9)
-  p2Y += 15
-
-  const milestones = mergeRouteMilestones(
-    routeInfo?.steps || [],
-    landmarks,
-    typeof routeInfo?.distanceKm === 'number'
-      ? routeInfo.distanceKm
-      : parseFloat(String(routeInfo?.distanceKm || '0')),
-  )
-
-  if (milestones.length > 0) {
-    const colW = (contentWidth - 10) / 2
-    milestones.slice(0, 6).forEach((ms, idx) => {
-      const col = idx % 2
-      const row = Math.floor(idx / 2)
-      const msX = margin + col * (colW + 10)
-      const msY = p2Y + row * 22
-
-      doc.setFillColor(248, 250, 246)
-      doc.setDrawColor(225, 232, 222)
-      doc.setLineWidth(0.6)
-      doc.roundedRect(msX, msY, colW, 19, 2, 2, 'FD')
-
-      doc.setFont('helvetica', 'bold')
-      doc.setFontSize(8)
-      doc.setTextColor(30, 58, 43)
-      const distInfo =
-        ms.distance_km_to_farm !== undefined
-          ? `${ms.distance_km_to_farm} km to farm`
-          : ms.distance_from_origin_km !== undefined
-          ? `${ms.distance_from_origin_km} km`
-          : ''
-      const label = `${idx + 1}. ${ms.name}`
-      doc.text(doc.splitTextToSize(label, colW - 65)[0], msX + 6, msY + 12)
-
-      if (distInfo) {
-        doc.setFont('helvetica', 'normal')
-        doc.setFontSize(7)
-        doc.setTextColor(83, 104, 93)
-        doc.text(distInfo, msX + colW - 55, msY + 12)
-      }
+  if (driveSecs >= 36000) {
+    flow.paragraph('Long journey: plan an overnight stop.', {
+      bold: true,
+      fontSize: 8.5,
+      color: [180, 80, 20],
     })
-    p2Y += Math.ceil(Math.min(milestones.length, 6) / 2) * 22 + 4
   }
 
-  // Numbered Turn-by-Turn Landmark Directions
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9)
-  doc.setTextColor(23, 53, 43)
-  doc.text('Landmark-based Directions:', margin, p2Y)
-  p2Y += 12
-
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8.5)
-  doc.setTextColor(50, 50, 50)
-  directionsSteps.slice(0, 4).forEach((step, idx) => {
-    const stepText = `${idx + 1}. ${step}`
-    const wrapped = doc.splitTextToSize(stepText, contentWidth - 10)
-    doc.text(wrapped, margin + 4, p2Y)
-    p2Y += wrapped.length * 10 + 2
-  })
-
-  // Key Visual Landmark Callout Box
-  if (landmarkNote) {
-    p2Y += 2
-    doc.setFillColor(254, 252, 246)
-    doc.setDrawColor(200, 150, 60) // Gold accent
-    doc.setLineWidth(1)
-    doc.roundedRect(margin, p2Y, contentWidth, 22, 3, 3, 'FD')
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(8.5)
-    doc.setTextColor(150, 95, 20)
-    doc.text('KEY VISUAL LANDMARK:', margin + 10, p2Y + 14)
-    doc.setFont('helvetica', 'normal')
-    doc.setTextColor(40, 40, 40)
-    doc.text(landmarkNote, margin + 130, p2Y + 14)
-    p2Y += 28
-  } else {
-    p2Y += 6
+  // Suggested departure line
+  const departureLine = computeSuggestedDeparture(checkInDate, gateReportBy, driveSecs)
+  if (departureLine) {
+    flow.paragraph(departureLine, {
+      fontSize: 8.5,
+      bold: true,
+      color: [20, 50, 35],
+    })
   }
 
-  // Last Services Before Farm Strip
-  doc.setFillColor(245, 248, 243)
-  doc.setDrawColor(220, 228, 218)
-  doc.setLineWidth(0.6)
-  doc.roundedRect(margin, p2Y, contentWidth, 24, 3, 3, 'FD')
+  // ============================================================================
+  // 6. ROUTE MAP: Single Reliable Vector Map in PDF
+  // ============================================================================
+  const mapBoxH = 68
+  flow.ensureSpace(mapBoxH + 4)
 
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(7.5)
-  doc.setTextColor(30, 58, 43)
-  doc.text('LAST SERVICES BEFORE FARM:', margin + 8, p2Y + 15)
+  const mapX = flow.margin
+  const mapY = flow.y
 
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(7.5)
-  doc.setTextColor(70, 80, 75)
+  // Background box
+  doc.setFillColor(252, 252, 249)
+  doc.setDrawColor(212, 222, 208)
+  doc.setLineWidth(0.35)
+  doc.roundedRect(mapX, mapY, flow.contentWidth, mapBoxH, 2, 2, 'FD')
 
-  const fuelText = nearbyServices.fuel?.name
-    ? `Fuel: ${nearbyServices.fuel.name} (${nearbyServices.fuel.distance_km || 3}km)`
-    : 'Fuel: Nearest town'
-  const atmText = nearbyServices.atm?.name
-    ? `ATM: ${nearbyServices.atm.name} (${nearbyServices.atm.distance_km || 3}km)`
-    : 'ATM: Nearest town'
-  const pharmText = nearbyServices.pharmacy?.name
-    ? `Medical: ${nearbyServices.pharmacy.name} (${nearbyServices.pharmacy.distance_km || 3}km)`
-    : 'Pharmacy: In village'
-  const grocText = nearbyServices.grocery?.name
-    ? `Grocery: ${nearbyServices.grocery.name} (${nearbyServices.grocery.distance_km || 2}km)`
-    : 'Grocery: Farm gate'
+  const rawCoords = extractCoordinates(routeInfo?.geometry)
+  const hasRouteGeometry = Boolean(source && rawCoords.length >= 2)
 
-  doc.text(`${fuelText}  ·  ${atmText}  ·  ${pharmText}  ·  ${grocText}`, margin + 145, p2Y + 15)
-  p2Y += 34
+  // Filter qualifying landmarks for waypoint dots
+  const qualifyingLandmarks = filterMajorLandmarks(
+    routeInfo?.steps || [],
+    farmLandmarks,
+    Number(distanceKm) || 0,
+  )
 
-  // 2. Section 5: ACTIVITIES AND EXPERIENCES
-  doc.setFillColor(30, 58, 43)
-  doc.rect(margin, p2Y, 3, 10, 'F')
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10)
-  doc.setTextColor(30, 58, 43)
-  doc.text('ON-FARM ACTIVITIES & SEASONAL EXPERIENCES', margin + 8, p2Y + 9)
-  p2Y += 15
+  if (hasRouteGeometry && source) {
+    const lats = rawCoords.map((c) => c[0]).concat([source.lat, destLat])
+    const lngs = rawCoords.map((c) => c[1]).concat([source.lng, destLng])
 
-  const farmActivities = Array.isArray(farm.activities) && farm.activities.length > 0
-    ? farm.activities
-    : [
-        { name: 'Traditional Farm Walk', duration_min: 60, sort_hint: 'morning' },
-        { name: 'Organic Hearth Cooking Tasting', duration_min: 45, sort_hint: 'afternoon' },
-        { name: 'Cattle & Shed Interaction', duration_min: 45, sort_hint: 'morning' },
-        { name: 'Sunset Valley / Orchard Stroll', duration_min: 60, sort_hint: 'evening' },
-      ]
+    const minLat = Math.min(...lats)
+    const maxLat = Math.max(...lats)
+    const minLng = Math.min(...lngs)
+    const maxLng = Math.max(...lngs)
 
-  const actColW = (contentWidth - 10) / 2
-  farmActivities.slice(0, 4).forEach((act: any, idx: number) => {
-    const col = idx % 2
-    const row = Math.floor(idx / 2)
-    const ax = margin + col * (actColW + 10)
-    const ay = p2Y + row * 24
+    const midLat = (minLat + maxLat) / 2
+    const cosLat = Math.cos((midLat * Math.PI) / 180)
 
-    doc.setFillColor(250, 252, 248)
-    doc.setDrawColor(225, 232, 222)
-    doc.setLineWidth(0.6)
-    doc.roundedRect(ax, ay, actColW, 21, 2, 2, 'FD')
+    const spanLng = (maxLng - minLng) * cosLat
+    const spanLat = maxLat - minLat
 
-    // Small icon circle
-    doc.setFillColor(30, 85, 55)
-    doc.circle(ax + 10, ay + 10.5, 3.5, 'F')
+    // 8% padding
+    const padX = flow.contentWidth * 0.08
+    const padY = mapBoxH * 0.08
+    const availW = flow.contentWidth - 2 * padX
+    const availH = mapBoxH - 2 * padY
 
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(8)
-    doc.setTextColor(23, 53, 43)
-    doc.text(doc.splitTextToSize(act.name, actColW - 75)[0], ax + 18, ay + 13)
+    const scale = Math.min(
+      availW / Math.max(spanLng, 0.0001),
+      availH / Math.max(spanLat, 0.0001),
+    )
 
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(7)
-    doc.setTextColor(83, 104, 93)
-    const duration = act.duration_min ? `${act.duration_min}m` : '45m'
-    const bestTime = act.sort_hint ? ` · ${act.sort_hint}` : ''
-    doc.text(`${duration}${bestTime} · Included`, ax + actColW - 65, ay + 13)
-  })
+    const fittedW = spanLng * scale
+    const fittedH = spanLat * scale
 
-  p2Y += Math.ceil(Math.min(farmActivities.length, 4) / 2) * 24 + 4
+    const ox = mapX + padX + (availW - fittedW) / 2
+    const oy = mapY + padY + (availH - fittedH) / 2
 
-  // Reserved Products basket note if exists
-  if (Array.isArray(options.reservations) && options.reservations.length > 0) {
-    const resSummary = options.reservations
-      .map((r) => `${r.product?.name || 'Produce'} (Qty: ${r.qty})`)
-      .join(', ')
+    const project = (lat: number, lng: number) => {
+      const px = ox + (lng - minLng) * cosLat * scale
+      const py = oy + (maxLat - lat) * scale
+      return { x: px, y: py }
+    }
 
-    doc.setFillColor(242, 247, 240)
-    doc.setDrawColor(180, 210, 175)
+    // Subsample coordinates if too dense for smooth vector line
+    const stepSample = Math.max(1, Math.floor(rawCoords.length / 200))
+    const sampled: Array<[number, number]> = []
+    for (let i = 0; i < rawCoords.length; i += stepSample) {
+      sampled.push(rawCoords[i])
+    }
+    if (rawCoords.length > 0) {
+      sampled.push(rawCoords[rawCoords.length - 1])
+    }
+
+    // Draw Route Polyline
+    doc.setDrawColor(30, 106, 56) // Thick green #1e6a38
     doc.setLineWidth(0.8)
-    doc.roundedRect(margin, p2Y, contentWidth, 20, 2, 2, 'FD')
-    doc.setFont('helvetica', 'bold')
+
+    for (let i = 0; i < sampled.length - 1; i++) {
+      const p1 = project(sampled[i][0], sampled[i][1])
+      const p2 = project(sampled[i + 1][0], sampled[i + 1][1])
+      doc.line(p1.x, p1.y, p2.x, p2.y)
+    }
+
+    // Draw 3 to 5 labeled major waypoints
+    const waypointCandidates = qualifyingLandmarks
+      .filter((lm) => typeof lm.lat === 'number' && typeof lm.lng === 'number')
+      .slice(0, 4)
+
+    doc.setFont('NotoSans', 'normal')
     doc.setFontSize(7.5)
-    doc.setTextColor(30, 85, 55)
-    doc.text('BOOKED PRODUCE RESERVATION:', margin + 8, p2Y + 13)
-    doc.setFont('helvetica', 'normal')
-    doc.setTextColor(40, 40, 40)
-    doc.text(doc.splitTextToSize(resSummary, contentWidth - 165)[0], margin + 155, p2Y + 13)
-    p2Y += 25
+    doc.setTextColor(30, 70, 45)
+
+    waypointCandidates.forEach((wp) => {
+      if (wp.lat === undefined || wp.lng === undefined) return
+      const p = project(wp.lat, wp.lng)
+      doc.setFillColor(255, 255, 255)
+      doc.setDrawColor(20, 50, 35)
+      doc.setLineWidth(0.3)
+      doc.circle(p.x, p.y, 1.1, 'FD')
+
+      doc.text(wp.shortLabel, p.x + 2, p.y + 0.9)
+    })
+
+    // Start Dot (Origin City)
+    const pStart = project(source.lat, source.lng)
+    doc.setFillColor(20, 50, 35)
+    doc.circle(pStart.x, pStart.y, 2.0, 'F')
+    doc.setFillColor(255, 255, 255)
+    doc.circle(pStart.x, pStart.y, 0.8, 'F')
+
+    doc.setFont('NotoSans', 'bold')
+    doc.setFontSize(8)
+    doc.setTextColor(20, 50, 35)
+    doc.text(source.name, pStart.x + 3.0, pStart.y + 1)
+
+    // End Pin (Farm Destination)
+    const pEnd = project(destLat, destLng)
+    doc.setFillColor(180, 40, 40) // Red pin
+    doc.circle(pEnd.x, pEnd.y, 2.2, 'F')
+    doc.setFillColor(255, 255, 255)
+    doc.circle(pEnd.x, pEnd.y, 0.9, 'F')
+
+    doc.setFont('NotoSans', 'bold')
+    doc.setFontSize(8)
+    doc.setTextColor(180, 40, 40)
+    doc.text(farmName, pEnd.x + 3.2, pEnd.y + 1)
+
+    // North Indicator at top right of map
+    doc.setFont('NotoSans', 'bold')
+    doc.setFontSize(7)
+    doc.setTextColor(130, 145, 135)
+    doc.text('N ↑', mapX + flow.contentWidth - 8, mapY + 5)
+  } else {
+    // Missing origin / no route geometry: draw destination pin only
+    const centerX = mapX + flow.contentWidth / 2
+    const centerY = mapY + mapBoxH / 2 - 4
+
+    doc.setFillColor(180, 40, 40)
+    doc.circle(centerX, centerY, 2.5, 'F')
+    doc.setFillColor(255, 255, 255)
+    doc.circle(centerX, centerY, 1.0, 'F')
+
+    doc.setFont('NotoSans', 'bold')
+    doc.setFontSize(8.5)
+    doc.setTextColor(20, 50, 35)
+    const labelW = doc.getTextWidth(farmName)
+    doc.text(farmName, centerX - labelW / 2, centerY + 5.5)
+
+    doc.setFont('NotoSans', 'normal')
+    doc.setFontSize(8)
+    doc.setTextColor(80, 95, 85)
+    const coordStr = `${destLat.toFixed(4)}° N, ${destLng.toFixed(4)}° E`
+    const coordW = doc.getTextWidth(coordStr)
+    doc.text(coordStr, centerX - coordW / 2, centerY + 9.5)
+
+    doc.setFontSize(8)
+    doc.setTextColor(110, 120, 115)
+    const note = 'Select your starting city on the booking page to see the full route.'
+    const noteW = doc.getTextWidth(note)
+    doc.text(note, centerX - noteW / 2, centerY + 14.5)
   }
 
-  // Crop & harvest season line
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(7.5)
-  doc.setTextColor(70, 95, 80)
-  doc.text('BEST SEASON & HARVEST:', margin, p2Y + 2)
-  doc.setFont('helvetica', 'normal')
-  doc.text('Peak rural visits October to May. Fresh seasonal crops harvested morning and evening.', margin + 120, p2Y + 2)
+  flow.y += mapBoxH + 3.5
 
-  p2Y += 16
+  // Start Page 2 cleanly after the Page 1 Route Map
+  flow.doc.addPage()
+  flow.y = flow.margin
 
-  // 3. Section 6: SAFETY AND PRACTICAL PROTOCOL
-  doc.setFillColor(30, 58, 43)
-  doc.rect(margin, p2Y, 3, 10, 'F')
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10)
-  doc.setTextColor(30, 58, 43)
-  doc.text('SAFETY, HOST CONTACT & EMERGENCY PROTOCOL', margin + 8, p2Y + 9)
-  p2Y += 14
+  // ============================================================================
+  // 7. MAJOR LANDMARKS (Filtered Hard; Hidden if < 2 qualify)
+  // ============================================================================
+  if (qualifyingLandmarks.length >= 2) {
+    flow.sectionTitle('Major Landmarks & Milestones')
+    flow.drawBox((box) => {
+      qualifyingLandmarks.forEach((lm) => {
+        box.addKeyValue(lm.name, lm.info, { labelWidth: 90, fontSize: 8.5 })
+      })
+    })
+  }
 
-  // Emergency Numbers Table
-  const hospName = nearbyServices.hospital?.name || 'District Civil Hospital'
-  const hospDist = nearbyServices.hospital?.distance_km ? `${nearbyServices.hospital.distance_km} km` : '7 km'
-  const hospPhone = nearbyServices.hospital?.phone || '108'
+  // ============================================================================
+  // 8. DIRECTIONS TO THE FARM
+  // ============================================================================
+  if (directionsSteps.length > 0) {
+    flow.sectionTitle('Directions to Farm')
+    directionsSteps.forEach((step, idx) => {
+      flow.paragraph(`${idx + 1}.  ${step}`, {
+        hangingIndent: 5.5,
+        fontSize: 8.5,
+        lineHeight: 3.5,
+        spacingAfter: 0.8,
+        color: [40, 50, 45],
+      })
+    })
 
-  const polName = nearbyServices.police?.name || 'Taluka Police Station'
-  const polDist = nearbyServices.police?.distance_km ? `${nearbyServices.police.distance_km} km` : '5 km'
-  const polPhone = nearbyServices.police?.phone || '100'
+    if (landmarkNote) {
+      flow.drawBox(
+        (box) => {
+          box.addText('KEY VISUAL LANDMARK', {
+            bold: true,
+            fontSize: 8,
+            color: [140, 95, 20],
+          })
+          box.addText(landmarkNote, {
+            fontSize: 8.5,
+            color: [45, 55, 45],
+            lineHeight: 3.5,
+          })
+        },
+        { bg: [253, 250, 243], border: [230, 212, 175], padding: 2.0, spacingAfter: 2.0 },
+      )
+    }
+  }
 
-  const emgW = (contentWidth - 15) / 4
-  const emgItems = [
-    { label: 'All-India Emergency', num: 'Dial 112', sub: 'Police, Fire, Ambulance' },
-    { label: 'Medical Ambulance', num: 'Dial 108', sub: 'State emergency dispatch' },
-    { label: hospName.slice(0, 18), num: hospPhone, sub: `${hospDist} · Local Hospital` },
-    { label: polName.slice(0, 18), num: polPhone, sub: `${polDist} · Police Station` },
-  ]
+  // ============================================================================
+  // 9. LAST SERVICES BEFORE THE FARM
+  // ============================================================================
+  const servicesList: Array<{ label: string; text: string }> = []
 
-  emgItems.forEach((emg, i) => {
-    const ex = margin + i * (emgW + 5)
-    doc.setFillColor(254, 246, 246)
-    doc.setDrawColor(240, 205, 205)
-    doc.setLineWidth(0.6)
-    doc.roundedRect(ex, p2Y, emgW, 30, 2, 2, 'FD')
+  const isVague = (val?: string) =>
+    !val ||
+    /nearest|unknown|none|^-$|^n\/a$/i.test(val.trim()) ||
+    val.trim().length < 2
 
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(7.5)
-    doc.setTextColor(180, 40, 40)
-    doc.text(emg.label, ex + 6, p2Y + 10)
+  if (nearbyServices.fuel?.name && !isVague(nearbyServices.fuel.name)) {
+    const dist = nearbyServices.fuel.distance_km ? ` (${nearbyServices.fuel.distance_km} km)` : ''
+    servicesList.push({ label: 'Fuel Station', text: `${nearbyServices.fuel.name}${dist}` })
+  }
+  if (nearbyServices.atm?.name && !isVague(nearbyServices.atm.name)) {
+    const dist = nearbyServices.atm.distance_km ? ` (${nearbyServices.atm.distance_km} km)` : ''
+    servicesList.push({ label: 'ATM / Cash', text: `${nearbyServices.atm.name}${dist}` })
+  }
+  if (nearbyServices.pharmacy?.name && !isVague(nearbyServices.pharmacy.name)) {
+    const dist = nearbyServices.pharmacy.distance_km ? ` (${nearbyServices.pharmacy.distance_km} km)` : ''
+    servicesList.push({ label: 'Pharmacy', text: `${nearbyServices.pharmacy.name}${dist}` })
+  }
+  if (nearbyServices.grocery?.name && !isVague(nearbyServices.grocery.name)) {
+    const dist = nearbyServices.grocery.distance_km ? ` (${nearbyServices.grocery.distance_km} km)` : ''
+    servicesList.push({ label: 'Grocery Store', text: `${nearbyServices.grocery.name}${dist}` })
+  }
 
-    doc.setFont('courier', 'bold')
-    doc.setFontSize(9.5)
-    doc.text(emg.num, ex + 6, p2Y + 21)
+  if (servicesList.length > 0) {
+    flow.sectionTitle('Last Services Before Farm')
+    flow.drawBox(
+      (box) => {
+        servicesList.forEach((s) => {
+          box.addKeyValue(`${s.label}:`, s.text, { labelWidth: 35, fontSize: 8.5 })
+        })
+      },
+      { padding: 2.2, spacingAfter: 2.2 },
+    )
+  }
 
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(6.5)
-    doc.setTextColor(120, 60, 60)
-    doc.text(emg.sub, ex + 6, p2Y + 28)
-  })
+  // ============================================================================
+  // 10. ACTIVITIES (Clean 2-Column List)
+  // ============================================================================
+  const farmActivities = Array.isArray(farm.activities) ? farm.activities : []
+  if (farmActivities.length > 0) {
+    flow.sectionTitle('Farm Activities & Experiences')
 
-  p2Y += 36
+    const mid = Math.ceil(farmActivities.length / 2)
+    const col1 = farmActivities.slice(0, mid)
+    const col2 = farmActivities.slice(mid)
 
-  // Local Host Contact Box with Clickable Links
-  doc.setFillColor(242, 248, 240)
-  doc.setDrawColor(30, 85, 55)
-  doc.setLineWidth(0.8)
-  doc.roundedRect(margin, p2Y, contentWidth, 32, 3, 3, 'FD')
+    flow.twoColumn(
+      (b) => {
+        col1.forEach((act) => {
+          const timing = act.sort_hint || 'morning'
+          const dur = act.duration_min ? `${act.duration_min} min` : '45 min'
+          const cost = act.is_paid ? 'Extra cost' : 'Included in visit'
+          b.addText(act.name, { bold: true, fontSize: 8.5, color: [20, 50, 35] })
+          b.addText(`${dur} | ${timing} | ${cost}`, {
+            fontSize: 8,
+            color: [90, 105, 95],
+            lineHeight: 3.3,
+          })
+        })
+      },
+      (b) => {
+        col2.forEach((act) => {
+          const timing = act.sort_hint || 'morning'
+          const dur = act.duration_min ? `${act.duration_min} min` : '45 min'
+          const cost = act.is_paid ? 'Extra cost' : 'Included in visit'
+          b.addText(act.name, { bold: true, fontSize: 8.5, color: [20, 50, 35] })
+          b.addText(`${dur} | ${timing} | ${cost}`, {
+            fontSize: 8,
+            color: [90, 105, 95],
+            lineHeight: 3.3,
+          })
+        })
+      },
+      { spacingAfter: 2.2 },
+    )
+  }
 
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8.5)
-  doc.setTextColor(30, 58, 43)
-  doc.text(`Host: ${hostName}`, margin + 10, p2Y + 14)
+  // ============================================================================
+  // 11. SAFETY: Emergency Table & Nearest Emergency Facilities
+  // ============================================================================
+  flow.sectionTitle('Safety & Emergency Assistance')
 
-  doc.setTextColor(30, 85, 55)
-  doc.text(`Phone: ${hostPhone}`, margin + 140, p2Y + 14)
-  doc.link(margin + 135, p2Y + 4, 110, 16, { url: `tel:${hostPhone}` })
+  const hospName = nearbyServices.hospital?.name || 'Local Rural Hospital'
+  const hospDist = nearbyServices.hospital?.distance_km
+    ? `${nearbyServices.hospital.distance_km} km`
+    : 'District HQ'
+  const hospPhone = nearbyServices.hospital?.phone || 'Dial 112'
 
-  const waUrl = `https://wa.me/${hostPhone.replace(/[^0-9]/g, '')}`
-  doc.text('WhatsApp: Tap to message', margin + 270, p2Y + 14)
-  doc.link(margin + 265, p2Y + 4, 120, 16, { url: waUrl })
+  const polName = nearbyServices.police?.name || 'Local Police Station'
+  const polDist = nearbyServices.police?.distance_km
+    ? `${nearbyServices.police.distance_km} km`
+    : 'Taluka HQ'
+  const polPhone = nearbyServices.police?.phone || 'Dial 112'
 
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(7.5)
-  doc.setTextColor(83, 104, 93)
-  doc.text('Cellular voice and SMS work even when mobile data drops along rural roads.', margin + 10, p2Y + 26)
+  flow.drawBox(
+    (box) => {
+      const colW = (box.width - 6) / 3
+      box.addRawItem(8.0, (d, x, y) => {
+        d.setFont('NotoSans', 'bold')
+        d.setFontSize(7.5)
+        d.setTextColor(180, 40, 40)
+        d.text('National Emergency', x, y + 2.2)
+        d.setFontSize(10)
+        d.setTextColor(20, 50, 35)
+        d.text('112', x, y + 6.8)
 
-  p2Y += 38
+        d.setFontSize(7.5)
+        d.setTextColor(180, 40, 40)
+        d.text('Medical Ambulance', x + colW + 3, y + 2.2)
+        d.setFontSize(10)
+        d.setTextColor(20, 50, 35)
+        d.text('108', x + colW + 3, y + 6.8)
 
-  // Offline Tips & "What to Carry" Checklist
-  doc.setFillColor(252, 253, 250)
-  doc.setDrawColor(220, 228, 218)
-  doc.setLineWidth(0.6)
-  doc.roundedRect(margin, p2Y, contentWidth, 48, 3, 3, 'FD')
+        d.setFontSize(7.5)
+        d.setTextColor(180, 40, 40)
+        d.text('Police Control', x + (colW + 3) * 2, y + 2.2)
+        d.setFontSize(10)
+        d.setTextColor(20, 50, 35)
+        d.text('100', x + (colW + 3) * 2, y + 6.8)
+      })
 
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8)
-  doc.setTextColor(30, 58, 43)
-  doc.text('OFFLINE TIPS & ESSENTIAL PREPARATION', margin + 10, p2Y + 12)
-
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(7.5)
-  doc.setTextColor(60, 70, 65)
-  doc.text(
-    '1. Tap "Download Offline Map" in Google Maps for this district before you leave home.',
-    margin + 10,
-    p2Y + 23,
+      box.addKeyValue('Nearest Hospital:', `${hospName} | ${hospDist} | Phone: ${hospPhone}`, {
+        labelWidth: 32,
+        fontSize: 8,
+      })
+      box.addKeyValue('Nearest Police:', `${polName} | ${polDist} | Phone: ${polPhone}`, {
+        labelWidth: 32,
+        fontSize: 8,
+      })
+    },
+    { bg: [255, 252, 252], border: [238, 215, 215], padding: 2.2, spacingAfter: 2.2 },
   )
-  doc.text(
-    '2. Carry adequate cash (rural village shops and roadside stalls do not accept UPI or cards during power cuts).',
-    margin + 10,
-    p2Y + 33,
+
+  // ============================================================================
+  // 12. HOST CONTACT
+  // ============================================================================
+  flow.sectionTitle('Host Contact')
+  flow.drawBox(
+    (box) => {
+      box.addKeyValue('Host Name:', hostName, { labelWidth: 28, fontSize: 8.5 })
+      box.addKeyValue('Direct Phone:', hostPhone, { labelWidth: 28, fontSize: 8.5 })
+
+      box.addRawItem(6.0, (d, x, y) => {
+        // Clickable Phone Link
+        d.setFont('NotoSans', 'bold')
+        d.setFontSize(8.5)
+        d.setTextColor(20, 50, 35)
+        const telText = `Call Host: ${hostPhone}`
+        d.text(telText, x, y + 4.2)
+        const telW = d.getTextWidth(telText)
+        d.link(x, y, telW + 4, 5.5, { url: `tel:${hostPhone}` })
+
+        // WhatsApp Link if available
+        const cleanPhone = hostPhone.replace(/\D/g, '')
+        if (cleanPhone) {
+          const waText = 'Message on WhatsApp'
+          d.setTextColor(18, 120, 60)
+          d.text(waText, x + telW + 12, y + 4.2)
+          const waW = d.getTextWidth(waText)
+          d.link(x + telW + 12, y, waW + 4, 5.5, {
+            url: `https://wa.me/${cleanPhone}`,
+          })
+        }
+      })
+    },
+    { padding: 2.2, spacingAfter: 2.2 },
   )
-  doc.text(
-    '3. What to carry: sturdy walking shoes, hat/umbrella, reusable water bottle, mosquito repellent, and a power bank.',
-    margin + 10,
-    p2Y + 43,
+
+  // ============================================================================
+  // 13. OFFLINE TIPS, WHAT TO CARRY, RULES & SMS TEMPLATE
+  // ============================================================================
+  flow.sectionTitle('Offline Readiness & Guidelines')
+
+  const rulesText =
+    Array.isArray(farm.rules) && farm.rules.length > 0
+      ? farm.rules.join(' · ')
+      : 'Respect farm livestock and crops · No littering; take all plastics back · Quiet hours after 9 PM'
+
+  flow.paragraph(
+    '1. Download offline map region & save host phone before departing mobile coverage.\n' +
+      '2. Carry sufficient physical cash for local village tolls, fuel and farm produce.\n' +
+      '3. What to Carry: Comfortable walking shoes, water bottle, hat/sun protection, valid ID, medications.\n' +
+      `4. Farm Guidelines: ${rulesText}`,
+    { fontSize: 8, lineHeight: 3.4, color: [45, 55, 50], spacingAfter: 1.5 },
   )
 
-  p2Y += 54
+  const smsTemplate =
+    `I am travelling to ${farmName} (Booking ${bookingRefShort}). ` +
+    `Destination coordinates: ${destLat.toFixed(4)}, ${destLng.toFixed(4)}. Host: ${hostName} (${hostPhone}).`
 
-  // Farm Rules & SMS Template Box
-  doc.setFillColor(248, 250, 246)
-  doc.setDrawColor(220, 228, 218)
-  doc.setLineWidth(0.6)
-  doc.roundedRect(margin, p2Y, contentWidth, 42, 3, 3, 'FD')
-
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8)
-  doc.setTextColor(30, 58, 43)
-  doc.text('FARM RULES & LIVE COORDINATES SMS TEMPLATE', margin + 10, p2Y + 12)
-
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(7.5)
-  doc.setTextColor(70, 80, 75)
-  doc.text(
-    'Rules: Respect active agricultural rows. Silence after 10 PM. Strictly no single-use plastic or littering.',
-    margin + 10,
-    p2Y + 23,
+  flow.drawBox(
+    (box) => {
+      box.addText('EMERGENCY SMS TEXT TEMPLATE (COPY / FORWARD TO FAMILY)', {
+        bold: true,
+        fontSize: 7.5,
+        color: [70, 85, 75],
+      })
+      box.addText(smsTemplate, {
+        fontSize: 8,
+        color: [40, 50, 45],
+        lineHeight: 3.4,
+      })
+    },
+    { bg: [247, 249, 246], border: [215, 225, 215], padding: 2.0, spacingAfter: 2.0 },
   )
 
-  const smsText = `SMS text: "Heading to ${farmName} (Booking ${bookingRefShort}) at GPS ${destLat.toFixed(4)}, ${destLng.toFixed(4)}. Host: ${hostPhone}"`
-  doc.setFont('courier', 'normal')
-  doc.setFontSize(7)
-  doc.setTextColor(30, 58, 43)
-  doc.text(smsText, margin + 10, p2Y + 34)
+  // ============================================================================
+  // 14. FOOTER ON EVERY PAGE (Post-pass)
+  // ============================================================================
+  const totalPages = doc.getNumberOfPages()
+  const generatedTimestamp = new Intl.DateTimeFormat('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  }).format(new Date())
 
-  // Page 2 Footer
-  renderFooter(doc, pageWidth, margin, contentWidth, bookingRefShort, nowFormatted, 2, 2)
+  for (let p = 1; p <= totalPages; p++) {
+    doc.setPage(p)
+
+    // Divider line
+    doc.setDrawColor(215, 225, 215)
+    doc.setLineWidth(0.3)
+    doc.line(flow.margin, 284, flow.margin + flow.contentWidth, 284)
+
+    // Footer text
+    doc.setFont('NotoSans', 'normal')
+    doc.setFontSize(8)
+    doc.setTextColor(100, 115, 105)
+
+    const footerText = `AgriTrails | Booking ${bookingRefShort} | Generated ${generatedTimestamp} IST | Page ${p} of ${totalPages}`
+    const textWidth = doc.getTextWidth(footerText)
+
+    doc.text(footerText, flow.margin + (flow.contentWidth - textWidth) / 2, 288.5)
+  }
 
   return doc
 }
 
 /**
- * Standard Footer on every page
- */
-function renderFooter(
-  doc: jsPDF,
-  pageWidth: number,
-  margin: number,
-  contentWidth: number,
-  bookingRef: string,
-  dateFormatted: string,
-  pageNumber: number,
-  totalPages: number,
-) {
-  const footerY = 810
-
-  // Thin green rule
-  doc.setDrawColor(30, 85, 55)
-  doc.setLineWidth(0.8)
-  doc.line(margin, footerY, margin + contentWidth, footerY)
-
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8)
-  doc.setTextColor(30, 58, 43)
-  doc.text('agritrails', margin, footerY + 14)
-
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(7.5)
-  doc.setTextColor(100, 115, 105)
-  doc.text(`Generated on ${dateFormatted} (Asia/Kolkata)`, margin + 55, footerY + 14)
-  doc.text(`Booking Ref: ${bookingRef}`, margin + 280, footerY + 14)
-  doc.text(`Page ${pageNumber} of ${totalPages}`, pageWidth - margin - 75, footerY + 14)
-  doc.text('https://agritrails.dev', pageWidth - margin - 75, footerY + 24)
-}
-
-/**
- * Direct browser download trigger
+ * Client-side download helper
  */
 export async function downloadTravelSafetyCardPdf(
   options: TravelCardPdfOptions,
 ): Promise<void> {
   const doc = await generateTravelSafetyCardPdf(options)
-  const slug = options.farm.slug || 'farm'
-  doc.save(`AgriTrails-${slug}-travel-map.pdf`)
+  const safeName = (options.farm.name || 'agritrails')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '-')
+    .replace(/-+/g, '-')
+    .slice(0, 30)
+  const filename = `AgriTrails-Route-${safeName}-${options.bookingId ? options.bookingId.slice(0, 8) : 'card'}.pdf`
+  doc.save(filename)
 }

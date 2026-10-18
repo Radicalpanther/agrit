@@ -27,10 +27,8 @@ import {
 import { useTranslations } from 'next-intl'
 import { haversineDistanceKm } from '@/lib/geo'
 import {
-  encodePlusCode,
   formatDms,
   calculateEstimatedDeparture,
-  generateQrDataUrl,
   mergeRouteMilestones,
 } from '@/lib/geo-utils'
 import { downloadTravelSafetyCardPdf } from '@/lib/travel-card-pdf'
@@ -163,10 +161,6 @@ export const TripMap = memo(
     const [copied, setCopied] = useState(false)
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
 
-    // Client QR codes for Print View
-    const [directionsQr, setDirectionsQr] = useState<string>('')
-    const [destinationQr, setDestinationQr] = useState<string>('')
-
     const mapContainerRef = useRef<HTMLDivElement | null>(null)
     const mapRef = useRef<L.Map | null>(null)
     const sourceMarkerRef = useRef<L.Marker | null>(null)
@@ -181,14 +175,7 @@ export const TripMap = memo(
 
     // Coordinates formatting
     const dms = formatDms(destLat, destLng)
-    const plusCode = encodePlusCode(destLat, destLng)
     const bookingRefShort = bookingId ? bookingId.slice(0, 8).toUpperCase() : 'CONFIRMED'
-
-    // Generate QR codes for Print View
-    useEffect(() => {
-      generateQrDataUrl(googleMapsUrl, { width: 140 }).then(setDirectionsQr)
-      generateQrDataUrl(destinationPinUrl, { width: 140 }).then(setDestinationQr)
-    }, [googleMapsUrl, destinationPinUrl])
 
     // 1. Restore saved source from localStorage on mount
     useEffect(() => {
@@ -890,41 +877,36 @@ export const TripMap = memo(
 
             <div className="text-xs text-[var(--muted)] mt-1 flex flex-wrap gap-x-4 gap-y-1">
               <span>DMS: {dms.text}</span>
-              <span>Plus Code: <strong className="text-[var(--forest)]">{plusCode}</strong></span>
             </div>
 
-            {/* Printed QR Codes Strip */}
-            <div className="mt-3 pt-3 border-t border-[#edf2ec] grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="flex items-center gap-3">
-                {directionsQr && (
-                  <img
-                    src={directionsQr}
-                    alt="Google Maps Directions QR"
-                    className="w-16 h-16 border border-[var(--line)] p-0.5 rounded-xs shrink-0"
-                  />
-                )}
-                <div className="text-xs min-w-0">
-                  <span className="font-bold text-[var(--forest)] block">Scan for Directions</span>
-                  <span className="text-[11px] text-[var(--muted)] break-all">
-                    {source ? `From ${source.name}` : 'To Farm Gate'}
-                  </span>
-                </div>
+            {/* Direct Navigation Links with Printed URLs Beneath */}
+            <div className="mt-3 pt-3 border-t border-[#edf2ec] space-y-2.5">
+              <div>
+                <a
+                  href={googleMapsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#143223] text-white rounded text-xs font-bold no-underline hover:bg-[#1e4834]"
+                >
+                  <ExternalLink size={12} /> {t('openGoogleMaps')}
+                </a>
+                <span className="block text-[11px] text-[#666666] font-mono mt-1 break-all [overflow-wrap:anywhere]">
+                  {googleMapsUrl}
+                </span>
               </div>
 
-              <div className="flex items-center gap-3">
-                {destinationQr && (
-                  <img
-                    src={destinationQr}
-                    alt="Destination Pin QR"
-                    className="w-16 h-16 border border-[var(--line)] p-0.5 rounded-xs shrink-0"
-                  />
-                )}
-                <div className="text-xs min-w-0">
-                  <span className="font-bold text-[var(--forest)] block">Scan Destination Pin</span>
-                  <span className="text-[11px] text-[var(--muted)] break-all">
-                    {destLat.toFixed(4)}, {destLng.toFixed(4)}
-                  </span>
-                </div>
+              <div>
+                <a
+                  href={destinationPinUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#f0f5ee] border border-[#c0d6be] text-[#143223] rounded text-xs font-bold no-underline hover:bg-[#e4ece1]"
+                >
+                  <MapPin size={12} /> {t('openDestinationPin')}
+                </a>
+                <span className="block text-[11px] text-[#666666] font-mono mt-1 break-all [overflow-wrap:anywhere]">
+                  {destinationPinUrl}
+                </span>
               </div>
             </div>
           </div>
