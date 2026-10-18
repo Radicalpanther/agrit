@@ -13,7 +13,7 @@ export function Hero() {
         </h1>
         <p>
           Discover working farms, seasonal traditions and warm village stays—directly from the
-          people who call rural Maharashtra home.
+          people who call rural India home.
         </p>
         <div className="hero-ctas">
           <Link className="primary-btn" href="/explore">

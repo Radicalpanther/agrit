@@ -36,7 +36,7 @@ const CLAUDE_TOOLS = [
         },
         region: {
           type: 'string',
-          description: 'Geographical region (e.g. Maharashtra, Kerala, Punjab).',
+          description: 'Geographical region in India (e.g. Maharashtra, Himachal Pradesh, Kerala, Punjab, Karnataka, Rajasthan, Kashmir).',
         },
         month: {
           type: 'number',
@@ -79,7 +79,7 @@ const CLAUDE_TOOLS = [
         },
         region: {
           type: 'string',
-          description: 'Optional filter by region (e.g. Maharashtra, Kerala, Punjab).',
+          description: 'Optional filter by region in India (e.g. Maharashtra, Himachal Pradesh, Kerala, Punjab, Karnataka, Rajasthan).',
         },
       },
     },
@@ -149,9 +149,18 @@ async function runMockAiStream(
       if (q.includes('1500') || q.includes('1,500')) budgetPaise = 150000
 
       let region: string | undefined = undefined
-      if (q.includes('maharashtra') || q.includes('konkan') || q.includes('ratnagiri')) region = 'Maharashtra'
-      if (q.includes('kerala') || q.includes('wayanad')) region = 'Kerala'
-      if (q.includes('punjab') || q.includes('amritsar')) region = 'Punjab'
+      if (q.includes('maharashtra') || q.includes('konkan') || q.includes('ratnagiri') || q.includes('nashik') || q.includes('kolhapur')) region = 'Maharashtra'
+      else if (q.includes('kerala') || q.includes('wayanad')) region = 'Kerala'
+      else if (q.includes('punjab') || q.includes('amritsar')) region = 'Punjab'
+      else if (q.includes('himachal') || q.includes('shimla') || q.includes('kotgarh')) region = 'Himachal Pradesh'
+      else if (q.includes('kashmir') || q.includes('pampore')) region = 'Kashmir'
+      else if (q.includes('rajasthan') || q.includes('pushkar')) region = 'Rajasthan'
+      else if (q.includes('karnataka') || q.includes('coorg') || q.includes('madikeri')) region = 'Karnataka'
+      else if (q.includes('tamil nadu') || q.includes('coonoor') || q.includes('nilgiris')) region = 'Tamil Nadu'
+      else if (q.includes('uttarakhand') || q.includes('mukteshwar') || q.includes('kumaon')) region = 'Uttarakhand'
+      else if (q.includes('gujarat') || q.includes('gir') || q.includes('talala')) region = 'Gujarat'
+      else if (q.includes('west bengal') || q.includes('darjeeling')) region = 'West Bengal'
+      else if (q.includes('assam') || q.includes('tezpur')) region = 'Assam'
 
       const data = await searchFarms({ budget_max_paise: budgetPaise, region })
       const farms = data.farms || []

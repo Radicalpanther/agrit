@@ -22,7 +22,7 @@ export default function HomePage() {
         </div>
         <div className="intro-copy">
           <p>
-            AgriTrails connects curious city travellers with farming families across Maharashtra.
+            AgriTrails connects curious city travellers with farming families across rural India.
             Stay a little slower, learn something real, and make sure your money goes where it
             matters.
           </p>

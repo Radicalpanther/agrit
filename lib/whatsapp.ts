@@ -43,7 +43,7 @@ export const WHATSAPP_TEMPLATES: Record<string, WhatsAppTemplateConfig> = {
     language: 'en_US',
     variables: ['guest_name', 'farm_name', 'check_in'],
     bodyText:
-      'Namaste {{1}}, unfortunately {{2}} is unable to host your visit on {{3}}. You can explore other authentic stays across Maharashtra and Kerala on agritrails.dev',
+      'Namaste {{1}}, unfortunately {{2}} is unable to host your visit on {{3}}. You can explore other authentic stays across India on agritrails.dev',
   },
   tourist_pre_arrival_reminder: {
     name: 'tourist_pre_arrival_reminder',

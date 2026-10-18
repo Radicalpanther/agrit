@@ -9,7 +9,7 @@ import { AgriGuide } from '@/components/AgriGuide'
 
 export const metadata: Metadata = {
   title: 'AgriTrails — Stay closer to the land',
-  description: 'Discover farm stays, seasonal traditions and rural experiences across Maharashtra.',
+  description: 'Discover authentic farm stays, seasonal harvest traditions, and rural experiences across India.',
 }
 
 export const viewport: Viewport = {

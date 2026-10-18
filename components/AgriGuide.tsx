@@ -18,7 +18,7 @@ const SUGGESTED_PROMPTS = [
 const WELCOME_MESSAGE: Message = {
   role: 'assistant',
   content:
-    'Hello. I am AgriGuide, your rural farm stay and seasonal harvest assistant. Ask about farm stays, harvest dates, prices, or check-in rules across Maharashtra, Kerala, and Punjab.',
+    'Hello. I am AgriGuide, your rural farm stay and seasonal harvest assistant. Ask about farm stays, harvest dates, prices, or check-in rules across India.',
 }
 
 /**

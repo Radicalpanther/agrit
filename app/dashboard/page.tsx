@@ -575,7 +575,7 @@ export default function DashboardPage() {
                 No active bookings found.
               </p>
               <p className="muted" style={{ marginBottom: '20px' }}>
-                Discover rural escapes and traditional farm stays across Maharashtra and Kerala.
+                Discover rural escapes and traditional farm stays across India.
               </p>
               <Link className="primary-btn" href="/explore" style={{ textDecoration: 'none' }}>
                 Browse stays
@@ -1244,9 +1244,17 @@ export default function DashboardPage() {
                     style={{ border: '1px solid var(--line)', padding: '9px 11px', fontSize: '13px', background: '#fff' }}
                   >
                     <option value="Maharashtra">Maharashtra</option>
+                    <option value="Himachal Pradesh">Himachal Pradesh</option>
+                    <option value="Kashmir">Kashmir</option>
                     <option value="Kerala">Kerala</option>
                     <option value="Punjab">Punjab</option>
-                    <option value="Himachal Pradesh">Himachal Pradesh</option>
+                    <option value="Karnataka">Karnataka</option>
+                    <option value="Rajasthan">Rajasthan</option>
+                    <option value="Gujarat">Gujarat</option>
+                    <option value="Uttarakhand">Uttarakhand</option>
+                    <option value="Tamil Nadu">Tamil Nadu</option>
+                    <option value="West Bengal">West Bengal</option>
+                    <option value="Assam">Assam</option>
                   </select>
                 </label>
               </div>

@@ -1,6 +1,6 @@
 # AgriTrails
 
-A production-grade Next.js 16 (App Router, TypeScript, Tailwind 4) authentic rural farm stay and agri-tourism platform across Maharashtra, Kerala, and Punjab.
+A production-grade Next.js 16 (App Router, TypeScript, Tailwind 4) authentic rural farm stay and agri-tourism platform across India.
 
 ---
 
@@ -136,7 +136,7 @@ To enable live dispatch to phones with `whatsapp_opt_in = true`, configure the f
 - **Variables:** `{{1}}` Guest name, `{{2}}` Farm name, `{{3}}` Check-in date
 - **Body:**
   ```text
-  Namaste {{1}}, unfortunately {{2}} is unable to host your visit on {{3}}. You can explore other authentic stays across Maharashtra and Kerala on agritrails.dev
+  Namaste {{1}}, unfortunately {{2}} is unable to host your visit on {{3}}. You can explore other authentic stays across India on agritrails.dev
   ```
 
 #### 5. `tourist_pre_arrival_reminder`
