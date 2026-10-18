@@ -305,7 +305,6 @@ export function FarmDayFlow({ farm, activities }: FarmDayFlowProps) {
           <div className="farm-flow-card">
             <div className="farm-flow-card-head">
               <span className="farm-flow-time">{arriveTime}</span>
-              <span className="farm-flow-price">Included</span>
             </div>
             <div className="farm-flow-title-row">
               <h3 className="farm-flow-title">Arrive</h3>
@@ -346,9 +345,11 @@ export function FarmDayFlow({ farm, activities }: FarmDayFlowProps) {
                       <span className="farm-flow-seasonal-tag">Seasonal</span>
                     )}
                     <span className="farm-flow-kind-tag">{act.kind}</span>
-                    <span className="farm-flow-price">
-                      {act.price_paise > 0 ? formatRupees(act.price_paise) : 'Included'}
-                    </span>
+                    {act.price_paise > 0 && (
+                      <span className="farm-flow-price">
+                        {formatRupees(act.price_paise)}
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -378,7 +379,6 @@ export function FarmDayFlow({ farm, activities }: FarmDayFlowProps) {
           <div className="farm-flow-card">
             <div className="farm-flow-card-head">
               <span className="farm-flow-time">{departTime}</span>
-              <span className="farm-flow-price">Included</span>
             </div>
             <div className="farm-flow-title-row">
               <h3 className="farm-flow-title">Depart</h3>

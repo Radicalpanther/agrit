@@ -172,7 +172,11 @@ export default async function FarmDetailPage({
           organicPct={raw.organic_pct ?? farm.organicPct ?? 85}
         />
 
-        {stayOverviewCard}
+        {activities.length > 0 && (
+          <div style={{ marginTop: '36px', borderTop: '1px solid var(--line)', paddingTop: '28px' }}>
+            <FarmDayFlow farm={farm} activities={activities} />
+          </div>
+        )}
       </div>
     </div>
   )
@@ -183,58 +187,10 @@ export default async function FarmDetailPage({
         &larr; Back to farm stays
       </Link>
 
-      {/* Two-column layout on screens > 900px placing flow next to photos & description. Hidden if no activities. */}
-      {activities.length > 0 ? (
-        <div className="farm-hero-layout">
-          <div>{farmDetailsContent}</div>
-          <div>
-            <FarmDayFlow farm={farm} activities={activities} />
-          </div>
-        </div>
-      ) : (
-        <div className="booking-layout">
-          <div>
-            <div className="booking-photo">
-              <FarmImage src={farm.image} alt={farm.name} />
-            </div>
-            <div className="booking-copy">
-              <p className="section-kicker">Your rural reset</p>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', marginBottom: '8px' }}>
-                <h1 style={{ margin: 0 }}>{farm.name}</h1>
-                {farm.verified && <VerifiedBadge size="md" />}
-              </div>
-              <p className="muted">
-                <MapPin size={14} /> {farm.place} ·{' '}
-                <Star size={14} fill="currentColor" /> {farm.rating} (
-                {farm.reviews} reviews)
-              </p>
-              <p>{farm.description}</p>
-              <div className="amenities">
-                <span>
-                  <Leaf size={16} /> Organic meals
-                </span>
-                <span>
-                  <Users size={16} /> Sleeps {farm.sleeps}
-                </span>
-                <span>
-                  <Clock3 size={16} /> Flexible check-in
-                </span>
-                {raw.allows_day_visit && (
-                  <span>
-                    <Sun size={16} /> Day visits allowed
-                  </span>
-                )}
-              </div>
-              <EcoScore
-                guests={2}
-                nights={1}
-                organicPct={raw.organic_pct ?? farm.organicPct ?? 85}
-              />
-            </div>
-          </div>
-          <div>{stayOverviewCard}</div>
-        </div>
-      )}
+      <div className="booking-layout">
+        <div>{farmDetailsContent}</div>
+        <div>{stayOverviewCard}</div>
+      </div>
 
       {/* Products from this farm */}
       {products.length > 0 && (
