@@ -16,6 +16,17 @@ import mrMessages from '@/messages/mr.json'
 
 export type Locale = 'en' | 'hi' | 'mr'
 
+/**
+ * Global kill-switch for tourist notifications.
+ * Off by default: tourists only see their status inside the AgriTrails web app.
+ */
+export const ENABLE_TOURIST_NOTIFICATIONS = process.env.ENABLE_TOURIST_NOTIFICATIONS === 'true'
+
+/**
+ * WhatsApp outbound notifications are fully disabled by default.
+ */
+export const ENABLE_WHATSAPP_NOTIFICATIONS = process.env.ENABLE_WHATSAPP_NOTIFICATIONS === 'true'
+
 const messageCatalogs: Record<Locale, any> = {
   en: enMessages,
   hi: hiMessages,
@@ -54,15 +65,9 @@ export function formatVisitType(
   locale: Locale,
 ): string {
   if (visitType === 'day') {
-    return getNotificationText(locale, 'notifications.common.dayVisit')
+    return 'Day visit'
   }
   const n = nights || 1
-  if (locale === 'hi') {
-    return `${n} रात का प्रवास`
-  }
-  if (locale === 'mr') {
-    return `${n} रात्रीचा मुक्काम`
-  }
   return n === 1 ? '1 night stay' : `${n} nights stay`
 }
 
@@ -104,44 +109,33 @@ export function buildFarmerBookingMessage(
   reservedProductsText?: string,
   locale: Locale = 'en',
 ): { text: string; replyMarkup: { inline_keyboard: { text: string; callback_data: string }[][] } } {
-  const visitTypeStr = formatVisitType(booking.visit_type, booking.nights, locale)
-  const formattedTotal = formatRupees(booking.total_paise || 0, locale)
-  const discountPct = Number(booking.discount_pct) || 0
-  const discountNote = discountPct > 0
-    ? getNotificationText(locale, 'notifications.farmerNewBooking.discountApplied', { discountPct })
-    : ''
-  const farmName = booking.farm?.name || getNotificationText(locale, 'notifications.common.farmStay')
-  const guestName = booking.guest_name || booking.tourist?.full_name || getNotificationText(locale, 'notifications.common.guest')
-  const guestPhone = booking.guest_phone || booking.tourist?.phone
+  const stayType = booking.visit_type === 'day' ? 'Day visit' : `${booking.nights || 1} night(s)`
+  const totalRupees = Math.round((booking.total_paise || 0) / 100)
+  const farmName = booking.farm?.name || 'Farm stay'
+  const guestName = booking.guest_name || booking.tourist?.full_name || 'Guest'
+  const guestPhone = booking.guest_phone || booking.tourist?.phone || 'Not provided'
 
   const lines = [
-    getNotificationText(locale, 'notifications.farmerNewBooking.title', { farmName }),
-    getNotificationText(locale, 'notifications.farmerNewBooking.reference', { bookingId: booking.id }),
-    getNotificationText(locale, 'notifications.farmerNewBooking.guest', { guestName }),
+    `New booking request for ${farmName}`,
+    `Ref: ${booking.id.slice(0, 8)}`,
+    `Guest: ${guestName}`,
+    `Farm: ${farmName}`,
+    `Visit type: ${stayType}`,
+    `Check-in date: ${booking.check_in || 'Scheduled'}`,
+    `Guests: ${booking.guests || 1}`,
+    `Phone: ${guestPhone}`,
+    `Total: Rs ${totalRupees}`,
   ]
-  if (guestPhone) {
-    lines.push(getNotificationText(locale, 'notifications.farmerNewBooking.phone', { phone: guestPhone }))
-  }
-  lines.push(
-    getNotificationText(locale, 'notifications.farmerNewBooking.visitType', { visitType: visitTypeStr }),
-    getNotificationText(locale, 'notifications.farmerNewBooking.checkInDate', {
-      checkIn: booking.check_in || getNotificationText(locale, 'notifications.common.scheduled'),
-    }),
-  )
-  if (booking.arrival_time) {
-    lines.push(getNotificationText(locale, 'notifications.farmerNewBooking.arrivalTime', { arrivalTime: booking.arrival_time }))
-  }
-  lines.push(getNotificationText(locale, 'notifications.farmerNewBooking.guests', { guests: booking.guests || 1 }))
+
   if (reservedProductsText) {
-    lines.push(getNotificationText(locale, 'notifications.farmerNewBooking.reservedProducts', { reservedProducts: reservedProductsText }))
+    lines.push(`Reserved produce: ${reservedProductsText}`)
   }
-  lines.push(getNotificationText(locale, 'notifications.farmerNewBooking.total', { total: formattedTotal, discountNote }))
 
   const replyMarkup = {
     inline_keyboard: [
       [
-        { text: getNotificationText(locale, 'notifications.farmerNewBooking.accept'), callback_data: `bk:accept:${booking.id}` },
-        { text: getNotificationText(locale, 'notifications.farmerNewBooking.decline'), callback_data: `bk:decline:${booking.id}` },
+        { text: 'Accept', callback_data: `bk:accept:${booking.id}` },
+        { text: 'Decline', callback_data: `bk:decline:${booking.id}` },
       ],
     ],
   }
@@ -325,8 +319,12 @@ export async function notifyBookingStatus(
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // TOURIST NOTIFICATIONS (WHATSAPP OR MOCK - TELEGRAM IS NEVER USED FOR TOURISTS)
+    // TOURIST NOTIFICATIONS (DISABLED BY DEFAULT - IN-APP STATUS ONLY)
     // ──────────────────────────────────────────────────────────────────────────
+    if (!ENABLE_TOURIST_NOTIFICATIONS) {
+      return dispatched
+    }
+
     const directionsUrl = `${siteUrl}/farms/${farm.slug || ''}`
     const messagesToSend: Array<{
       to: string

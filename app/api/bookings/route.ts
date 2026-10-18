@@ -240,18 +240,6 @@ export async function POST(request: Request) {
           locale,
         )
 
-        // Find the tourist-facing notification for preview
-        const touristNotif =
-          dispatches.find((d) => d.template === 'tourist_booking_received' || d.template === 'telegram_tourist_booking_received') ||
-          dispatches[dispatches.length - 1] ||
-          dispatches[0] ||
-          null
-
-        let previewText = touristNotif?.previewText || ''
-        if (reservedProductsText) {
-          previewText += `\nReserved products for pickup: ${reservedProductsText}`
-        }
-
         return NextResponse.json({
           id: bookingId,
           status: 'pending',
@@ -265,14 +253,7 @@ export async function POST(request: Request) {
           addOnsTotalPaise: pricing.addOnsTotalPaise,
           reservedItems: reservedItemsList,
           currency: 'INR',
-          notification: {
-            template: touristNotif?.template || 'tourist_booking_received',
-            toPhone: touristNotif?.toPhone || phone,
-            status: touristNotif?.status || 'mock',
-            previewText:
-              previewText ||
-              `Namaste ${fullName}, your booking request for ${farm.name} has been received. ${reservedProductsText ? `Reserved products: ${reservedProductsText}.` : ''}`,
-          },
+          notification: null,
         })
       }
     }

@@ -109,12 +109,6 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
   const [bookingStatus, setBookingStatus] = useState<'pending' | 'confirmed' | 'declined'>('pending')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null)
-  const [notificationPreview, setNotificationPreview] = useState<{
-    template: string
-    toPhone: string
-    status: 'sent' | 'failed' | 'mock'
-    previewText: string
-  } | null>(null)
   const [copiedRef, setCopiedRef] = useState(false)
 
   useEffect(() => {
@@ -264,17 +258,6 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
       const bookedId = data.id || 'BK-CONFIRMED'
       setBookingId(bookedId)
       setBookingStatus(data.booking?.status || 'pending')
-      if (data.notification) {
-        setNotificationPreview(data.notification)
-      } else {
-        // Fallback fetch if not returned directly in payload
-        fetch(`/api/bookings/${bookedId}/notification`)
-          .then((res) => res.json())
-          .then((nData) => {
-            if (nData?.notification) setNotificationPreview(nData.notification)
-          })
-          .catch(() => {})
-      }
       setSent(true)
     } catch {
       setErrorMsg(t('errors.serverError'))
@@ -945,84 +928,7 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
             style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}
           />
 
-          {/* Notification Message Preview Panel */}
-          {notificationPreview && (
-            <div
-              className="message-preview-panel"
-              style={{
-                border: '1px solid var(--line)',
-                background: '#ffffff',
-                padding: '18px 20px',
-                margin: '24px 0',
-                textAlign: 'left',
-                width: '100%',
-                maxWidth: '100%',
-                boxSizing: 'border-box',
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  borderBottom: '1px solid var(--line)',
-                  paddingBottom: '10px',
-                  marginBottom: '12px',
-                  flexWrap: 'wrap',
-                  gap: '8px',
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: '11px',
-                    fontWeight: 800,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.8px',
-                    color: 'var(--forest)',
-                  }}
-                >
-                  {t('notification.previewTitle')}
-                </span>
-                <span
-                  style={{
-                    fontSize: '10px',
-                    fontWeight: 700,
-                    padding: '2px 8px',
-                    background: notificationPreview.status === 'mock' ? 'var(--mint)' : '#e2f0d9',
-                    color: 'var(--forest)',
-                    border: '1px solid var(--line)',
-                  }}
-                >
-                  {notificationPreview.status === 'mock'
-                    ? t('notification.mockMode')
-                    : t('notification.sentViaTelegram')}
-                </span>
-              </div>
 
-              <p style={{ fontSize: '12px', color: 'var(--muted)', margin: '0 0 10px', wordBreak: 'break-word' }}>
-                {t('notification.channel')} <strong>{notificationPreview.status === 'mock' ? t('notification.mockChannel') : t('notification.telegramChannel')}</strong> · {t('notification.event')} <code>{notificationPreview.template || 'booking_created'}</code>
-              </p>
-
-              <div
-                style={{
-                  background: '#f9faf7',
-                  border: '1px solid #e2e8df',
-                  padding: '14px 16px',
-                  fontSize: '13px',
-                  lineHeight: 1.6,
-                  color: 'var(--ink)',
-                  whiteSpace: 'pre-wrap',
-                  wordBreak: 'break-word',
-                }}
-              >
-                {notificationPreview.previewText}
-              </div>
-
-              <p style={{ fontSize: '11px', color: 'var(--muted)', margin: '10px 0 0' }}>
-                {t('notification.loggedNote')}
-              </p>
-            </div>
-          )}
 
           {/* Travel & Route Map */}
           {(() => {

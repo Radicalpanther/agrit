@@ -2,8 +2,11 @@ import { NextResponse } from 'next/server'
 import { setWebhook, setMyCommands, setChatMenuButton } from '@/lib/telegram'
 
 export const DEFAULT_COMMANDS = [
-  { command: 'start', description: 'Connect your host account' },
+  { command: 'bookings', description: 'List next 10 upcoming and pending bookings' },
+  { command: 'pending', description: 'List pending requests with Accept and Decline buttons' },
   { command: 'help', description: 'Show available host commands' },
+  { command: 'stop', description: 'Disconnect your Telegram account' },
+  { command: 'start', description: 'Connect your host account' },
 ]
 
 export async function POST(request: Request) {
