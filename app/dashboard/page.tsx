@@ -284,7 +284,9 @@ export default function DashboardPage() {
       landmarkNote: landmarkNote.trim(),
       directionsSteps: cleanSteps,
       cropIds: selectedCropIds,
-      imageUrl: imageUrl.trim(),
+      imageUrl: imageUrl.trim().includes('ibb.co/R4TRDhPH')
+        ? 'https://i.ibb.co/CsKRHJv0/images.jpg'
+        : imageUrl.trim(),
       lat: Number(lat),
       lng: Number(lng),
       published,

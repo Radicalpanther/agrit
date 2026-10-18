@@ -6,6 +6,14 @@ export interface FarmImageProps extends React.ImgHTMLAttributes<HTMLImageElement
   fallbackSrc?: string
 }
 
+function resolveImageSrc(src?: unknown): string | undefined {
+  if (typeof src !== 'string') return undefined
+  if (src.includes('ibb.co/R4TRDhPH')) {
+    return 'https://i.ibb.co/CsKRHJv0/images.jpg'
+  }
+  return src
+}
+
 export function FarmImage({
   src,
   alt = 'Farm stay',
@@ -14,9 +22,11 @@ export function FarmImage({
   style,
   ...props
 }: FarmImageProps) {
+  const resolvedSrc = resolveImageSrc(src) || fallbackSrc
+
   return (
     <img
-      src={src || fallbackSrc}
+      src={resolvedSrc}
       alt={alt}
       className={className}
       style={style}
