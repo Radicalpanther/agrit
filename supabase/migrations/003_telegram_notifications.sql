@@ -18,10 +18,12 @@ create table if not exists public.telegram_link_tokens (
   used boolean not null default false
 );
 
--- Enable RLS with no public policies (accessible only by service role)
+-- Enable RLS and allow token creation/lookup
 alter table public.telegram_link_tokens enable row level security;
 drop policy if exists "Service role only" on public.telegram_link_tokens;
 drop policy if exists "No public access" on public.telegram_link_tokens;
+drop policy if exists "Allow token operations" on public.telegram_link_tokens;
+create policy "Allow token operations" on public.telegram_link_tokens for all using (true) with check (true);
 
 -- 3. Bookings: store Telegram message id and chat id for interactive approval edits
 alter table if exists public.bookings

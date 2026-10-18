@@ -37,7 +37,7 @@ export async function POST() {
 
     if (insErr) {
       console.error('[Telegram Link Token Error]', insErr)
-      return NextResponse.json({ error: 'Failed to create connection token' }, { status: 500 })
+      return NextResponse.json({ error: insErr.message || 'Failed to create connection token' }, { status: 500 })
     }
 
     const botUsername = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || 'Agritrail_bot'

@@ -165,6 +165,8 @@ create table if not exists telegram_link_tokens (
   used       boolean not null default false
 );
 alter table telegram_link_tokens enable row level security;
+drop policy if exists "Allow token operations" on telegram_link_tokens;
+create policy "Allow token operations" on telegram_link_tokens for all using (true) with check (true);
 
 -- Produce reservations for farm pickup
 create table product_reservations (
