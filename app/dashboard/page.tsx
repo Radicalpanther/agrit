@@ -171,6 +171,8 @@ export default function DashboardPage() {
       if (json.profile?.role === 'tourist') {
         setViewMode('tourist')
         await loadTouristData()
+      } else {
+        setViewMode('farmer')
       }
     } catch {
       setError('An error occurred while connecting to the dashboard service')
@@ -586,60 +588,6 @@ export default function DashboardPage() {
 
   return (
     <section className="dashboard-page">
-      {/* Portal Mode Switcher */}
-      <div
-        style={{
-          display: 'flex',
-          gap: '8px',
-          marginBottom: '28px',
-          borderBottom: '1px solid var(--line)',
-          paddingBottom: '12px',
-        }}
-      >
-        {!isTouristRole && (
-          <button
-            type="button"
-            onClick={() => setViewMode('farmer')}
-            style={{
-              padding: '8px 16px',
-              fontSize: '12px',
-              fontWeight: 700,
-              color: viewMode === 'farmer' ? 'var(--forest)' : 'var(--muted)',
-              background: viewMode === 'farmer' ? 'var(--mint)' : 'transparent',
-              border: '1px solid',
-              borderColor: viewMode === 'farmer' ? 'var(--leaf)' : 'var(--line)',
-              borderRadius: '2px',
-              cursor: 'pointer',
-            }}
-          >
-            Farmer portal
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={() => {
-            setViewMode('tourist')
-            if (!touristData) loadTouristData()
-          }}
-          style={{
-            padding: '8px 16px',
-            fontSize: '12px',
-            fontWeight: 700,
-            color: viewMode === 'tourist' ? 'var(--forest)' : 'var(--muted)',
-            background: viewMode === 'tourist' ? 'var(--mint)' : 'transparent',
-            border: '1px solid',
-            borderColor: viewMode === 'tourist' ? 'var(--leaf)' : 'var(--line)',
-            borderRadius: '2px',
-            cursor: 'pointer',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px',
-          }}
-        >
-          <Compass size={14} /> My bookings &amp; travel safety cards
-        </button>
-      </div>
-
       {viewMode === 'tourist' ? (
         <div>
           <div className="dashboard-head" style={{ marginBottom: '28px' }}>

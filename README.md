@@ -206,7 +206,7 @@ Follow this screen-by-screen sequence for an impressive, end-to-end product demo
 2. **Overview Stats:** View upcoming guests, this month's earnings, and produce collection requests calculated from bookings.
 3. **Manage Listings:** Click *Edit Listing* or *Add Stay* to show the Leaflet coordinate pin dropper, landmark instructions, and publish toggle.
 4. **Manage Bookings & Produce:** Confirm or decline pending booking requests, triggering real-time notification dispatch (`notifyBookingStatus`). Update product inventory stock using the responsive progress bars.
-5. **Switch to Tourist View:** Tap *"My bookings & travel safety cards"* to inspect all confirmed travel cards from a guest perspective.
+5. **Tourist Portal:** Sign in as a tourist or visit "My Bookings" in the header to view confirmed reservations and offline travel safety cards.
 
 ---
 
