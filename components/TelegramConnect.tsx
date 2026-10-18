@@ -30,7 +30,7 @@ export function TelegramConnect({
   const [isLinked, setIsLinked] = useState<boolean>(false)
   const [loading, setLoading] = useState<boolean>(true)
   const [isConnecting, setIsConnecting] = useState<boolean>(false)
-  const [manualLinkUrl, setManualLinkUrl] = useState<string | null>(null)
+  const [connectError, setConnectError] = useState<string | null>(null)
 
   const [showConfirm, setShowConfirm] = useState<boolean>(false)
   const [isDisconnecting, setIsDisconnecting] = useState<boolean>(false)
@@ -59,9 +59,6 @@ export function TelegramConnect({
       const data = await res.json()
       const linked = Boolean(data.linked)
       setIsLinked(linked)
-      if (linked) {
-        setManualLinkUrl(null)
-      }
       if (onStatusChange) onStatusChange(linked)
       return linked
     } catch {
@@ -71,16 +68,14 @@ export function TelegramConnect({
     }
   }
 
-  // Re-check status on initial load
+  // Re-check status on page load
   useEffect(() => {
     checkStatus()
   }, [])
 
-  // When farmer returns to dashboard tab (visibilitychange to visible or window focus),
-  // re-check link status once and switch to the "Telegram connected" pill if linked.
-  // No continuous polling.
+  // Re-check status when the tab regains focus or visibility
   useEffect(() => {
-    const handleRecheck = () => {
+    const handleFocus = () => {
       checkStatus()
     }
     const handleVisibility = () => {
@@ -89,28 +84,53 @@ export function TelegramConnect({
       }
     }
 
-    window.addEventListener('focus', handleRecheck)
+    window.addEventListener('focus', handleFocus)
     document.addEventListener('visibilitychange', handleVisibility)
     return () => {
-      window.removeEventListener('focus', handleRecheck)
+      window.removeEventListener('focus', handleFocus)
       document.removeEventListener('visibilitychange', handleVisibility)
     }
   }, [])
 
-  // Connect: synchronous window.open, generate token, set tab location, no window.location navigation
+  // Poll status every 3 seconds while connecting until linked
+  useEffect(() => {
+    if (!isConnecting || isLinked) return
+
+    let attempts = 0
+    const maxAttempts = 200 // ~10 minutes
+
+    const interval = setInterval(async () => {
+      attempts++
+      if (attempts >= maxAttempts) {
+        clearInterval(interval)
+        setIsConnecting(false)
+        return
+      }
+
+      if (document.hidden) return
+
+      const linked = await checkStatus()
+      if (linked) {
+        clearInterval(interval)
+        setIsConnecting(false)
+      }
+    }, 3000)
+
+    return () => clearInterval(interval)
+  }, [isConnecting, isLinked])
+
+  // Connect: generate one-time token and open in new tab
   const handleConnect = async () => {
-    // Ignore double clicks while loading
-    if (isConnecting) return
-
-    // Synchronously before any await, open about:blank
-    let tab: Window | null = null
-    try {
-      tab = window.open('about:blank', '_blank')
-    } catch {
-      tab = null
-    }
-
+    setConnectError(null)
     setIsConnecting(true)
+
+    // Open blank tab synchronously within user gesture to prevent popup blocking
+    let newTab: Window | null = null
+    try {
+      newTab = window.open('about:blank', '_blank')
+    } catch {
+      newTab = null
+    }
 
     try {
       const res = await fetch('/api/telegram/link', {
@@ -118,38 +138,23 @@ export function TelegramConnect({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ role: 'farmer' }),
       })
-      const data = await res.json().catch(() => ({}))
+      const data = await res.json()
 
       if (!res.ok || !data.linkUrl) {
-        if (tab) {
-          try {
-            tab.close()
-          } catch {}
-        }
-        const errorMsg = data?.error || 'Could not generate Telegram link. Please try again.'
-        setToast({ message: errorMsg, type: 'error' })
+        if (newTab && !newTab.closed) newTab.close()
+        setConnectError(data.error || 'Failed to create link')
         setIsConnecting(false)
         return
       }
 
-      // Check if popup opened successfully
-      if (tab && !tab.closed) {
-        tab.location.href = data.linkUrl
-        tab.opener = null
-        setManualLinkUrl(null)
+      if (newTab && !newTab.closed) {
+        newTab.location.href = data.linkUrl
       } else {
-        // Popup blocked: do NOT navigate the current page.
-        // Instead, show a visible "Open Telegram" link button next to the Connect button
-        setManualLinkUrl(data.linkUrl)
+        window.location.href = data.linkUrl
       }
     } catch {
-      if (tab) {
-        try {
-          tab.close()
-        } catch {}
-      }
-      setToast({ message: 'Could not generate Telegram link. Please try again.', type: 'error' })
-    } finally {
+      if (newTab && !newTab.closed) newTab.close()
+      setConnectError('Network error connecting to Telegram')
       setIsConnecting(false)
     }
   }
@@ -179,7 +184,6 @@ export function TelegramConnect({
       setIsLinked(false)
       setShowConfirm(false)
       setIsDisconnecting(false)
-      setManualLinkUrl(null)
       if (onStatusChange) onStatusChange(false)
       setToast({ message: 'Telegram disconnected.', type: 'success' })
     } catch {
@@ -433,7 +437,7 @@ export function TelegramConnect({
             </button>
           </div>
         ) : (
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', flexShrink: 0, flexWrap: 'wrap' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
             <button
               type="button"
               onClick={handleConnect}
@@ -468,31 +472,10 @@ export function TelegramConnect({
               )}
             </button>
 
-            {manualLinkUrl && (
-              <a
-                href={manualLinkUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '6px 12px',
-                  fontSize: '11.5px',
-                  fontWeight: 700,
-                  color: '#ffffff',
-                  background: 'var(--forest)',
-                  border: '1px solid var(--forest)',
-                  fontFamily: 'Arial, sans-serif',
-                  minHeight: '32px',
-                  borderRadius: '3px',
-                  whiteSpace: 'nowrap',
-                  textDecoration: 'none',
-                }}
-              >
-                <Send size={13} />
-                <span>Open Telegram</span>
-              </a>
+            {connectError && (
+              <span style={{ fontSize: '11px', color: '#dc2626', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                {connectError}
+              </span>
             )}
           </div>
         )}
