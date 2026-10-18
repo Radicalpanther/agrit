@@ -20,7 +20,6 @@ import { calculateBookingPrice } from '@/lib/pricing'
 import { EcoScore } from '@/components/EcoScore'
 import { VerifiedBadge } from '@/components/VerifiedBadge'
 import { FarmImage } from '@/components/FarmImage'
-import { TelegramConnect } from '@/components/TelegramConnect'
 import dynamic from 'next/dynamic'
 
 const TripMap = dynamic(
@@ -98,7 +97,6 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
   const [sent, setSent] = useState(false)
   const [bookingId, setBookingId] = useState<string>('')
   const [bookingStatus, setBookingStatus] = useState<'pending' | 'confirmed' | 'declined'>('pending')
-  const [isTelegramLinked, setIsTelegramLinked] = useState<boolean>(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [notificationPreview, setNotificationPreview] = useState<{
     template: string
@@ -204,7 +202,6 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
           email,
           phone,
           whatsappOptIn,
-          telegramOptIn: isTelegramLinked,
           checkInDate,
           arrivalTime: visitType === 'day' ? arrivalTime : undefined,
           nights: visitType === 'overnight' ? nights : 1,
@@ -367,7 +364,6 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
               >
                 Your request for a {visitType === 'day' ? 'Day visit' : 'Overnight stay'} ({guests} guest{guests > 1 ? 's' : ''}) has been submitted to your host at {farm.name}.
                 {phone ? ` Your host will contact you directly at ${phone}.` : ''}
-                {isTelegramLinked ? ' Updates and arrival instructions are delivered directly to your connected Telegram.' : ''}
                 {' '}No payment is required today.
               </p>
             </div>
@@ -579,11 +575,6 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
                   <option value={15}>15 guests (Group Package 20% off)</option>
                 </select>
               </label>
-            </div>
-
-            {/* Telegram Updates Block */}
-            <div style={{ margin: '16px 0 20px' }}>
-              <TelegramConnect role="tourist" onStatusChange={(linked) => setIsTelegramLinked(linked)} />
             </div>
 
             {/* Reserve products to collect at the farm */}
