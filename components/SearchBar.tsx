@@ -9,6 +9,7 @@ import {
   MapPin,
   Search,
   X,
+  Calendar as CalendarIcon,
 } from 'lucide-react'
 
 const POPULAR_DESTINATIONS = [
@@ -49,6 +50,81 @@ const SEASONS = [
   { label: 'Winter (Dec - Feb)', month: 'January' },
 ]
 
+const EXPERIENCES = [
+  {
+    value: 'farm stay',
+    label: 'Farm stay',
+    category: 'STAY',
+    desc: 'Overnight rural living, farm-fresh family meals & harvest walks',
+  },
+  {
+    value: 'apple orchard',
+    label: 'Apple orchard',
+    category: 'ORCHARD',
+    desc: 'Himalayan tree harvest, cider pressing & deodar cedar trails',
+  },
+  {
+    value: 'saffron',
+    label: 'Saffron fields',
+    category: 'HARVEST',
+    desc: 'Sunrise purple blossom plucking & brass samovar saffron kahwa',
+  },
+  {
+    value: 'tea plantation',
+    label: 'Tea plantation',
+    category: 'PLANTATION',
+    desc: 'Orthodox leaf plucking, tea tasting & heritage colonial bungalows',
+  },
+  {
+    value: 'coffee estate',
+    label: 'Coffee estate',
+    category: 'PLANTATION',
+    desc: 'Shade-grown Arabica berry picking, cupping & rainforest walks',
+  },
+  {
+    value: 'fruit picking',
+    label: 'Fruit picking',
+    category: 'ORCHARD',
+    desc: 'Hand-pick GI Alphonso, Gir Kesar mangoes & Himalayan apricots',
+  },
+  {
+    value: 'spice plantation',
+    label: 'Spice plantation',
+    category: 'NATURE',
+    desc: 'Green cardamom, black pepper vines & ayurvedic aroma trails',
+  },
+  {
+    value: 'hurda',
+    label: 'Hurda party',
+    category: 'CULINARY',
+    desc: 'Tender winter jowar roasted on earthen hearths with spicy chutney',
+  },
+  {
+    value: 'jaggery',
+    label: 'Jaggery making',
+    category: 'CULINARY',
+    desc: 'Sugarcane crush, traditional bullock Kolhu & warm fresh gur',
+  },
+  {
+    value: 'vineyard',
+    label: 'Vineyard stay',
+    category: 'ORCHARD',
+    desc: 'Table grape harvest, canopy pruning & sunset valley walks',
+  },
+  {
+    value: 'mustard harvest',
+    label: 'Mustard harvest',
+    category: 'FARMING',
+    desc: 'Golden yellow fields, morning tractor rides & wood-fired saag',
+  },
+  {
+    value: 'cattle tending',
+    label: 'Cattle tending',
+    category: 'FARMING',
+    desc: 'Desi Gir cow shed care, fresh milk & cultured bilona ghee',
+  },
+]
+
 export function SearchBar() {
   const router = useRouter()
 
@@ -58,13 +134,22 @@ export function SearchBar() {
 
   const [whereOpen, setWhereOpen] = useState(false)
   const [whenOpen, setWhenOpen] = useState(false)
+  const [experienceOpen, setExperienceOpen] = useState(false)
+
+  // 'month' or 'date' mode in the When popover
+  const [whenMode, setWhenMode] = useState<'month' | 'date'>('month')
+  const [customDate, setCustomDate] = useState('')
 
   const whereRef = useRef<HTMLLabelElement>(null)
   const whenRef = useRef<HTMLLabelElement>(null)
+  const experienceRef = useRef<HTMLLabelElement>(null)
 
   const currentMonthIdx = new Date().getMonth()
 
-  // Close dropdowns when clicking outside
+  // Format today's minimum string for date input
+  const todayIso = new Date().toISOString().split('T')[0]
+
+  // Close dropdowns on outside click or Escape
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (whereRef.current && !whereRef.current.contains(e.target as Node)) {
@@ -73,12 +158,16 @@ export function SearchBar() {
       if (whenRef.current && !whenRef.current.contains(e.target as Node)) {
         setWhenOpen(false)
       }
+      if (experienceRef.current && !experienceRef.current.contains(e.target as Node)) {
+        setExperienceOpen(false)
+      }
     }
 
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
         setWhereOpen(false)
         setWhenOpen(false)
+        setExperienceOpen(false)
       }
     }
 
@@ -90,10 +179,48 @@ export function SearchBar() {
     }
   }, [])
 
+  // Helper date shortcuts
+  const selectQuickDay = (daysFromNow: number) => {
+    const d = new Date()
+    d.setDate(d.getDate() + daysFromNow)
+    const monthShort = d.toLocaleString('en-US', { month: 'short' })
+    const day = d.getDate()
+    const year = d.getFullYear()
+    const formatted = `${monthShort} ${day}, ${year}`
+    setWhenValue(formatted)
+    setCustomDate(d.toISOString().split('T')[0])
+    setWhenOpen(false)
+  }
+
+  const selectNextWeekend = () => {
+    const d = new Date()
+    const dayOfWeek = d.getDay() // 0=Sun, 6=Sat
+    const daysUntilSaturday = (6 - dayOfWeek + 7) % 7 || 7
+    d.setDate(d.getDate() + daysUntilSaturday)
+    const monthShort = d.toLocaleString('en-US', { month: 'short' })
+    const day = d.getDate()
+    const year = d.getFullYear()
+    const formatted = `${monthShort} ${day}, ${year}`
+    setWhenValue(formatted)
+    setCustomDate(d.toISOString().split('T')[0])
+    setWhenOpen(false)
+  }
+
+  const applyCustomDate = (isoDate: string) => {
+    if (!isoDate) return
+    const [year, month, day] = isoDate.split('-').map(Number)
+    const d = new Date(year, month - 1, day)
+    const monthShort = d.toLocaleString('en-US', { month: 'short' })
+    const formatted = `${monthShort} ${day}, ${year}`
+    setWhenValue(formatted)
+    setWhenOpen(false)
+  }
+
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setWhereOpen(false)
     setWhenOpen(false)
+    setExperienceOpen(false)
 
     const params = new URLSearchParams()
     if (whereValue.trim()) params.set('where', whereValue.trim())
@@ -104,16 +231,22 @@ export function SearchBar() {
     router.push(queryString ? `/explore?${queryString}` : '/explore')
   }
 
+  // Find human label of selected experience
+  const selectedExpObj = EXPERIENCES.find((e) => e.value === experienceValue)
+
   return (
     <div className="search-wrap" style={{ position: 'relative', zIndex: 40 }}>
       <form className="search-bar" onSubmit={handleSubmit}>
+        {/* ================================================================= */}
         {/* WHERE FIELD */}
+        {/* ================================================================= */}
         <label
           ref={whereRef}
           style={{ position: 'relative', cursor: 'pointer' }}
           onClick={() => {
             setWhereOpen(true)
             setWhenOpen(false)
+            setExperienceOpen(false)
           }}
         >
           <MapPin size={18} />
@@ -127,6 +260,7 @@ export function SearchBar() {
               onFocus={() => {
                 setWhereOpen(true)
                 setWhenOpen(false)
+                setExperienceOpen(false)
               }}
               autoComplete="off"
             />
@@ -153,7 +287,7 @@ export function SearchBar() {
             )}
           </div>
 
-          {/* WHERE POPUP DROPDOWN */}
+          {/* WHERE POPUP */}
           {whereOpen && (
             <div
               style={{
@@ -262,12 +396,7 @@ export function SearchBar() {
                     >
                       {dest.region}
                     </span>
-                    <span
-                      style={{
-                        fontSize: '10px',
-                        color: 'var(--muted)',
-                      }}
-                    >
+                    <span style={{ fontSize: '10px', color: 'var(--muted)' }}>
                       {dest.place}
                     </span>
                     <span
@@ -287,13 +416,16 @@ export function SearchBar() {
           )}
         </label>
 
-        {/* WHEN FIELD */}
+        {/* ================================================================= */}
+        {/* WHEN FIELD (WITH DATE OPTION) */}
+        {/* ================================================================= */}
         <label
           ref={whenRef}
           style={{ position: 'relative', cursor: 'pointer' }}
           onClick={() => {
             setWhenOpen(true)
             setWhereOpen(false)
+            setExperienceOpen(false)
           }}
         >
           <CalendarDays size={18} />
@@ -301,12 +433,13 @@ export function SearchBar() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             <input
               name="when"
-              placeholder="Any month or season"
+              placeholder="Any date, month or season"
               value={whenValue}
               onChange={(e) => setWhenValue(e.target.value)}
               onFocus={() => {
                 setWhenOpen(true)
                 setWhereOpen(false)
+                setExperienceOpen(false)
               }}
               autoComplete="off"
             />
@@ -333,7 +466,7 @@ export function SearchBar() {
             )}
           </div>
 
-          {/* WHEN POPUP CALENDAR & SEASON SELECTOR */}
+          {/* WHEN POPUP (MONTHS / SEASONS + SPECIFIC DATE PICKER) */}
           {whenOpen && (
             <div
               style={{
@@ -341,6 +474,406 @@ export function SearchBar() {
                 top: 'calc(100% + 8px)',
                 left: 0,
                 width: 'min(380px, 92vw)',
+                maxHeight: '400px',
+                overflowY: 'auto',
+                background: '#ffffff',
+                border: '1px solid var(--line)',
+                boxShadow: '0 16px 36px rgba(16, 54, 39, 0.16)',
+                padding: '14px',
+                zIndex: 100,
+                cursor: 'default',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header with Switcher Tabs */}
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  paddingBottom: '8px',
+                  marginBottom: '10px',
+                  borderBottom: '1px solid var(--line)',
+                }}
+              >
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setWhenMode('month')}
+                    style={{
+                      padding: '4px 8px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      background: whenMode === 'month' ? 'var(--forest)' : '#f2f6f1',
+                      color: whenMode === 'month' ? '#ffffff' : 'var(--muted)',
+                      border: '1px solid var(--line)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Month &amp; Season
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setWhenMode('date')}
+                    style={{
+                      padding: '4px 8px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      background: whenMode === 'date' ? 'var(--forest)' : '#f2f6f1',
+                      color: whenMode === 'date' ? '#ffffff' : 'var(--muted)',
+                      border: '1px solid var(--line)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Specific Date
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setWhenValue('')
+                    setCustomDate('')
+                    setWhenOpen(false)
+                  }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    fontSize: '11px',
+                    color: 'var(--muted)',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                  }}
+                >
+                  Any time
+                </button>
+              </div>
+
+              {/* MODE 1: MONTH & SEASON */}
+              {whenMode === 'month' && (
+                <>
+                  {/* Quick Seasons */}
+                  <div style={{ marginBottom: '12px' }}>
+                    <span
+                      style={{
+                        fontSize: '10px',
+                        color: 'var(--muted)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px',
+                        display: 'block',
+                        marginBottom: '6px',
+                        fontWeight: 600,
+                      }}
+                    >
+                      By Season
+                    </span>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                      {SEASONS.map((s) => (
+                        <button
+                          key={s.label}
+                          type="button"
+                          onClick={() => {
+                            setWhenValue(s.month)
+                            setWhenOpen(false)
+                          }}
+                          style={{
+                            padding: '5px 8px',
+                            fontSize: '11px',
+                            background:
+                              whenValue.toLowerCase() === s.month.toLowerCase()
+                                ? 'var(--forest)'
+                                : '#f2f6f1',
+                            color:
+                              whenValue.toLowerCase() === s.month.toLowerCase()
+                                ? '#ffffff'
+                                : 'var(--ink)',
+                            border: '1px solid var(--line)',
+                            cursor: 'pointer',
+                            fontWeight: 600,
+                          }}
+                        >
+                          {s.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 12 Months Grid */}
+                  <div>
+                    <span
+                      style={{
+                        fontSize: '10px',
+                        color: 'var(--muted)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px',
+                        display: 'block',
+                        marginBottom: '6px',
+                        fontWeight: 600,
+                      }}
+                    >
+                      12-Month Calendar
+                    </span>
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(3, 1fr)',
+                        gap: '6px',
+                      }}
+                    >
+                      {MONTHS.map((m, idx) => {
+                        const isSelected =
+                          whenValue.toLowerCase().startsWith(m.short.toLowerCase())
+                        const isCurrent = idx === currentMonthIdx
+
+                        return (
+                          <button
+                            key={m.name}
+                            type="button"
+                            onClick={() => {
+                              setWhenValue(m.name)
+                              setWhenOpen(false)
+                            }}
+                            style={{
+                              padding: '8px 6px',
+                              textAlign: 'center',
+                              background: isSelected
+                                ? 'var(--forest)'
+                                : isCurrent
+                                ? 'var(--mint)'
+                                : '#ffffff',
+                              color: isSelected ? '#ffffff' : 'var(--ink)',
+                              border: isCurrent
+                                ? '1px solid var(--forest)'
+                                : '1px solid var(--line)',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              gap: '2px',
+                              transition: 'all 0.15s ease',
+                            }}
+                          >
+                            <span style={{ fontSize: '12px', fontWeight: 700 }}>
+                              {m.short}
+                              {isCurrent && (
+                                <span
+                                  style={{
+                                    display: 'inline-block',
+                                    width: '5px',
+                                    height: '5px',
+                                    borderRadius: '50%',
+                                    background: isSelected ? '#ffffff' : '#c78137',
+                                    marginLeft: '4px',
+                                    verticalAlign: 'middle',
+                                  }}
+                                />
+                              )}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: '9px',
+                                color: isSelected ? '#e8f2e5' : 'var(--muted)',
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                maxWidth: '95px',
+                              }}
+                            >
+                              {m.season}
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* MODE 2: SPECIFIC DATE PICKER */}
+              {whenMode === 'date' && (
+                <div>
+                  <span
+                    style={{
+                      fontSize: '10px',
+                      color: 'var(--muted)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px',
+                      display: 'block',
+                      marginBottom: '8px',
+                      fontWeight: 600,
+                    }}
+                  >
+                    Quick Days
+                  </span>
+
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+                    <button
+                      type="button"
+                      onClick={() => selectQuickDay(1)}
+                      style={{
+                        flex: 1,
+                        padding: '8px',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        background: '#f2f6f1',
+                        border: '1px solid var(--line)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Tomorrow
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => selectNextWeekend()}
+                      style={{
+                        flex: 1,
+                        padding: '8px',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        background: '#f2f6f1',
+                        border: '1px solid var(--line)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      This Weekend
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => selectQuickDay(7)}
+                      style={{
+                        flex: 1,
+                        padding: '8px',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        background: '#f2f6f1',
+                        border: '1px solid var(--line)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Next Week
+                    </button>
+                  </div>
+
+                  <span
+                    style={{
+                      fontSize: '10px',
+                      color: 'var(--muted)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px',
+                      display: 'block',
+                      marginBottom: '6px',
+                      fontWeight: 600,
+                    }}
+                  >
+                    Choose Exact Date
+                  </span>
+
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <input
+                      type="date"
+                      min={todayIso}
+                      value={customDate}
+                      onChange={(e) => {
+                        setCustomDate(e.target.value)
+                        applyCustomDate(e.target.value)
+                      }}
+                      style={{
+                        flex: 1,
+                        border: '1px solid var(--line)',
+                        padding: '9px 12px',
+                        fontSize: '13px',
+                        background: '#ffffff',
+                        color: 'var(--ink)',
+                        cursor: 'pointer',
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </label>
+
+        {/* ================================================================= */}
+        {/* EXPERIENCE FIELD (CUSTOM POPOVER MATCHING WHERE & WHEN) */}
+        {/* ================================================================= */}
+        <label
+          ref={experienceRef}
+          style={{ position: 'relative', cursor: 'pointer' }}
+          onClick={() => {
+            setExperienceOpen(true)
+            setWhereOpen(false)
+            setWhenOpen(false)
+          }}
+        >
+          <Compass size={18} />
+          <span>Experience</span>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              width: '100%',
+              marginTop: '3px',
+            }}
+          >
+            <span
+              style={{
+                fontSize: '13px',
+                color: selectedExpObj ? 'var(--ink)' : 'var(--muted)',
+                fontWeight: selectedExpObj ? 700 : 400,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                paddingRight: '6px',
+              }}
+            >
+              {selectedExpObj ? selectedExpObj.label : 'Any activity'}
+            </span>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              {experienceValue && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setExperienceValue('')
+                  }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    padding: '2px',
+                    color: 'var(--muted)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                  }}
+                  aria-label="Clear activity"
+                >
+                  <X size={14} />
+                </button>
+              )}
+              <ChevronDown
+                size={15}
+                style={{
+                  color: 'var(--muted)',
+                  transform: experienceOpen ? 'rotate(180deg)' : 'none',
+                  transition: 'transform 0.2s ease',
+                }}
+              />
+            </div>
+          </div>
+
+          <input type="hidden" name="experience" value={experienceValue} />
+
+          {/* EXPERIENCE CUSTOM POPUP */}
+          {experienceOpen && (
+            <div
+              style={{
+                position: 'absolute',
+                top: 'calc(100% + 8px)',
+                right: 0,
+                width: 'min(410px, 92vw)',
                 maxHeight: '380px',
                 overflowY: 'auto',
                 background: '#ffffff',
@@ -371,13 +904,13 @@ export function SearchBar() {
                     color: 'var(--forest)',
                   }}
                 >
-                  Select Month or Season
+                  Curated Farm Activities
                 </span>
                 <button
                   type="button"
                   onClick={() => {
-                    setWhenValue('')
-                    setWhenOpen(false)
+                    setExperienceValue('')
+                    setExperienceOpen(false)
                   }}
                   style={{
                     background: 'none',
@@ -388,190 +921,100 @@ export function SearchBar() {
                     fontWeight: 600,
                   }}
                 >
-                  Any month
+                  Any activity
                 </button>
               </div>
 
-              {/* Quick Seasons */}
-              <div style={{ marginBottom: '12px' }}>
-                <span
-                  style={{
-                    fontSize: '10px',
-                    color: 'var(--muted)',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px',
-                    display: 'block',
-                    marginBottom: '6px',
-                    fontWeight: 600,
-                  }}
-                >
-                  By Season
-                </span>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                  {SEASONS.map((s) => (
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+                  gap: '8px',
+                }}
+              >
+                {EXPERIENCES.map((exp) => {
+                  const isSelected = experienceValue === exp.value
+
+                  return (
                     <button
-                      key={s.label}
+                      key={exp.value}
                       type="button"
                       onClick={() => {
-                        setWhenValue(s.month)
-                        setWhenOpen(false)
+                        setExperienceValue(exp.value)
+                        setExperienceOpen(false)
                       }}
                       style={{
-                        padding: '5px 8px',
-                        fontSize: '11px',
-                        background:
-                          whenValue.toLowerCase() === s.month.toLowerCase()
-                            ? 'var(--forest)'
-                            : '#f2f6f1',
-                        color:
-                          whenValue.toLowerCase() === s.month.toLowerCase()
-                            ? '#ffffff'
-                            : 'var(--ink)',
-                        border: '1px solid var(--line)',
+                        textAlign: 'left',
+                        padding: '8px 10px',
+                        background: isSelected ? 'var(--mint)' : '#fafbf9',
+                        border: isSelected
+                          ? '1px solid var(--forest)'
+                          : '1px solid var(--line)',
                         cursor: 'pointer',
-                        fontWeight: 600,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '2px',
+                        transition: 'all 0.15s ease',
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isSelected) {
+                          e.currentTarget.style.borderColor = 'var(--forest)'
+                          e.currentTarget.style.background = '#f2f7f0'
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isSelected) {
+                          e.currentTarget.style.borderColor = 'var(--line)'
+                          e.currentTarget.style.background = '#fafbf9'
+                        }
                       }}
                     >
-                      {s.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* 12 Months Grid */}
-              <div>
-                <span
-                  style={{
-                    fontSize: '10px',
-                    color: 'var(--muted)',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px',
-                    display: 'block',
-                    marginBottom: '6px',
-                    fontWeight: 600,
-                  }}
-                >
-                  12-Month Calendar
-                </span>
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(3, 1fr)',
-                    gap: '6px',
-                  }}
-                >
-                  {MONTHS.map((m, idx) => {
-                    const isSelected =
-                      whenValue.toLowerCase().startsWith(m.short.toLowerCase())
-                    const isCurrent = idx === currentMonthIdx
-
-                    return (
-                      <button
-                        key={m.name}
-                        type="button"
-                        onClick={() => {
-                          setWhenValue(m.name)
-                          setWhenOpen(false)
-                        }}
+                      <div
                         style={{
-                          padding: '8px 6px',
-                          textAlign: 'center',
-                          background: isSelected
-                            ? 'var(--forest)'
-                            : isCurrent
-                            ? 'var(--mint)'
-                            : '#ffffff',
-                          color: isSelected ? '#ffffff' : 'var(--ink)',
-                          border: isCurrent
-                            ? '1px solid var(--forest)'
-                            : '1px solid var(--line)',
-                          cursor: 'pointer',
                           display: 'flex',
-                          flexDirection: 'column',
+                          justifyContent: 'space-between',
                           alignItems: 'center',
-                          gap: '2px',
-                          transition: 'all 0.15s ease',
-                        }}
-                        onMouseEnter={(e) => {
-                          if (!isSelected) {
-                            e.currentTarget.style.borderColor = 'var(--forest)'
-                            e.currentTarget.style.background = '#f2f7f0'
-                          }
-                        }}
-                        onMouseLeave={(e) => {
-                          if (!isSelected) {
-                            e.currentTarget.style.borderColor = isCurrent
-                              ? 'var(--forest)'
-                              : 'var(--line)'
-                            e.currentTarget.style.background = isCurrent
-                              ? 'var(--mint)'
-                              : '#ffffff'
-                          }
                         }}
                       >
-                        <span style={{ fontSize: '12px', fontWeight: 700 }}>
-                          {m.short}
-                          {isCurrent && (
-                            <span
-                              style={{
-                                display: 'inline-block',
-                                width: '5px',
-                                height: '5px',
-                                borderRadius: '50%',
-                                background: isSelected ? '#ffffff' : '#c78137',
-                                marginLeft: '4px',
-                                verticalAlign: 'middle',
-                              }}
-                            />
-                          )}
+                        <span
+                          style={{
+                            fontSize: '12px',
+                            fontWeight: 700,
+                            color: 'var(--ink)',
+                          }}
+                        >
+                          {exp.label}
                         </span>
                         <span
                           style={{
                             fontSize: '9px',
-                            color: isSelected ? '#e8f2e5' : 'var(--muted)',
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            maxWidth: '95px',
+                            color: 'var(--forest)',
+                            fontWeight: 700,
+                            letterSpacing: '0.5px',
                           }}
                         >
-                          {m.season}
+                          {exp.category}
                         </span>
-                      </button>
-                    )
-                  })}
-                </div>
+                      </div>
+                      <span
+                        style={{
+                          fontSize: '10px',
+                          color: 'var(--muted)',
+                          lineHeight: 1.35,
+                          marginTop: '2px',
+                        }}
+                      >
+                        {exp.desc}
+                      </span>
+                    </button>
+                  )
+                })}
               </div>
             </div>
           )}
         </label>
 
-        {/* EXPERIENCE FIELD */}
-        <label>
-          <Compass size={18} />
-          <span>Experience</span>
-          <select
-            name="experience"
-            value={experienceValue}
-            onChange={(e) => setExperienceValue(e.target.value)}
-          >
-            <option value="">Any activity</option>
-            <option value="farm stay">Farm stay</option>
-            <option value="apple orchard">Apple orchard</option>
-            <option value="tea plantation">Tea plantation</option>
-            <option value="coffee estate">Coffee estate</option>
-            <option value="saffron">Saffron fields</option>
-            <option value="fruit picking">Fruit picking</option>
-            <option value="hurda">Hurda party</option>
-            <option value="jaggery">Jaggery making</option>
-            <option value="vineyard">Vineyard stay</option>
-            <option value="cattle tending">Cattle tending</option>
-            <option value="spice plantation">Spice plantation</option>
-            <option value="mustard harvest">Mustard harvest</option>
-          </select>
-          <ChevronDown size={15} />
-        </label>
-
+        {/* SUBMIT BUTTON */}
         <button className="search-btn" type="submit">
           <Search size={19} />
           <span>Search farms</span>

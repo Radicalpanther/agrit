@@ -92,13 +92,20 @@ function ExploreContent() {
       )
     }
 
-    // 1b. SearchBar when query (e.g. "october", "oct", "may")
+    // 1b. SearchBar when query (e.g. "october", "oct", "may", "Oct 24, 2026", "2026-10-24")
     if (searchWhen) {
       const monthShorts = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
       const monthFulls = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december']
-      let mIdx = monthShorts.findIndex((m) => searchWhen.startsWith(m))
+      const lower = searchWhen.toLowerCase()
+      let mIdx = monthShorts.findIndex((m) => lower.includes(m))
       if (mIdx === -1) {
-        mIdx = monthFulls.findIndex((m) => searchWhen.startsWith(m))
+        mIdx = monthFulls.findIndex((m) => lower.includes(m))
+      }
+      if (mIdx === -1) {
+        const parsed = new Date(searchWhen)
+        if (!isNaN(parsed.getTime())) {
+          mIdx = parsed.getMonth()
+        }
       }
       if (mIdx !== -1) {
         const activeCropSlugs = new Set<string>()
