@@ -157,7 +157,7 @@ export interface ProductWithFarm {
   pricePaise: number
   stock: number
   inSeasonMonths: number[]
-  image: string
+  image?: string
   farm: {
     id: string
     name: string
@@ -173,7 +173,7 @@ export async function fetchServerProduce(): Promise<Produce[]> {
     const { data, error } = await supabase
       .from('products')
       .select('*')
-      .limit(6)
+      .limit(30)
 
     if (error || !data || data.length === 0) {
       return PRODUCE_ITEMS
@@ -184,7 +184,7 @@ export async function fetchServerProduce(): Promise<Produce[]> {
   }
 }
 
-export async function fetchServerProductsWithFarm(limit = 3): Promise<ProductWithFarm[]> {
+export async function fetchServerProductsWithFarm(limit = 20): Promise<ProductWithFarm[]> {
   try {
     const supabase = await createServerClient()
     const { data, error } = await supabase
@@ -205,7 +205,7 @@ export async function fetchServerProductsWithFarm(limit = 3): Promise<ProductWit
         pricePaise: p.pricePaise,
         stock: 30,
         inSeasonMonths: [],
-        image: p.image,
+        image: p.image || '',
         farm: {
           id: `farm-${idx + 1}`,
           name: FARMS[idx % FARMS.length].name,
@@ -223,8 +223,7 @@ export async function fetchServerProductsWithFarm(limit = 3): Promise<ProductWit
       pricePaise: item.price_paise,
       stock: item.stock || 0,
       inSeasonMonths: item.in_season_months || [],
-      image:
-        'https://images.unsplash.com/photo-1587049352846-4a222e784d38?auto=format&fit=crop&w=600&q=85',
+      image: item.image_url || '',
       farm: item.farm || {
         id: 'farm-1',
         name: 'Kokan Roots Farmstay',
@@ -241,7 +240,7 @@ export async function fetchServerProductsWithFarm(limit = 3): Promise<ProductWit
       pricePaise: p.pricePaise,
       stock: 30,
       inSeasonMonths: [],
-      image: p.image,
+      image: p.image || '',
       farm: {
         id: `farm-${idx + 1}`,
         name: FARMS[idx % FARMS.length].name,
@@ -301,8 +300,7 @@ export async function fetchNearbyFarmProducts(
         pricePaise: item.price_paise,
         stock: item.stock || 0,
         inSeasonMonths: item.in_season_months || [],
-        image:
-          'https://images.unsplash.com/photo-1553279768-865429fa0078?auto=format&fit=crop&w=600&q=85',
+        image: item.image_url || '',
         farm: {
           id: parentFarm?.id || item.farm_id,
           name: parentFarm?.name || 'Neighbouring farm',

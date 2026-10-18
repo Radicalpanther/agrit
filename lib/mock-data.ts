@@ -25,7 +25,9 @@ export interface Produce {
   name: string
   detail: string
   pricePaise: number
-  image: string
+  image?: string
+  stock?: number
+  unit?: string
 }
 
 export interface DashboardBooking {
@@ -441,7 +443,7 @@ export const PRODUCE_ITEMS: Produce[] = [
     name: 'Ratnagiri Alphonso',
     detail: '1 dozen · seasonal',
     pricePaise: 95000,
-    image: 'https://images.unsplash.com/photo-1553279768-865429fa0078?auto=format&fit=crop&w=600&q=85',
+    image: '',
   },
   {
     id: 'prod-3',

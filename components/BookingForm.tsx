@@ -7,6 +7,8 @@ import {
   Clock3,
   Leaf,
   MapPin,
+  Minus,
+  Plus,
   ShieldCheck,
   Star,
   Sun,
@@ -88,6 +90,8 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
   const [nights, setNights] = useState(1)
   const [guests, setGuests] = useState(2)
   const [selectedAddOns, setSelectedAddOns] = useState<string[]>([])
+  const [productQuantities, setProductQuantities] = useState<Record<string, number>>({})
+  const [showAllProduce, setShowAllProduce] = useState(false)
 
   const [loading, setLoading] = useState(false)
   const [sent, setSent] = useState(false)
@@ -101,21 +105,37 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
   } | null>(null)
 
   const toggleAddOn = (id: string) => {
-    setSelectedAddOns((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
-    )
+    setSelectedAddOns((prev) => {
+      const exists = prev.includes(id)
+      if (exists) {
+        return prev.filter((item) => item !== id)
+      } else {
+        if (!productQuantities[id]) {
+          setProductQuantities((q) => ({ ...q, [id]: 1 }))
+        }
+        return [...prev, id]
+      }
+    })
+  }
+
+  const updateProductQty = (id: string, delta: number, maxStock: number) => {
+    setProductQuantities((prev) => {
+      const current = prev[id] || 1
+      const next = Math.max(1, Math.min(maxStock, current + delta))
+      return { ...prev, [id]: next }
+    })
   }
 
   // Active rate per guest based on selected visit type
   const activeRate = visitType === 'day' ? dayRate : overnightRate
 
-  // Dynamic pricing calculation
+  // Dynamic pricing calculation with real product quantities
   const pricing = useMemo(() => {
     const selectedProduce = produce.filter((p) => selectedAddOns.includes(p.id))
     const addOns = selectedProduce.map((p) => ({
       id: p.id,
       pricePaise: p.pricePaise,
-      qty: 1,
+      qty: productQuantities[p.id] || 1,
     }))
 
     return calculateBookingPrice({
@@ -125,7 +145,7 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
       ratePerGuestPaise: activeRate,
       addOns,
     })
-  }, [visitType, guests, nights, activeRate, produce, selectedAddOns])
+  }, [visitType, guests, nights, activeRate, produce, selectedAddOns, productQuantities])
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -144,6 +164,11 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
     setLoading(true)
 
     try {
+      const productReservations = selectedAddOns.map((id) => ({
+        id,
+        qty: productQuantities[id] || 1,
+      }))
+
       const response = await fetch('/api/bookings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -159,6 +184,7 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
           nights: visitType === 'overnight' ? nights : 1,
           guests,
           addOnIds: selectedAddOns,
+          products: productReservations,
         }),
       })
 
@@ -518,30 +544,136 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
 
             {/* Reserve products to collect at the farm */}
             {produce.length > 0 && (
-              <div className="add-ons">
-                <div className="add-on-heading">
+              <div className="add-ons" style={{ marginTop: '24px', paddingTop: '18px', borderTop: '1px solid var(--line)' }}>
+                <div className="add-on-heading" style={{ marginBottom: '14px' }}>
                   <div>
-                    <p className="section-kicker">Reserve and collect at the farm</p>
-                    <h3>Reserve products to collect at the farm</h3>
+                    <p className="section-kicker" style={{ margin: '0 0 4px' }}>Reserve and collect at the farm</p>
+                    <h3 style={{ margin: 0, fontSize: '15px' }}>Optional farm products</h3>
                   </div>
-                  <span>Pay at the farm</span>
+                  <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Pay at the farm</span>
                 </div>
 
-                {produce.slice(0, 3).map((item) => (
-                  <label className="addon-row" key={item.id}>
-                    <input
-                      type="checkbox"
-                      checked={selectedAddOns.includes(item.id)}
-                      onChange={() => toggleAddOn(item.id)}
-                    />
-                    <FarmImage src={item.image} alt={item.name} />
-                    <span>
-                      <strong>{item.name}</strong>
-                      <small>{item.detail}</small>
-                    </span>
-                    <b>{formatRupees(item.pricePaise)}</b>
-                  </label>
-                ))}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {(showAllProduce ? produce : produce.slice(0, 6)).map((item) => {
+                    const isSelected = selectedAddOns.includes(item.id)
+                    const qty = productQuantities[item.id] || 1
+                    const maxStock = typeof (item as any).stock === 'number' && (item as any).stock > 0 ? (item as any).stock : 20
+                    const lineTotal = item.pricePaise * qty
+
+                    return (
+                      <div
+                        key={item.id}
+                        className={`booking-produce-item ${isSelected ? 'is-selected' : ''}`}
+                      >
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            justifyContent: 'space-between',
+                            gap: '12px',
+                          }}
+                        >
+                          <label
+                            style={{
+                              display: 'flex',
+                              alignItems: 'flex-start',
+                              gap: '10px',
+                              flex: 1,
+                              cursor: 'pointer',
+                              margin: 0,
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleAddOn(item.id)}
+                              style={{
+                                accentColor: 'var(--forest)',
+                                width: '16px',
+                                height: '16px',
+                                marginTop: '2px',
+                                cursor: 'pointer',
+                              }}
+                            />
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                              <span style={{ fontWeight: 700, fontSize: '13px', color: 'var(--ink)' }}>
+                                {item.name}
+                              </span>
+                              <span style={{ fontSize: '11px', color: 'var(--muted)', lineHeight: 1.4 }}>
+                                {(item as any).unit ? `${(item as any).unit} · ` : ''}{item.detail}
+                              </span>
+                            </div>
+                          </label>
+
+                          <div style={{ fontWeight: 700, fontSize: '13px', color: 'var(--ink)', whiteSpace: 'nowrap' }}>
+                            {formatRupees(item.pricePaise)}
+                          </div>
+                        </div>
+
+                        {isSelected && (
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              marginTop: '10px',
+                              paddingTop: '8px',
+                              borderTop: '1px solid #edf1eb',
+                              paddingLeft: '26px',
+                            }}
+                          >
+                            <div className="booking-produce-stepper">
+                              <button
+                                type="button"
+                                aria-label="Decrease quantity"
+                                onClick={() => updateProductQty(item.id, -1, maxStock)}
+                                disabled={qty <= 1}
+                              >
+                                <Minus size={13} />
+                              </button>
+                              <span>{qty}</span>
+                              <button
+                                type="button"
+                                aria-label="Increase quantity"
+                                onClick={() => updateProductQty(item.id, 1, maxStock)}
+                                disabled={qty >= maxStock}
+                              >
+                                <Plus size={13} />
+                              </button>
+                            </div>
+
+                            <div style={{ fontSize: '11.5px', color: 'var(--muted)' }}>
+                              Line total: <strong style={{ color: 'var(--ink)', fontSize: '12.5px' }}>{formatRupees(lineTotal)}</strong>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {produce.length > 6 && (
+                  <div style={{ marginTop: '10px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowAllProduce(!showAllProduce)}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'var(--forest)',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        padding: 0,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                      }}
+                    >
+                      {showAllProduce ? 'Show fewer products' : `Show more products (${produce.length - 6} more)`}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -554,7 +686,7 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
                 fontSize: '12px',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '6px',
+                gap: '7px',
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--muted)' }}>
@@ -581,10 +713,35 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
                 </div>
               )}
 
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  color: 'var(--ink)',
+                  fontWeight: 600,
+                  borderTop: '1px dashed var(--line)',
+                  paddingTop: '6px',
+                  marginTop: '2px',
+                }}
+              >
+                <span>Stay total</span>
+                <span>{formatRupees(pricing.discountedBasePaise)}</span>
+              </div>
+
               {pricing.addOnsTotalPaise > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--muted)' }}>
-                  <span>Reserved products to collect at the farm ({selectedAddOns.length})</span>
-                  <span>+{formatRupees(pricing.addOnsTotalPaise)} (pay at farm)</span>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    color: 'var(--forest)',
+                    fontWeight: 600,
+                    borderTop: '1px dashed var(--line)',
+                    paddingTop: '6px',
+                    marginTop: '2px',
+                  }}
+                >
+                  <span>Products to collect at the farm (pay there)</span>
+                  <span>+{formatRupees(pricing.addOnsTotalPaise)}</span>
                 </div>
               )}
 
@@ -593,7 +750,7 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
                   display: 'flex',
                   justifyContent: 'space-between',
                   borderTop: '1px solid var(--line)',
-                  marginTop: '8px',
+                  marginTop: '6px',
                   paddingTop: '8px',
                   fontSize: '15px',
                   fontWeight: 800,
@@ -664,11 +821,14 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
               <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '13px', color: '#53685d', lineHeight: 1.65 }}>
                 {produce
                   .filter((p) => selectedAddOns.includes(p.id))
-                  .map((p) => (
-                    <li key={p.id}>
-                      <strong>{p.name}</strong> · {formatRupees(p.pricePaise)} (Pay at the farm upon pickup)
-                    </li>
-                  ))}
+                  .map((p) => {
+                    const qty = productQuantities[p.id] || 1
+                    return (
+                      <li key={p.id}>
+                        <strong>{p.name} x {qty}</strong> · {formatRupees(p.pricePaise * qty)} (Pay at the farm upon pickup)
+                      </li>
+                    )
+                  })}
               </ul>
             </div>
           )}

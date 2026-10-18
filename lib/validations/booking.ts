@@ -12,6 +12,15 @@ export const bookingSchema = z.object({
   nights: z.coerce.number().int().min(1, 'At least 1 night required').default(1),
   guests: z.coerce.number().int().min(1, 'At least 1 guest required').default(2),
   addOnIds: z.array(z.string()).default([]),
+  products: z
+    .array(
+      z.object({
+        id: z.string().min(1, 'Product ID is required'),
+        qty: z.coerce.number().int().min(1, 'Quantity must be at least 1'),
+      }),
+    )
+    .optional()
+    .default([]),
 })
 
 export type BookingFormData = z.infer<typeof bookingSchema>

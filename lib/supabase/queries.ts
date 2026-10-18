@@ -47,8 +47,9 @@ export function mapDbProductToProduce(row: any): Produce {
     name: row.name,
     detail: row.detail ? `${row.unit} · ${row.detail}` : row.unit,
     pricePaise: row.price_paise,
-    image:
-      'https://images.unsplash.com/photo-1587049352846-4a222e784d38?auto=format&fit=crop&w=600&q=85',
+    image: row.image_url || '',
+    stock: row.stock || 0,
+    unit: row.unit || '',
   }
 }
 

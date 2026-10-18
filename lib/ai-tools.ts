@@ -233,7 +233,7 @@ export async function getFarmDetails({ slug }: GetFarmDetailsParams) {
         unit: p.unit,
         price_inr: Math.round(p.price_paise / 100),
         in_stock: p.stock > 0,
-        url: `/farms/${farm.slug}?product=${p.id}#products`,
+        url: `/farms/${farm.slug}`,
       })),
       url: `/farms/${farm.slug}`,
     }

@@ -1179,66 +1179,114 @@ button { border:0; cursor:pointer; color:inherit; background:none; }
 }
 
 /* ==========================================================================
-   Produce Card & Linking Styles
+   Vertical Produce Card & Linking Styles (Equal-height, sharp corners, no shadows)
    ========================================================================== */
-.produce-card {
+.produce-grid-vertical {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+@media (max-width: 900px) {
+  .produce-grid-vertical {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .produce-grid-vertical {
+    grid-template-columns: 1fr;
+  }
+}
+
+.produce-card-vertical {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  box-shadow: none;
+  background: #ffffff;
   position: relative;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: border-color 0.15s ease;
 }
 
-.produce-card:hover {
+.produce-card-vertical:hover {
   border-color: var(--forest);
-  box-shadow: 0 4px 14px rgba(36, 84, 65, 0.08);
+  box-shadow: none;
 }
 
-.produce-card:focus-within {
+.produce-card-vertical:focus-within {
   border-color: var(--forest);
   outline: 2px solid var(--forest);
   outline-offset: 2px;
 }
 
-.produce-card-link {
-  color: var(--ink);
+.produce-card-vertical .produce-card-link {
+  color: inherit;
   text-decoration: none;
 }
 
-.produce-card-link:hover {
-  color: var(--forest);
-}
-
-.produce-card-link:focus-visible {
-  outline: none;
-}
-
-.produce-card-link::after {
+.produce-card-vertical .produce-card-link::after {
   content: '';
   position: absolute;
   inset: 0;
   z-index: 1;
 }
 
-.produce-reserve-btn {
+/* ==========================================================================
+   Booking Page Product Picker Styles
+   ========================================================================== */
+.booking-produce-item {
+  border: 1px solid var(--line);
+  padding: 12px 14px;
+  background: #ffffff;
+  transition: border-color 0.15s ease, background 0.15s ease;
+  border-radius: 0;
+}
+
+.booking-produce-item.is-selected {
+  border-color: var(--forest);
+  background: #fafdfa;
+}
+
+.booking-produce-stepper {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  background: #ffffff;
+}
+
+.booking-produce-stepper button {
+  width: 28px;
+  height: 28px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  padding: 8px 10px;
-  background: var(--mint);
-  border: 1px solid #c2d6be;
-  border-radius: 2px;
-  color: var(--forest);
-  font-size: 11px;
+  border: none;
+  background: transparent;
+  color: var(--ink);
   font-weight: 700;
-  text-decoration: none;
-  white-space: nowrap;
-  align-self: center;
-  position: relative;
-  z-index: 2;
-  pointer-events: none;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  font-size: 14px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.12s ease;
 }
 
-.produce-card:hover .produce-reserve-btn {
-  background: #dcebd4;
-  border-color: var(--forest);
+.booking-produce-stepper button:hover:not(:disabled) {
+  background: var(--mint);
+  color: var(--forest);
+}
+
+.booking-produce-stepper button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.booking-produce-stepper span {
+  min-width: 28px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink);
 }

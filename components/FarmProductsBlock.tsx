@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { ArrowRight, Check, Minus, Plus, ShoppingBag } from 'lucide-react'
 import { formatRupees } from '@/lib/money'
 import { createClient } from '@/lib/supabase/client'
@@ -31,34 +31,11 @@ export function FarmProductsBlock({
   products,
 }: FarmProductsBlockProps) {
   const router = useRouter()
-  const searchParams = useSearchParams()
 
-  const [selectedProductId, setSelectedProductId] = useState<string | null>(null)
   const [openReserveId, setOpenReserveId] = useState<string | null>(null)
   const [quantities, setQuantities] = useState<Record<string, number>>({})
   const [reserving, setReserving] = useState(false)
   const [confirmedId, setConfirmedId] = useState<string | null>(null)
-
-  // Handle ?product= query param and scroll to products block
-  useEffect(() => {
-    const productParam = searchParams.get('product')
-    if (productParam) {
-      const block = document.getElementById('products')
-      if (block) {
-        block.scrollIntoView({ behavior: 'smooth' })
-      }
-
-      const match = products.find((p) => p.id === productParam)
-      if (match) {
-        setSelectedProductId(productParam)
-        setOpenReserveId(productParam)
-      } else {
-        // If not found, just scroll without highlighting
-        setSelectedProductId(null)
-        setOpenReserveId(null)
-      }
-    }
-  }, [searchParams, products])
 
   const getQty = (id: string) => quantities[id] || 1
 
@@ -78,12 +55,11 @@ export function FarmProductsBlock({
     } = await supabase.auth.getUser()
 
     if (!user) {
-      const currentUrl = `/farms/${farmSlug}?product=${prod.id}#products`
+      const currentUrl = `/farms/${farmSlug}`
       router.push(`/login?redirect=${encodeURIComponent(currentUrl)}`)
       return
     }
 
-    setSelectedProductId(prod.id)
     setOpenReserveId((prev) => (prev === prod.id ? null : prod.id))
   }
 
@@ -95,7 +71,7 @@ export function FarmProductsBlock({
     } = await supabase.auth.getUser()
 
     if (!user) {
-      const currentUrl = `/farms/${farmSlug}?product=${prod.id}#products`
+      const currentUrl = `/farms/${farmSlug}`
       router.push(`/login?redirect=${encodeURIComponent(currentUrl)}`)
       return
     }
@@ -157,7 +133,6 @@ export function FarmProductsBlock({
         }}
       >
         {products.map((prod) => {
-          const isSelected = selectedProductId === prod.id
           const isOpen = openReserveId === prod.id
           const isConfirmed = confirmedId === prod.id
           const currentQty = getQty(prod.id)
@@ -166,8 +141,8 @@ export function FarmProductsBlock({
             <div
               key={prod.id}
               style={{
-                border: isSelected ? '2px solid var(--forest)' : '1px solid var(--line)',
-                background: isSelected ? '#f9fcf8' : '#ffffff',
+                border: '1px solid var(--line)',
+                background: '#ffffff',
                 padding: '14px',
                 display: 'flex',
                 flexDirection: 'column',
@@ -203,22 +178,6 @@ export function FarmProductsBlock({
                     >
                       {prod.name}
                     </span>
-                    {isSelected && (
-                      <span
-                        style={{
-                          background: 'var(--forest)',
-                          color: '#ffffff',
-                          fontSize: '9.5px',
-                          fontWeight: 800,
-                          padding: '2px 6px',
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.6px',
-                          borderRadius: '2px',
-                        }}
-                      >
-                        Selected
-                      </span>
-                    )}
                   </div>
                   <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px' }}>
                     {prod.unit} {prod.detail ? `· ${prod.detail}` : ''}

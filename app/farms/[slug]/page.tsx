@@ -163,7 +163,7 @@ export default async function FarmDetailPage({
                   {nearbyProducts.map((prod) => (
                     <Link
                       key={prod.id}
-                      href={`/farms/${prod.farm.slug}?product=${prod.id}#products`}
+                      href={`/farms/${prod.farm.slug}`}
                       style={{
                         border: '1px solid var(--line)',
                         background: '#ffffff',

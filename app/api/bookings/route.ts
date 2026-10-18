@@ -34,6 +34,7 @@ export async function POST(request: Request) {
       nights,
       guests,
       addOnIds,
+      products = [],
     } = parsed.data
 
     // 2. Fetch farm to retrieve authoritative price rates from server/db
@@ -51,20 +52,47 @@ export async function POST(request: Request) {
       ratePerGuestPaise = raw.day_visit_price_paise || farm.pricePaise
     }
 
-    // 3. Resolve add-on prices from server/database products
+    // 3. Resolve products and validate real qty against available stock
     const farmProducts: any[] = farm.products || []
     const availableItems = [...farmProducts, ...PRODUCE_ITEMS]
 
-    const addOns: PricingAddOn[] = []
-    for (const id of addOnIds) {
-      const item = availableItems.find((p) => p.id === id)
-      if (item) {
-        addOns.push({
-          id: item.id,
-          pricePaise: item.price_paise || item.pricePaise || 0,
-          qty: 1,
-        })
+    // Consolidate requested products from either products array or addOnIds
+    const requestedItems: Array<{ id: string; qty: number }> = []
+    if (products && products.length > 0) {
+      for (const p of products) {
+        requestedItems.push({ id: p.id, qty: Math.max(1, p.qty) })
       }
+    } else if (addOnIds && addOnIds.length > 0) {
+      for (const id of addOnIds) {
+        requestedItems.push({ id, qty: 1 })
+      }
+    }
+
+    const addOns: PricingAddOn[] = []
+    const reservedItemsList: string[] = []
+
+    for (const req of requestedItems) {
+      const item = availableItems.find((p) => p.id === req.id)
+      if (!item) continue
+
+      const stock = typeof item.stock === 'number' ? item.stock : undefined
+      // Validate qty against stock (return clear error if too high)
+      if (stock !== undefined && stock > 0 && req.qty > stock) {
+        return NextResponse.json(
+          {
+            error: `Requested quantity for "${item.name}" (${req.qty}) exceeds available stock (${stock}).`,
+          },
+          { status: 400 },
+        )
+      }
+
+      const unitPrice = item.price_paise || item.pricePaise || 0
+      addOns.push({
+        id: item.id,
+        pricePaise: unitPrice,
+        qty: req.qty,
+      })
+      reservedItemsList.push(`${item.name} x ${req.qty}`)
     }
 
     // 4. Recalculate price on the server with lib/pricing.ts (ignoring any client total)
@@ -75,6 +103,9 @@ export async function POST(request: Request) {
       ratePerGuestPaise,
       addOns,
     })
+
+    const reservedProductsText =
+      reservedItemsList.length > 0 ? reservedItemsList.join(', ') : ''
 
     // 5. Connect to Supabase to persist booking
     const supabase = await createServerClient()
@@ -131,7 +162,7 @@ export async function POST(request: Request) {
       if (!bookingErr && bookingRow?.id) {
         bookingId = bookingRow.id
 
-        // Record product reservations
+        // Record product reservations with real qty
         if (addOns.length > 0) {
           const resRows = addOns.map((addOn) => ({
             booking_id: bookingId,
@@ -155,13 +186,22 @@ export async function POST(request: Request) {
           .eq('id', touristId)
 
         // Trigger outbound WhatsApp notifications via notifyBookingStatus
-        const dispatches = await notifyBookingStatus(bookingId, 'created')
+        const dispatches = await notifyBookingStatus(
+          bookingId,
+          'created',
+          reservedProductsText,
+        )
 
         // Find the tourist-facing notification for preview
         const touristNotif =
           dispatches.find((d) => d.template === 'tourist_booking_received') ||
           dispatches[0] ||
           null
+
+        let previewText = touristNotif?.previewText || ''
+        if (reservedProductsText) {
+          previewText += `\nReserved products for pickup: ${reservedProductsText}`
+        }
 
         return NextResponse.json({
           id: bookingId,
@@ -173,18 +213,22 @@ export async function POST(request: Request) {
           basePaise: pricing.discountedBasePaise,
           discountPct: pricing.discountPct,
           totalPaise: pricing.totalPaise,
+          addOnsTotalPaise: pricing.addOnsTotalPaise,
+          reservedItems: reservedItemsList,
           currency: 'INR',
-          notification: touristNotif
-            ? {
-                template: touristNotif.template,
-                toPhone: touristNotif.toPhone,
-                status: touristNotif.status,
-                previewText: touristNotif.previewText,
-              }
-            : null,
+          notification: {
+            template: touristNotif?.template || 'tourist_booking_received',
+            toPhone: touristNotif?.toPhone || phone,
+            status: touristNotif?.status || 'mock',
+            previewText:
+              previewText ||
+              `Namaste ${fullName}, your booking request for ${farm.name} has been received. ${reservedProductsText ? `Reserved products: ${reservedProductsText}.` : ''}`,
+          },
         })
       }
     }
+
+    const mockNotificationText = `Namaste ${fullName}, your booking request ${bookingId} for a ${visitType === 'day' ? 'Day visit' : `${pricing.nights} night stay`} at ${farm.name} on ${checkInDate} has been received.${reservedProductsText ? ` Reserved products: ${reservedProductsText}.` : ''} Your host will confirm availability shortly.`
 
     return NextResponse.json({
       id: bookingId,
@@ -196,8 +240,15 @@ export async function POST(request: Request) {
       basePaise: pricing.discountedBasePaise,
       discountPct: pricing.discountPct,
       totalPaise: pricing.totalPaise,
+      addOnsTotalPaise: pricing.addOnsTotalPaise,
+      reservedItems: reservedItemsList,
       currency: 'INR',
-      notification: null,
+      notification: {
+        template: 'tourist_booking_received',
+        toPhone: phone,
+        status: 'mock',
+        previewText: mockNotificationText,
+      },
     })
   } catch (err: any) {
     return NextResponse.json(

@@ -31,6 +31,7 @@ export interface NotificationDispatchRecord {
 export async function notifyBookingStatus(
   bookingId: string,
   eventType: BookingNotificationEvent = 'created',
+  reservedProductsText?: string,
 ): Promise<NotificationDispatchRecord[]> {
   const dispatched: NotificationDispatchRecord[] = []
 
@@ -202,6 +203,11 @@ export async function notifyBookingStatus(
         variables: msg.variables,
       })
 
+      let finalPreview = result.previewText
+      if (reservedProductsText) {
+        finalPreview += `\nReserved products for pickup: ${reservedProductsText}`
+      }
+
       // Insert log into Supabase notifications table
       const { data: notifRow } = await serviceClient
         .from('notifications')
@@ -211,7 +217,8 @@ export async function notifyBookingStatus(
           template: result.template,
           payload: {
             variables: msg.variables,
-            preview_text: result.previewText,
+            preview_text: finalPreview,
+            reserved_products: reservedProductsText || null,
             eventType,
             recipientRole: msg.recipientRole,
             messageId: result.messageId || null,
@@ -228,7 +235,7 @@ export async function notifyBookingStatus(
         toPhone: result.toPhone,
         template: result.template,
         status: result.status,
-        previewText: result.previewText,
+        previewText: finalPreview,
         error: result.error || null,
       })
     }
