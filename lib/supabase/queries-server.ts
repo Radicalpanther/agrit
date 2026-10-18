@@ -184,7 +184,7 @@ export async function fetchServerProduce(): Promise<Produce[]> {
   }
 }
 
-export async function fetchServerProductsWithFarm(): Promise<ProductWithFarm[]> {
+export async function fetchServerProductsWithFarm(limit = 3): Promise<ProductWithFarm[]> {
   try {
     const supabase = await createServerClient()
     const { data, error } = await supabase
@@ -194,10 +194,10 @@ export async function fetchServerProductsWithFarm(): Promise<ProductWithFarm[]> 
         farm:farms (id, name, slug, place)
       `)
       .order('price_paise', { ascending: false })
-      .limit(6)
+      .limit(limit)
 
     if (error || !data || data.length === 0) {
-      return PRODUCE_ITEMS.map((p, idx) => ({
+      return PRODUCE_ITEMS.slice(0, limit).map((p, idx) => ({
         id: p.id,
         name: p.name,
         detail: p.detail,
@@ -233,7 +233,7 @@ export async function fetchServerProductsWithFarm(): Promise<ProductWithFarm[]> 
       },
     }))
   } catch {
-    return PRODUCE_ITEMS.map((p, idx) => ({
+    return PRODUCE_ITEMS.slice(0, limit).map((p, idx) => ({
       id: p.id,
       name: p.name,
       detail: p.detail,

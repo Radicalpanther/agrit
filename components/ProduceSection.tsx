@@ -5,7 +5,7 @@ import { formatRupees } from '@/lib/money'
 import { FarmImage } from '@/components/FarmImage'
 
 export async function ProduceSection() {
-  const products = await fetchServerProductsWithFarm()
+  const products = await fetchServerProductsWithFarm(3)
 
   return (
     <section className="section produce-section" id="produce" style={{ scrollMarginTop: '85px' }}>
@@ -24,7 +24,7 @@ export async function ProduceSection() {
       </div>
 
       <div className="produce-grid">
-        {products.map((item) => {
+        {products.slice(0, 3).map((item) => {
           const productHref = `/farms/${item.farm.slug}?product=${item.id}#products`
 
           return (
