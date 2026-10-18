@@ -31,7 +31,11 @@ export async function POST(request: Request) {
       .maybeSingle()
 
     if (profile?.telegram_chat_id) {
-      const { deleteMyCommands } = await import('@/lib/telegram')
+      const { deleteMyCommands, sendTelegramMessage } = await import('@/lib/telegram')
+      await sendTelegramMessage(
+        profile.telegram_chat_id,
+        'Your AgriTrails host account has been disconnected. You will no longer receive booking alerts here. Reconnect any time from your dashboard.',
+      ).catch(() => {})
       await deleteMyCommands({ type: 'chat', chat_id: profile.telegram_chat_id }).catch(() => {})
     }
 

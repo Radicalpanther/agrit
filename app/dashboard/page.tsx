@@ -964,17 +964,27 @@ export default function DashboardPage() {
         <>
           {/* Head */}
           <div className="dashboard-head">
-            <div>
+            <div style={{ flex: '1 1 auto', minWidth: 0 }}>
               <p className="section-kicker">{t('farmerPortal')}</p>
-              <h1>{t('greeting', { name: farmerName })}</h1>
+              <h1 style={{ wordBreak: 'break-word' }}>{t('greeting', { name: farmerName })}</h1>
               <p>{t('subtitle')}</p>
             </div>
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <div
+              className="dashboard-head-actions"
+              style={{
+                display: 'flex',
+                gap: '12px',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                flexShrink: 0,
+              }}
+            >
               <TelegramConnect compact showDisconnect role="farmer" />
               <button
                 className="primary-btn"
                 type="button"
                 onClick={openCreateListing}
+                style={{ whiteSpace: 'nowrap' }}
               >
                 <span>+</span> {t('addNewListing')}
               </button>

@@ -682,6 +682,14 @@ button { border:0; cursor:pointer; color:inherit; background:none; }
   }
 }
 
+.telegram-disconnect-toast {
+  position: fixed !important;
+  bottom: calc(84px + env(safe-area-inset-bottom, 0px)) !important;
+  right: calc(24px + env(safe-area-inset-right, 0px)) !important;
+  z-index: 9999 !important;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .agriguide-launcher {
     animation: none !important;
@@ -938,6 +946,10 @@ button { border:0; cursor:pointer; color:inherit; background:none; }
   }
   .agriguide-launcher.is-open {
     display: none !important;
+  }
+  .telegram-disconnect-toast {
+    bottom: calc(72px + env(safe-area-inset-bottom, 0px)) !important;
+    right: calc(16px + env(safe-area-inset-right, 0px)) !important;
   }
   .footer {
     padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px)) !important;

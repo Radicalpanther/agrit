@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { Send, Check, RefreshCw, X } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 
@@ -25,6 +26,7 @@ export function TelegramConnect({
 
   const t = useTranslations('telegram')
 
+  const [mounted, setMounted] = useState<boolean>(false)
   const [isLinked, setIsLinked] = useState<boolean>(false)
   const [loading, setLoading] = useState<boolean>(true)
   const [isConnecting, setIsConnecting] = useState<boolean>(false)
@@ -33,6 +35,22 @@ export function TelegramConnect({
   const [showConfirm, setShowConfirm] = useState<boolean>(false)
   const [isDisconnecting, setIsDisconnecting] = useState<boolean>(false)
   const [disconnectError, setDisconnectError] = useState<string | null>(null)
+
+  // Floating toast state: { message, type: 'success' | 'error' }
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  // Auto-dismiss toast after 4 seconds
+  useEffect(() => {
+    if (!toast) return
+    const timer = setTimeout(() => {
+      setToast(null)
+    }, 4000)
+    return () => clearTimeout(timer)
+  }, [toast])
 
   const checkStatus = async (): Promise<boolean> => {
     try {
@@ -74,10 +92,45 @@ export function TelegramConnect({
     }
   }, [])
 
-  // Connect: generate one-time token and redirect in same tab
+  // Poll status every 3 seconds while connecting until linked
+  useEffect(() => {
+    if (!isConnecting || isLinked) return
+
+    let attempts = 0
+    const maxAttempts = 200 // ~10 minutes
+
+    const interval = setInterval(async () => {
+      attempts++
+      if (attempts >= maxAttempts) {
+        clearInterval(interval)
+        setIsConnecting(false)
+        return
+      }
+
+      if (document.hidden) return
+
+      const linked = await checkStatus()
+      if (linked) {
+        clearInterval(interval)
+        setIsConnecting(false)
+      }
+    }, 3000)
+
+    return () => clearInterval(interval)
+  }, [isConnecting, isLinked])
+
+  // Connect: generate one-time token and open in new tab
   const handleConnect = async () => {
     setConnectError(null)
     setIsConnecting(true)
+
+    // Open blank tab synchronously within user gesture to prevent popup blocking
+    let newTab: Window | null = null
+    try {
+      newTab = window.open('about:blank', '_blank')
+    } catch {
+      newTab = null
+    }
 
     try {
       const res = await fetch('/api/telegram/link', {
@@ -88,20 +141,25 @@ export function TelegramConnect({
       const data = await res.json()
 
       if (!res.ok || !data.linkUrl) {
+        if (newTab && !newTab.closed) newTab.close()
         setConnectError(data.error || 'Failed to create link')
         setIsConnecting(false)
         return
       }
 
-      // Redirect in the same tab to https://t.me/<bot_username>?start=<token>
-      window.location.href = data.linkUrl
+      if (newTab && !newTab.closed) {
+        newTab.location.href = data.linkUrl
+      } else {
+        window.location.href = data.linkUrl
+      }
     } catch {
+      if (newTab && !newTab.closed) newTab.close()
       setConnectError('Network error connecting to Telegram')
       setIsConnecting(false)
     }
   }
 
-  // Disconnect: call unlink endpoint and return to Connect button
+  // Disconnect: call unlink endpoint, return to Connect button, show floating toast
   const handleDisconnect = async () => {
     setDisconnectError(null)
     setIsDisconnecting(true)
@@ -115,8 +173,11 @@ export function TelegramConnect({
       const data = await res.json().catch(() => ({}))
 
       if (!res.ok || data.error) {
-        setDisconnectError(data.error || 'Failed to disconnect')
+        const errorMsg = data.error || 'Could not disconnect. Please try again.'
+        setDisconnectError(errorMsg)
         setIsDisconnecting(false)
+        setShowConfirm(false)
+        setToast({ message: errorMsg, type: 'error' })
         return
       }
 
@@ -124,9 +185,13 @@ export function TelegramConnect({
       setShowConfirm(false)
       setIsDisconnecting(false)
       if (onStatusChange) onStatusChange(false)
+      setToast({ message: 'Telegram disconnected.', type: 'success' })
     } catch {
-      setDisconnectError('Network error disconnecting')
+      const errorMsg = 'Could not disconnect. Please try again.'
+      setDisconnectError(errorMsg)
       setIsDisconnecting(false)
+      setShowConfirm(false)
+      setToast({ message: errorMsg, type: 'error' })
     }
   }
 
@@ -140,6 +205,8 @@ export function TelegramConnect({
           padding: '6px 12px',
           fontSize: '11.5px',
           color: 'var(--muted)',
+          whiteSpace: 'nowrap',
+          flexShrink: 0,
         }}
       >
         <RefreshCw size={12} className="spin" />
@@ -231,6 +298,7 @@ export function TelegramConnect({
               cursor: isDisconnecting ? 'not-allowed' : 'pointer',
               borderRadius: '2px',
               minHeight: '32px',
+              whiteSpace: 'nowrap',
             }}
           >
             Cancel
@@ -249,12 +317,69 @@ export function TelegramConnect({
               cursor: isDisconnecting ? 'wait' : 'pointer',
               borderRadius: '2px',
               minHeight: '32px',
+              whiteSpace: 'nowrap',
             }}
           >
             {isDisconnecting ? 'Disconnecting...' : 'Disconnect'}
           </button>
         </div>
       </div>
+    </div>
+  )
+
+  const toastElement = toast && (
+    <div
+      role="status"
+      aria-live="polite"
+      className="telegram-disconnect-toast"
+      style={{
+        position: 'fixed',
+        bottom: 'calc(84px + env(safe-area-inset-bottom, 0px))',
+        right: 'calc(24px + env(safe-area-inset-right, 0px))',
+        zIndex: 9999,
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '8px',
+        padding: '10px 14px',
+        fontSize: '12.5px',
+        fontWeight: 600,
+        borderRadius: '4px',
+        boxShadow: '0 4px 16px rgba(0, 0, 0, 0.12)',
+        backgroundColor: toast.type === 'success' ? '#f4f8f3' : '#fef2f2',
+        color: toast.type === 'success' ? 'var(--forest)' : '#991b1b',
+        border: toast.type === 'success' ? '1px solid #86efac' : '1px solid #fecaca',
+        lineHeight: 1.3,
+        maxWidth: 'calc(100vw - 32px)',
+        pointerEvents: 'auto',
+      }}
+    >
+      {toast.type === 'success' ? (
+        <Check size={15} style={{ color: 'var(--forest)', flexShrink: 0 }} />
+      ) : (
+        <X size={15} style={{ color: '#dc2626', flexShrink: 0 }} />
+      )}
+      <span style={{ whiteSpace: 'nowrap' }}>{toast.message}</span>
+      <button
+        type="button"
+        onClick={() => setToast(null)}
+        aria-label="Close notification"
+        style={{
+          background: 'transparent',
+          border: 'none',
+          padding: '2px',
+          marginLeft: '4px',
+          cursor: 'pointer',
+          color: toast.type === 'success' ? 'var(--forest)' : '#991b1b',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          borderRadius: '2px',
+          minWidth: '24px',
+          minHeight: '24px',
+        }}
+      >
+        <X size={13} />
+      </button>
     </div>
   )
 
@@ -265,7 +390,7 @@ export function TelegramConnect({
           display: 'inline-flex',
           alignItems: 'center',
           gap: '8px',
-          flexWrap: 'wrap',
+          flexShrink: 0,
         }}
       >
         {isLinked ? (
@@ -282,10 +407,12 @@ export function TelegramConnect({
               fontSize: '11.5px',
               borderRadius: '3px',
               lineHeight: 1,
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
             }}
           >
             <Check size={14} style={{ color: 'var(--forest)', flexShrink: 0 }} />
-            <span>{t('connected')}</span>
+            <span style={{ whiteSpace: 'nowrap' }}>{t('connected')}</span>
             <button
               type="button"
               onClick={() => setShowConfirm(true)}
@@ -310,7 +437,7 @@ export function TelegramConnect({
             </button>
           </div>
         ) : (
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
             <button
               type="button"
               onClick={handleConnect}
@@ -329,6 +456,7 @@ export function TelegramConnect({
                 fontFamily: 'Arial, sans-serif',
                 minHeight: '32px',
                 borderRadius: '3px',
+                whiteSpace: 'nowrap',
               }}
             >
               {isConnecting ? (
@@ -345,7 +473,7 @@ export function TelegramConnect({
             </button>
 
             {connectError && (
-              <span style={{ fontSize: '11px', color: '#dc2626', fontWeight: 600 }}>
+              <span style={{ fontSize: '11px', color: '#dc2626', fontWeight: 600, whiteSpace: 'nowrap' }}>
                 {connectError}
               </span>
             )}
@@ -354,6 +482,7 @@ export function TelegramConnect({
       </div>
 
       {confirmationModal}
+      {mounted && toastElement ? createPortal(toastElement, document.body) : null}
     </>
   )
 }

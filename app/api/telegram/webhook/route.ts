@@ -353,7 +353,7 @@ export async function POST(request: Request) {
 
         await sendTelegramMessage(
           chatId,
-          'Your AgriTrails account has been disconnected. You will no longer receive notifications on Telegram.',
+          'Your AgriTrails host account has been disconnected. You will no longer receive booking alerts here. Reconnect any time from your dashboard.',
         )
         return NextResponse.json({ ok: true })
       }
