@@ -152,9 +152,6 @@ export function Header() {
         <a href="/#produce" onClick={() => setMenuOpen(false)}>
           {t('producePickup')}
         </a>
-        <a href="/#story" onClick={() => setMenuOpen(false)}>
-          {t('ourStory')}
-        </a>
 
         {/* Mobile language switcher */}
         {menuOpen && <LanguageSwitcher isMobile />}
