@@ -40,7 +40,7 @@ export async function POST() {
       return NextResponse.json({ error: 'Failed to create connection token' }, { status: 500 })
     }
 
-    const botUsername = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || 'agritrails_bot'
+    const botUsername = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || 'Agritrail_bot'
     const linkUrl = `https://t.me/${botUsername}?start=${token}`
 
     return NextResponse.json({

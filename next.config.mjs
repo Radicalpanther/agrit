@@ -7,5 +7,10 @@ export default function nextConfig(phase) {
     images: {
       unoptimized: true,
     },
+    env: {
+      NEXT_PUBLIC_TELEGRAM_BOT_USERNAME: process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || 'Agritrail_bot',
+      NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL || 'https://agrit-jnk4.vercel.app',
+      NOTIFY_CHANNEL: process.env.NOTIFY_CHANNEL || 'telegram',
+    },
   }
 }
