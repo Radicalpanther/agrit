@@ -16,13 +16,24 @@ export function FarmCard({ farm, tagOverride }: FarmCardProps) {
       <div className="farm-image">
         <FarmImage src={farm.image} alt={farm.name} />
         <span className="image-tag">{tagOverride || farm.tag}</span>
-        <button className="heart-btn" aria-label={`Save ${farm.name}`} type="button">
+        <button
+          className="heart-btn"
+          aria-label={`Save ${farm.name}`}
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+          }}
+        >
           <Heart size={17} />
         </button>
       </div>
       <div className="farm-body">
         <div className="farm-title">
-          <h3>{farm.name}</h3>
+          <h3>
+            <Link href={`/farms/${farm.slug}`} className="farm-card-link">
+              {farm.name}
+            </Link>
+          </h3>
           <span>
             <Star size={14} fill="currentColor" /> {farm.rating}
           </span>
@@ -40,9 +51,9 @@ export function FarmCard({ farm, tagOverride }: FarmCardProps) {
           <span>
             <strong>{formatRupees(farm.pricePaise)}</strong> / guest
           </span>
-          <Link href={`/farms/${farm.slug}`}>
+          <span className="view-stay-btn">
             View stay <ArrowRight size={14} />
-          </Link>
+          </span>
         </div>
       </div>
     </article>

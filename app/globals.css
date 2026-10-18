@@ -1240,6 +1240,76 @@ button { border:0; cursor:pointer; color:inherit; background:none; }
 }
 
 /* ==========================================================================
+   Full Farm Stay Card & Seasonal Row Clickability
+   ========================================================================== */
+.farm-card {
+  position: relative;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  cursor: pointer;
+}
+
+.farm-card:hover {
+  border-color: var(--forest);
+  box-shadow: 0 4px 16px rgba(23, 57, 45, 0.08);
+}
+
+.farm-card:focus-within {
+  border-color: var(--forest);
+  outline: 2px solid var(--forest);
+  outline-offset: 2px;
+}
+
+.farm-card .farm-card-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.farm-card .farm-card-link::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  cursor: pointer;
+}
+
+.farm-card .heart-btn {
+  z-index: 10;
+  cursor: pointer;
+}
+
+.farm-card .view-stay-btn {
+  color: var(--forest);
+  font-size: 11px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  pointer-events: none;
+}
+
+.farm-card:hover .view-stay-btn {
+  text-decoration: underline;
+}
+
+.seasonal-stay-row {
+  position: relative;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.seasonal-stay-row:hover {
+  background-color: #f7f9f6;
+}
+
+.seasonal-stay-row .seasonal-row-link::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  cursor: pointer;
+}
+
+/* ==========================================================================
    Booking Page Product Picker Styles
    ========================================================================== */
 .booking-produce-item {

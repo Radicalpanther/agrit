@@ -257,7 +257,13 @@ export function HarvestCalendar() {
                         lineHeight: 1.3,
                       }}
                     >
-                      {farm.name}
+                      <Link
+                        href={`/farms/${farm.slug}`}
+                        className="seasonal-row-link"
+                        style={{ color: 'inherit', textDecoration: 'none' }}
+                      >
+                        {farm.name}
+                      </Link>
                     </div>
                     <div
                       style={{
@@ -306,8 +312,7 @@ export function HarvestCalendar() {
                         / night
                       </span>
                     </span>
-                    <Link
-                      href={`/farms/${farm.slug}`}
+                    <span
                       style={{
                         display: 'inline-flex',
                         alignItems: 'center',
@@ -315,11 +320,11 @@ export function HarvestCalendar() {
                         fontSize: '12px',
                         fontWeight: 700,
                         color: 'var(--forest)',
-                        textDecoration: 'none',
+                        pointerEvents: 'none',
                       }}
                     >
                       View stay <ArrowRight size={13} />
-                    </Link>
+                    </span>
                   </div>
                 </div>
               )
