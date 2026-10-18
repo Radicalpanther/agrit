@@ -44,9 +44,9 @@ export default function HomePage() {
       </section>
 
       <FeaturedFarms />
-      <ProduceSection />
-      <PromiseBanner />
       <HarvestCalendar />
+      <PromiseBanner />
+      <ProduceSection />
     </>
   )
 }

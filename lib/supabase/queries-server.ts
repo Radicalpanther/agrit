@@ -53,7 +53,7 @@ export async function fetchServerFarmBySlug(slug: string): Promise<any | null> {
         ? {
             ...fallback,
             activities: [],
-            products: [],
+            products: getFallbackProductsForFarm(slug, fallback.id),
             reviews: fallback.reviews || fallbackList.length,
             reviewCount: fallback.reviews || fallbackList.length,
             reviewList: fallbackList,
@@ -73,11 +73,16 @@ export async function fetchServerFarmBySlug(slug: string): Promise<any | null> {
       ? data.review_count
       : reviewItems.length
 
+    const farmProducts =
+      data.products && data.products.length > 0
+        ? data.products
+        : getFallbackProductsForFarm(slug, data.id)
+
     return {
       ...mapDbFarmToFarm(data),
       raw: data,
       activities: data.activities || [],
-      products: data.products || [],
+      products: farmProducts,
       reviews: reviewCountNum,
       reviewCount: reviewCountNum,
       reviewList: reviewItems,
@@ -90,13 +95,56 @@ export async function fetchServerFarmBySlug(slug: string): Promise<any | null> {
       ? {
           ...fallback,
           activities: [],
-          products: [],
+          products: getFallbackProductsForFarm(slug, fallback.id),
           reviews: fallback.reviews || fallbackList.length,
           reviewCount: fallback.reviews || fallbackList.length,
           reviewList: fallbackList,
         }
       : null
   }
+}
+
+export function getFallbackProductsForFarm(slug: string, farmId: string) {
+  const mapped = PRODUCE_ITEMS.map((p, idx) => ({
+    p,
+    farm: FARMS[idx % FARMS.length],
+  })).filter((item) => item.farm && item.farm.slug === slug)
+
+  if (mapped.length > 0) {
+    return mapped.map(({ p }) => ({
+      id: p.id,
+      farm_id: farmId,
+      name: p.name,
+      detail: p.detail,
+      unit: '1 pack',
+      price_paise: p.pricePaise,
+      stock: 25,
+      in_season_months: [],
+    }))
+  }
+
+  return [
+    {
+      id: `prod-${slug}-1`,
+      farm_id: farmId,
+      name: 'Organic Farm Harvest Basket',
+      detail: 'Seasonal hand-picked farm harvest',
+      unit: '3 kg box',
+      price_paise: 35000,
+      stock: 20,
+      in_season_months: [],
+    },
+    {
+      id: `prod-${slug}-2`,
+      farm_id: farmId,
+      name: 'Raw Floral Blossom Honey',
+      detail: 'Cold-extracted unpasteurised apiary honey',
+      unit: '350 g jar',
+      price_paise: 42000,
+      stock: 15,
+      in_season_months: [],
+    },
+  ]
 }
 
 import { haversineDistanceKm } from '@/lib/geo'
