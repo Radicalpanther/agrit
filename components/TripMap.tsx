@@ -18,9 +18,11 @@ import {
   AlertCircle,
   Clock,
   Route as RouteIcon,
+  Printer,
 } from 'lucide-react'
 import { toPng } from 'html-to-image'
 import { jsPDF } from 'jspdf'
+import { useTranslations } from 'next-intl'
 import { haversineDistanceKm } from '@/lib/geo'
 
 export interface TripMapProps {
@@ -76,6 +78,7 @@ export function TripMap({
   visitType,
   guests,
 }: TripMapProps) {
+  const t = useTranslations('travelCard')
   const destLat = Number(farm.lat) || Number(farm.raw?.lat) || 17.0016
   const destLng = Number(farm.lng) || Number(farm.raw?.lng) || 73.312
   const hostName =
@@ -560,7 +563,7 @@ export function TripMap({
             gap: '4px',
           }}
         >
-          <Navigation size={13} color="var(--forest)" /> Travelling from:
+          <Navigation size={13} color="var(--forest)" /> {t('travellingFrom')}
         </span>
 
         {/* 1. Use My Location Button */}
@@ -569,10 +572,10 @@ export function TripMap({
           onClick={handleUseLocation}
           disabled={isLocating}
           className="trip-map-source-btn"
-          title="Detect my current location"
+          title={t('detectLocationTitle')}
         >
           <LocateFixed size={12} />
-          {isLocating ? 'Detecting...' : 'Use my location'}
+          {isLocating ? t('detecting') : t('useMyLocation')}
         </button>
 
         {/* 2. Preset City Select */}
@@ -590,9 +593,9 @@ export function TripMap({
             if (city) handleSaveSource(city)
           }}
           className="trip-map-select"
-          aria-label="Select starting city"
+          aria-label={t('selectCity')}
         >
-          <option value="">Select city...</option>
+          <option value="">{t('selectCity')}</option>
           {PRESET_CITIES.map((c) => (
             <option key={c.name} value={c.name}>
               {c.name}
@@ -604,7 +607,7 @@ export function TripMap({
         <form onSubmit={handleOtherSubmit} className="trip-map-geocode-form">
           <input
             type="text"
-            placeholder="Other town or place..."
+            placeholder={t('otherTownPlaceholder')}
             value={otherInput}
             onChange={(e) => setOtherInput(e.target.value)}
             disabled={isGeocoding}
@@ -616,7 +619,7 @@ export function TripMap({
             className="trip-map-source-btn"
           >
             <Search size={11} />
-            {isGeocoding ? 'Finding...' : 'Set'}
+            {isGeocoding ? t('finding') : t('set')}
           </button>
         </form>
 
@@ -632,7 +635,7 @@ export function TripMap({
               marginLeft: 'auto',
             }}
           >
-            Clear origin
+            {t('clearOrigin')}
           </button>
         )}
       </div>
@@ -671,7 +674,7 @@ export function TripMap({
           }}
         >
           <Compass size={14} />
-          <span>Where are you travelling from? Select an origin above to draw your route and calculate driving time.</span>
+          <span>{t('whereTravellingFrom')}</span>
         </div>
       )}
 
@@ -693,12 +696,12 @@ export function TripMap({
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
             <RouteIcon size={13} color="var(--forest)" />
             <span>
-              Route: <strong>{source.name}</strong> &rarr; <strong>{farm.name}</strong>
+              {t('route')} <strong>{source.name}</strong> &rarr; <strong>{farm.name}</strong>
             </span>
           </div>
 
           {isRouting ? (
-            <span style={{ color: 'var(--muted)', fontSize: '11px' }}>Calculating driving route...</span>
+            <span style={{ color: 'var(--muted)', fontSize: '11px' }}>{t('calculatingRoute')}</span>
           ) : routeInfo ? (
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', marginLeft: 'auto' }}>
               <span style={{ fontWeight: 700, color: 'var(--forest)' }}>
@@ -711,7 +714,7 @@ export function TripMap({
               )}
               {routeInfo.isFallback && (
                 <span style={{ color: '#d97706', fontSize: '11px' }}>
-                  (Straight-line distance; road route unavailable)
+                  {t('straightLineNotice')}
                 </span>
               )}
             </div>
@@ -722,82 +725,78 @@ export function TripMap({
       {/* Leaflet Map View Container */}
       <div
         ref={mapContainerRef}
-        className="trip-map-view"
+        className="trip-map-view h-64 sm:h-72 md:h-80 lg:h-96 w-full relative overflow-hidden z-0 [isolation:isolate] bg-[#eef3eb]"
         style={{
           width: '100%',
           position: 'relative',
+          overflow: 'hidden',
           isolation: 'isolate',
           zIndex: 0,
         }}
       />
 
       {/* Map Action Buttons */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          padding: '10px 14px',
-          background: '#ffffff',
-          borderTop: '1px solid var(--line)',
-          flexWrap: 'wrap',
-        }}
-      >
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-3 bg-white border-t border-[var(--line)] w-full box-border">
         <a
           href={googleMapsUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="trip-map-source-btn"
+          className="trip-map-source-btn min-h-[44px] px-3.5 py-2.5 w-full justify-center"
           style={{ textDecoration: 'none' }}
         >
-          <ExternalLink size={12} /> Open in Google Maps
+          <ExternalLink size={13} /> {t('openGoogleMaps')}
         </a>
 
         <button
           type="button"
           onClick={handleDownloadPdf}
           disabled={isGeneratingPdf}
-          className="trip-map-source-btn"
+          className="trip-map-source-btn min-h-[44px] px-3.5 py-2.5 w-full justify-center"
         >
-          <Download size={12} />
-          {isGeneratingPdf ? 'Generating PDF...' : 'Download map (PDF)'}
+          <Download size={13} />
+          {isGeneratingPdf ? t('generatingPdf') : t('downloadPdf')}
         </button>
 
-        <span style={{ fontSize: '11px', color: 'var(--muted)', marginLeft: 'auto' }}>
-          Map tiles © OpenStreetMap contributors
-        </span>
+        <button
+          type="button"
+          onClick={() => window.print()}
+          className="trip-map-source-btn min-h-[44px] px-3.5 py-2.5 w-full justify-center"
+        >
+          <Printer size={13} />
+          {t('printCard')}
+        </button>
       </div>
 
-      {/* GPS Coordinates & Emergency Safety Block */}
-      <div style={{ padding: '14px 16px', background: '#fafbf9', borderTop: '1px solid var(--line)' }}>
+      {/* GPS Coordinates & Emergency Safety Block (Level 1 & Level 2) */}
+      <div className="p-3.5 sm:p-4 bg-[#fafbf9] border-t border-[var(--line)] w-full box-border">
         {/* Farm GPS Coordinates */}
-        <div className="gps-coordinate-box" style={{ margin: 0, marginBottom: '14px' }}>
-          <div className="gps-header-row">
-            <span className="gps-label">
-              <MapPin size={13} /> Destination GPS Gate Coordinates
+        <div className="gps-coordinate-box w-full m-0 mb-3.5 box-border">
+          <div className="gps-header-row flex justify-between items-center flex-wrap gap-2 mb-2">
+            <span className="gps-label inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[var(--forest)]">
+              <MapPin size={13} /> {t('destinationGps')}
             </span>
             <button
               type="button"
-              className="copy-coords-btn"
+              className="copy-coords-btn min-h-[44px] px-3.5 py-2 text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer bg-white border border-[var(--line)] hover:border-[var(--forest)] hover:text-[var(--forest)] transition-colors"
               onClick={handleCopyCoords}
             >
-              {copied ? <Check size={12} color="var(--forest)" /> : <Copy size={12} />}
-              {copied ? 'Copied' : 'Copy coordinates'}
+              {copied ? <Check size={13} color="var(--forest)" /> : <Copy size={13} />}
+              {copied ? t('copied') : t('copyCoordinates')}
             </button>
           </div>
-          <div className="gps-display-large">
+          <div className="gps-display-large font-mono text-lg sm:text-2xl font-extrabold text-[var(--ink)] break-all [overflow-wrap:anywhere] flex items-center gap-2 flex-wrap my-1.5">
             <span>{destLat.toFixed(6)}° N</span>
-            <span className="gps-sep">,</span>
+            <span className="gps-sep text-[var(--leaf)]">,</span>
             <span>{destLng.toFixed(6)}° E</span>
           </div>
-          <div className="gps-sub-info">
-            Decimal: {destLat.toFixed(6)}, {destLng.toFixed(6)} · Input into vehicle navigation or offline GPS
+          <div className="gps-sub-info text-xs text-[var(--muted)] break-words [overflow-wrap:anywhere]">
+            {t('decimalNote', { coords: `${destLat.toFixed(6)}, ${destLng.toFixed(6)}` })}
           </div>
         </div>
 
         {/* Numbered Directions */}
         {directionsSteps.length > 0 && (
-          <div style={{ marginTop: '12px' }}>
+          <div className="mt-3 w-full break-words [overflow-wrap:anywhere]">
             <h4
               style={{
                 fontSize: '12px',
@@ -809,11 +808,11 @@ export function TripMap({
                 gap: '5px',
               }}
             >
-              <Navigation size={13} color="var(--forest)" /> Landmark-based directions
+              <Navigation size={13} color="var(--forest)" /> {t('landmarkDirections')}
             </h4>
-            <ol style={{ margin: 0, paddingLeft: '18px', fontSize: '12px', color: '#53685d', lineHeight: 1.6 }}>
+            <ol className="m-0 pl-5 text-xs text-[#53685d] leading-relaxed break-words [overflow-wrap:anywhere]">
               {directionsSteps.map((step, idx) => (
-                <li key={idx} style={{ marginBottom: '4px' }}>
+                <li key={idx} className="mb-1 break-words [overflow-wrap:anywhere]">
                   {step}
                 </li>
               ))}
@@ -823,51 +822,60 @@ export function TripMap({
 
         {landmarkNote && (
           <div
-            style={{
-              marginTop: '10px',
-              padding: '8px 12px',
-              background: 'var(--cream)',
-              border: '1px solid var(--line)',
-              fontSize: '12px',
-              color: 'var(--ink)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}
+            className="mt-2.5 p-2.5 bg-[var(--cream)] border border-[var(--line)] text-xs text-[var(--ink)] flex items-center gap-2 break-words [overflow-wrap:anywhere] w-full box-border"
           >
             <AlertCircle size={14} color="var(--forest)" style={{ flexShrink: 0 }} />
-            <span>
-              <strong>Key visual landmark:</strong> {landmarkNote}
+            <span className="break-words [overflow-wrap:anywhere]">
+              <strong>{t('keyVisualLandmark')}</strong> {landmarkNote}
             </span>
           </div>
         )}
 
-        {/* Safety Links: Phone & SMS */}
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '12px' }}>
+        {/* Safety Links: Call Host, Call 112, Share location SMS */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mt-3.5 w-full box-border">
           <a
             href={`tel:${hostPhone}`}
-            className="trip-map-source-btn"
+            className="trip-map-source-btn min-h-[44px] px-3.5 py-2.5 w-full justify-center"
             style={{
               background: 'var(--mint)',
               color: 'var(--forest)',
               border: '1px solid var(--forest)',
               textDecoration: 'none',
-              padding: '7px 12px',
+              fontWeight: 700,
             }}
           >
-            <Phone size={13} /> Call host ({hostPhone})
+            <Phone size={14} /> {t('callHost', { phone: hostPhone })}
           </a>
           <a
-            href={`sms:${hostPhone}?body=${encodeURIComponent(
-              `Hello ${hostName}, I am traveling to ${farm.name} for my AgriTrails booking...`,
-            )}`}
-            className="trip-map-source-btn"
+            href="tel:112"
+            className="trip-map-source-btn min-h-[44px] px-3.5 py-2.5 w-full justify-center"
             style={{
+              background: '#fdf2f2',
+              color: '#c53030',
+              border: '1px solid #c53030',
               textDecoration: 'none',
-              padding: '7px 12px',
+              fontWeight: 700,
             }}
           >
-            <PhoneCall size={13} /> SMS host
+            <Phone size={14} /> {t('call112')}
+          </a>
+          <a
+            href={`sms:?body=${encodeURIComponent(
+              t('smsLocationBody', {
+                farmName: farm.name,
+                bookingId: bookingId || 'N/A',
+                lat: destLat.toFixed(4),
+                lng: destLng.toFixed(4),
+                origin: source ? source.name : 'Current location',
+              }),
+            )}`}
+            className="trip-map-source-btn min-h-[44px] px-3.5 py-2.5 w-full justify-center"
+            style={{
+              textDecoration: 'none',
+              fontWeight: 700,
+            }}
+          >
+            <PhoneCall size={14} /> {t('shareLocationSms')}
           </a>
         </div>
       </div>

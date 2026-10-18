@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Leaf, TrendingDown, HeartHandshake, Info } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { calculateEcoImpact } from '@/lib/eco'
 
 export interface EcoScoreProps {
@@ -23,6 +24,7 @@ export function EcoScore({
   className,
   style,
 }: EcoScoreProps) {
+  const t = useTranslations('common.eco')
   const [showTooltip, setShowTooltip] = useState(false)
 
   const { co2SavedKg, organicPct: effectiveOrganicPct, supportsLocalEconomy, assumptionFootnote } =
@@ -60,21 +62,21 @@ export function EcoScore({
           }}
         >
           <Leaf size={14} strokeWidth={1.5} style={{ color: 'var(--leaf)' }} />
-          <span>Your Environmental &amp; Community Impact</span>
+          <span>{t('impactTitleReceipt')}</span>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px', margin: '10px 0 12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <TrendingDown size={15} strokeWidth={1.5} style={{ color: 'var(--leaf)' }} />
             <span style={{ fontSize: '13px', color: 'var(--ink)' }}>
-              <strong>~{co2SavedKg} kg CO2 saved</strong> vs urban hotel
+              {t('co2SavedReceipt', { kg: co2SavedKg })}
             </span>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Leaf size={15} strokeWidth={1.5} style={{ color: 'var(--leaf)' }} />
             <span style={{ fontSize: '13px', color: 'var(--ink)' }}>
-              <strong>{effectiveOrganicPct}% organic farmland</strong>
+              {t('organicFarmlandReceipt', { pct: effectiveOrganicPct })}
             </span>
           </div>
 
@@ -135,7 +137,7 @@ export function EcoScore({
             }}
           >
             <Leaf size={13} strokeWidth={1.5} style={{ color: 'var(--leaf)' }} />
-            <span>Eco Impact Summary</span>
+            <span>{t('summaryTitle')}</span>
           </div>
           <button
             type="button"
@@ -152,7 +154,7 @@ export function EcoScore({
             }}
           >
             <Info size={12} strokeWidth={1.5} />
-            <span>{showTooltip ? 'Hide info' : 'Assumptions'}</span>
+            <span>{showTooltip ? t('hideInfo') : t('assumptions')}</span>
           </button>
         </div>
 
@@ -160,13 +162,13 @@ export function EcoScore({
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <TrendingDown size={13} strokeWidth={1.5} style={{ color: 'var(--leaf)' }} />
             <span>
-              <strong>~{co2SavedKg} kg CO2 saved</strong> vs urban hotel stay
+              {t('co2SavedSummary', { kg: co2SavedKg })}
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Leaf size={13} strokeWidth={1.5} style={{ color: 'var(--leaf)' }} />
             <span>
-              <strong>{effectiveOrganicPct}% organic farm</strong> · Zero chemical runoff
+              {t('organicSoilSummary', { pct: effectiveOrganicPct })}
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -200,7 +202,7 @@ export function EcoScore({
               margin: '6px 0 0',
             }}
           >
-            * Estimated impact based on ~14.5 kg CO2e saved per guest-night. Indicative estimate.
+            {t('indicativeEstimate')}
           </p>
         )}
       </div>
@@ -254,9 +256,9 @@ export function EcoScore({
                 color: 'var(--leaf)',
               }}
             >
-              Sustainability &amp; Community
+              {t('sustainabilityHeader')}
             </span>
-            <strong style={{ fontSize: '14px', color: 'var(--ink)' }}>EcoScore &amp; Footprint</strong>
+            <strong style={{ fontSize: '14px', color: 'var(--ink)' }}>{t('footprintTitle')}</strong>
           </div>
         </div>
         <span
@@ -269,7 +271,7 @@ export function EcoScore({
             borderRadius: '2px',
           }}
         >
-          {effectiveOrganicPct}% Organic
+          {t('organicBadge', { pct: effectiveOrganicPct })}
         </span>
       </div>
 
@@ -277,21 +279,21 @@ export function EcoScore({
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '9px' }}>
           <TrendingDown size={15} strokeWidth={1.5} style={{ color: 'var(--leaf)', flexShrink: 0, marginTop: '2px' }} />
           <div>
-            <strong>~{co2SavedKg} kg CO2 saved</strong> per standard 2-guest overnight stay compared to an urban hotel.
+            {t('co2SavedCard', { kg: co2SavedKg })}
           </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '9px' }}>
           <Leaf size={15} strokeWidth={1.5} style={{ color: 'var(--leaf)', flexShrink: 0, marginTop: '2px' }} />
           <div>
-            <strong>{effectiveOrganicPct}% certified organic soil</strong> with natural ventilation and local water harvesting.
+            {t('organicSoilCard', { pct: effectiveOrganicPct })}
           </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '9px' }}>
           <HeartHandshake size={15} strokeWidth={1.5} style={{ color: 'var(--leaf)', flexShrink: 0, marginTop: '2px' }} />
           <div>
-            <strong>{supportsLocalEconomy}</strong> directly preserving rural land stewardship.
+            {t('stewardshipCard', { text: supportsLocalEconomy })}
           </div>
         </div>
       </div>

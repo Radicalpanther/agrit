@@ -13,6 +13,7 @@ import {
   AlertCircle,
   MessageSquare,
 } from 'lucide-react'
+import { useTranslations, useLocale } from 'next-intl'
 import { createClient } from '@/lib/supabase/client'
 import type { FarmReview, ReviewPhoto } from '@/lib/mock-data'
 
@@ -94,6 +95,8 @@ export function FarmReviews({
   initialReviewCount,
   initialReviews,
 }: FarmReviewsProps) {
+  const t = useTranslations('farmDetail.reviews')
+  const locale = useLocale()
   const [reviews, setReviews] = useState<FarmReview[]>(initialReviews)
   const [currentUser, setCurrentUser] = useState<any | null>(null)
   const [userChecked, setUserChecked] = useState(false)
@@ -248,17 +251,17 @@ export function FarmReviews({
     const combinedFiles = [...selectedFiles, ...filesArray].slice(0, 3)
 
     if (filesArray.length + selectedFiles.length > 3) {
-      setFormError('You can upload a maximum of 3 photos.')
+      setFormError(t('errors.maxPhotos'))
     }
 
     // Validate size and mime type
     for (const file of combinedFiles) {
       if (file.size > 3 * 1024 * 1024) {
-        setFormError(`File "${file.name}" exceeds the 3 MB size limit.`)
+        setFormError(t('errors.fileSize', { name: file.name }))
         return
       }
       if (!file.type.startsWith('image/')) {
-        setFormError(`File "${file.name}" is not a supported image file.`)
+        setFormError(t('errors.fileType', { name: file.name }))
         return
       }
     }
@@ -287,7 +290,7 @@ export function FarmReviews({
     setFormSuccess(null)
 
     if (!comment || comment.trim().length < 5) {
-      setFormError('Please enter at least 5 characters in your review.')
+      setFormError(t('errors.minComment'))
       return
     }
 
@@ -317,7 +320,7 @@ export function FarmReviews({
       const data = await res.json()
 
       if (!res.ok) {
-        setFormError(data.error || 'Failed to submit review. Please try again.')
+        setFormError(data.error || t('errors.generic'))
         return
       }
 
@@ -325,7 +328,7 @@ export function FarmReviews({
       const createdReview: FarmReview = {
         ...data.review,
         profiles: {
-          full_name: currentUser?.user_metadata?.full_name || 'Verified Guest',
+          full_name: currentUser?.user_metadata?.full_name || t('verifiedGuest'),
         },
       }
       setReviews((prev) => [createdReview, ...prev])
@@ -337,9 +340,9 @@ export function FarmReviews({
       if (fileInputRef.current) {
         fileInputRef.current.value = ''
       }
-      setFormSuccess('Thank you! Your verified review has been published.')
+      setFormSuccess(t('success'))
     } catch {
-      setFormError('An unexpected network error occurred while posting your review.')
+      setFormError(t('errors.network'))
     } finally {
       setSubmitting(false)
     }
@@ -377,7 +380,7 @@ export function FarmReviews({
           >
             <div>
               <p className="section-kicker" style={{ margin: '0 0 2px' }}>
-                Guest snapshots
+                {t('snapshotsKicker')}
               </p>
               <h3
                 style={{
@@ -388,11 +391,11 @@ export function FarmReviews({
                   letterSpacing: '-0.3px',
                 }}
               >
-                Photos from verified travellers ({allPhotos.length})
+                {t('photosHeading', { count: allPhotos.length })}
               </h3>
             </div>
             <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
-              Click photo to enlarge
+              {t('clickToEnlarge')}
             </span>
           </div>
 
@@ -442,7 +445,7 @@ export function FarmReviews({
       {/* 2. Rating Summary with four horizontal bars */}
       <div style={{ marginBottom: '36px' }}>
         <p className="section-kicker" style={{ margin: '0 0 4px' }}>
-          Verified ratings
+          {t('verifiedRatingsKicker')}
         </p>
         <h2
           style={{
@@ -453,7 +456,7 @@ export function FarmReviews({
             color: 'var(--ink)',
           }}
         >
-          Guest satisfaction
+          {t('guestSatisfactionHeading')}
         </h2>
 
         <div
@@ -494,17 +497,17 @@ export function FarmReviews({
               <StarRating rating={Math.round(Number(overallAvg))} size={18} />
             </div>
             <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '4px' }}>
-              Based on {totalCount} verified stay{totalCount === 1 ? '' : 's'}
+              {t('basedOnStays', { count: totalCount })}
             </div>
           </div>
 
           {/* Four Horizontal Progress Bars */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {[
-              { label: 'Food authenticity', value: foodAvg },
-              { label: 'Cleanliness', value: cleanlinessAvg },
-              { label: 'Hospitality', value: hospitalityAvg },
-              { label: 'Location', value: locationAvg },
+              { label: t('ratings.food'), value: foodAvg },
+              { label: t('ratings.cleanliness'), value: cleanlinessAvg },
+              { label: t('ratings.hospitality'), value: hospitalityAvg },
+              { label: t('ratings.location'), value: locationAvg },
             ].map((item) => (
               <div
                 key={item.label}
@@ -561,7 +564,7 @@ export function FarmReviews({
       >
         <div style={{ marginBottom: '16px' }}>
           <p className="section-kicker" style={{ margin: '0 0 2px' }}>
-            Share your experience
+            {t('formKicker')}
           </p>
           <h3
             style={{
@@ -572,13 +575,13 @@ export function FarmReviews({
               letterSpacing: '-0.4px',
             }}
           >
-            Leave a verified review
+            {t('formHeading')}
           </h3>
         </div>
 
         {!userChecked ? (
           <p style={{ fontSize: '13px', color: 'var(--muted)', margin: 0 }}>
-            Checking review eligibility...
+            {t('checkingEligibility')}
           </p>
         ) : !currentUser ? (
           <div
@@ -597,9 +600,9 @@ export function FarmReviews({
             }}
           >
             <div>
-              <strong>Have you stayed at {farmName}?</strong>
+              <strong>{t('haveYouStayed', { farmName })}</strong>
               <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '2px' }}>
-                Sign in with the account you used for your booking to post a verified review.
+                {t('signInPrompt')}
               </div>
             </div>
             <Link
@@ -611,7 +614,7 @@ export function FarmReviews({
                 fontSize: '12px',
               }}
             >
-              Sign in to write review
+              {t('signInBtn')}
             </Link>
           </div>
         ) : !eligibleBooking ? (
@@ -630,7 +633,7 @@ export function FarmReviews({
           >
             <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
             <div>
-              <strong>Verified Stays Only:</strong> To protect host reputations and prevent fraudulent feedback, reviews are reserved exclusively for travellers with a completed booking at {farmName}.
+              <strong>{t('verifiedOnlyTitle')}</strong> {t('verifiedOnlyDesc', { farmName })}
             </div>
           </div>
         ) : (
@@ -693,7 +696,7 @@ export function FarmReviews({
                     letterSpacing: '0.6px',
                   }}
                 >
-                  Food authenticity
+                  {t('ratings.food')}
                 </label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <StarRating
@@ -720,7 +723,7 @@ export function FarmReviews({
                     letterSpacing: '0.6px',
                   }}
                 >
-                  Cleanliness
+                  {t('ratings.cleanliness')}
                 </label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <StarRating
@@ -747,7 +750,7 @@ export function FarmReviews({
                     letterSpacing: '0.6px',
                   }}
                 >
-                  Hospitality
+                  {t('ratings.hospitality')}
                 </label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <StarRating
@@ -774,7 +777,7 @@ export function FarmReviews({
                     letterSpacing: '0.6px',
                   }}
                 >
-                  Location
+                  {t('ratings.location')}
                 </label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <StarRating
@@ -801,14 +804,14 @@ export function FarmReviews({
                   marginBottom: '6px',
                 }}
               >
-                Your written review
+                {t('writtenReviewLabel')}
               </label>
               <textarea
                 required
                 rows={4}
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
-                placeholder="Share your stay experience: traditional food cooked by the family, farm walk highlights, room comfort, or advice for future travellers..."
+                placeholder={t('placeholder')}
                 style={{
                   width: '100%',
                   border: '1px solid var(--line)',
@@ -839,10 +842,10 @@ export function FarmReviews({
                     color: 'var(--ink)',
                   }}
                 >
-                  Guest photos (optional)
+                  {t('photosLabel')}
                 </label>
                 <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
-                  Max 3 images · up to 3 MB each · JPEG, PNG, WebP
+                  {t('photosHelp')}
                 </span>
               </div>
 
@@ -875,7 +878,7 @@ export function FarmReviews({
                     }}
                   >
                     <Upload size={14} />
-                    <span>Choose photos ({3 - selectedFiles.length} remaining)</span>
+                    <span>{t('choosePhotos', { remaining: 3 - selectedFiles.length })}</span>
                   </label>
                 )}
 
@@ -904,7 +907,7 @@ export function FarmReviews({
                     <button
                       type="button"
                       onClick={() => removeFile(i)}
-                      aria-label="Remove photo"
+                      aria-label={t('removePhoto')}
                       style={{
                         position: 'absolute',
                         top: 2,
@@ -937,7 +940,7 @@ export function FarmReviews({
                 padding: '12px 20px',
               }}
             >
-              {submitting ? 'Publishing review...' : 'Submit verified review'}
+              {submitting ? t('submitting') : t('submitBtn')}
             </button>
           </form>
         )}
@@ -962,10 +965,10 @@ export function FarmReviews({
               letterSpacing: '-0.4px',
             }}
           >
-            Verified traveller reviews ({reviews.length})
+            {t('feedHeading', { count: reviews.length })}
           </h3>
           <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
-            Showing all authentic reviews
+            {t('feedSubhead')}
           </span>
         </div>
 
@@ -980,19 +983,20 @@ export function FarmReviews({
               fontSize: '13px',
             }}
           >
-            No reviews posted for this farm yet. Be the first verified guest to share your story!
+            {t('noReviews')}
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             {reviews.map((rev) => {
-              const guestName = rev.profiles?.full_name || 'Verified Guest'
+              const guestName = rev.profiles?.full_name || t('verifiedGuest')
+              const dateLocale = locale === 'mr' ? 'mr-IN' : locale === 'hi' ? 'hi-IN' : 'en-IN'
               const dateStr = rev.created_at
-                ? new Date(rev.created_at).toLocaleDateString('en-IN', {
+                ? new Intl.DateTimeFormat(dateLocale, {
                     day: 'numeric',
                     month: 'short',
                     year: 'numeric',
-                  })
-                : 'Recent stay'
+                  }).format(new Date(rev.created_at))
+                : t('recentStay')
 
               const revAvg = Math.round(
                 ((rev.rating_food +
@@ -1055,7 +1059,7 @@ export function FarmReviews({
                             gap: '3px',
                           }}
                         >
-                          <CheckCircle2 size={10} /> Verified stay
+                          <CheckCircle2 size={10} /> {t('verifiedStay')}
                         </span>
                       </div>
                       <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
@@ -1072,7 +1076,12 @@ export function FarmReviews({
                           marginTop: '2px',
                         }}
                       >
-                        Food {rev.rating_food} · Clean {rev.rating_cleanliness} · Host {rev.rating_hospitality} · Loc {rev.rating_location}
+                        {t('ratingSummary', {
+                          food: rev.rating_food,
+                          cleanliness: rev.rating_cleanliness,
+                          hospitality: rev.rating_hospitality,
+                          location: rev.rating_location,
+                        })}
                       </div>
                     </div>
                   </div>
@@ -1104,7 +1113,7 @@ export function FarmReviews({
                           key={`${photo.id || pIdx}`}
                           type="button"
                           onClick={() => openLightboxForPhotoUrl(photo.url)}
-                          aria-label={`Enlarge photo by ${guestName}`}
+                          aria-label={t('photoAlt', { name: guestName })}
                           style={{
                             width: '72px',
                             height: '72px',
@@ -1117,7 +1126,7 @@ export function FarmReviews({
                         >
                           <img
                             src={photo.url}
-                            alt="Guest review photo thumbnail"
+                            alt={t('photoThumbnailAlt')}
                             style={{
                               width: '100%',
                               height: '100%',
@@ -1171,10 +1180,11 @@ export function FarmReviews({
             }}
           >
             <div style={{ fontSize: '12.5px', color: '#c7d6c9' }}>
-              Photo {lightboxIndex + 1} of {allPhotos.length} ·{' '}
-              <span style={{ color: '#ffffff', fontWeight: 600 }}>
-                {allPhotos[lightboxIndex].guestName}
-              </span>
+              {t('lightboxTitle', {
+                current: lightboxIndex + 1,
+                total: allPhotos.length,
+                name: allPhotos[lightboxIndex].guestName,
+              })}
             </div>
             <button
               type="button"
@@ -1192,7 +1202,7 @@ export function FarmReviews({
                 gap: '5px',
               }}
             >
-              <X size={16} /> Close
+              <X size={16} /> {t('lightboxClose')}
             </button>
           </div>
 

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowRight, Check, Minus, Plus, ShoppingBag } from 'lucide-react'
+import { useTranslations, useLocale } from 'next-intl'
 import { formatRupees } from '@/lib/money'
 import { createClient } from '@/lib/supabase/client'
 
@@ -31,6 +32,8 @@ export function FarmProductsBlock({
   products,
 }: FarmProductsBlockProps) {
   const router = useRouter()
+  const t = useTranslations('farmDetail.products')
+  const locale = useLocale()
 
   const [openReserveId, setOpenReserveId] = useState<string | null>(null)
   const [quantities, setQuantities] = useState<Record<string, number>>({})
@@ -110,7 +113,7 @@ export function FarmProductsBlock({
         scrollMarginTop: '90px',
       }}
     >
-      <p className="section-kicker">Reserve and collect at the farm</p>
+      <p className="section-kicker">{t('kicker')}</p>
       <h2
         style={{
           fontSize: '20px',
@@ -119,10 +122,10 @@ export function FarmProductsBlock({
           color: 'var(--ink)',
         }}
       >
-        Products from this farm
+        {t('heading')}
       </h2>
       <p style={{ fontSize: '12px', color: 'var(--muted)', margin: '0 0 16px' }}>
-        Reserve fresh harvests to collect at the farm. Pay directly to the host family upon arrival.
+        {t('subhead')}
       </p>
 
       <div
@@ -192,7 +195,7 @@ export function FarmProductsBlock({
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  {formatRupees(prod.price_paise)}
+                  {formatRupees(prod.price_paise, locale)}
                 </div>
               </div>
 
@@ -218,7 +221,7 @@ export function FarmProductsBlock({
                     }}
                   >
                     <ShoppingBag size={12} />
-                    <span>{isOpen ? 'Close reserve' : 'Reserve for pickup'}</span>
+                    <span>{isOpen ? t('closeReserve') : t('reserveForPickup')}</span>
                   </button>
                 </div>
               )}
@@ -243,7 +246,7 @@ export function FarmProductsBlock({
                     }}
                   >
                     <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 600 }}>
-                      Quantity
+                      {t('quantity')}
                     </span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <button
@@ -261,7 +264,7 @@ export function FarmProductsBlock({
                           color: 'var(--ink)',
                           fontSize: '12px',
                         }}
-                        aria-label="Decrease quantity"
+                        aria-label={t('decreaseQty')}
                       >
                         <Minus size={11} />
                       </button>
@@ -282,7 +285,7 @@ export function FarmProductsBlock({
                           color: 'var(--ink)',
                           fontSize: '12px',
                         }}
-                        aria-label="Increase quantity"
+                        aria-label={t('increaseQty')}
                       >
                         <Plus size={11} />
                       </button>
@@ -299,14 +302,14 @@ export function FarmProductsBlock({
                       fontSize: '11px',
                     }}
                   >
-                    <span style={{ color: 'var(--muted)' }}>Total pickup price</span>
+                    <span style={{ color: 'var(--muted)' }}>{t('totalPrice')}</span>
                     <strong style={{ color: 'var(--ink)', fontSize: '12.5px' }}>
-                      {formatRupees(prod.price_paise * currentQty)}
+                      {formatRupees(prod.price_paise * currentQty, locale)}
                     </strong>
                   </div>
 
                   <p style={{ margin: 0, fontSize: '10.5px', color: 'var(--muted)', lineHeight: 1.4 }}>
-                    Pay directly to host {farmName} upon arrival. No upfront online charge.
+                    {t('payDirectNote', { farmName })}
                   </p>
 
                   <button
@@ -328,10 +331,10 @@ export function FarmProductsBlock({
                     }}
                   >
                     {reserving ? (
-                      <span>Reserving...</span>
+                      <span>{t('reserving')}</span>
                     ) : (
                       <>
-                        <span>Confirm reservation ({currentQty} {prod.unit})</span>
+                        <span>{t('confirmReservation', { qty: currentQty, unit: prod.unit })}</span>
                         <ArrowRight size={12} />
                       </>
                     )}
@@ -355,23 +358,23 @@ export function FarmProductsBlock({
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 700 }}>
                     <Check size={14} />
-                    <span>Reserved for pickup!</span>
+                    <span>{t('reservedSuccess')}</span>
                   </div>
                   <p style={{ margin: 0, fontSize: '10.5px', color: '#3d5e4b' }}>
-                    {currentQty}x {prod.name} reserved. You can collect and pay upon arrival at {farmName}.
+                    {t('reservedSuccessDesc', { qty: currentQty, name: prod.name, farmName })}
                   </p>
                   <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
                     <Link
                       href="/dashboard?view=tourist"
                       style={{ color: 'var(--forest)', fontWeight: 700, textDecoration: 'underline' }}
                     >
-                      View in dashboard &rarr;
+                      {t('viewDashboard')}
                     </Link>
                     <Link
                       href={`/book/${farmSlug}`}
                       style={{ color: 'var(--forest)', fontWeight: 700, textDecoration: 'underline' }}
                     >
-                      Book a stay &rarr;
+                      {t('bookStay')}
                     </Link>
                   </div>
                 </div>

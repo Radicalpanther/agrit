@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import 'leaflet/dist/leaflet.css'
+import { useTranslations } from 'next-intl'
 
 export interface LocationPickerProps {
   lat: number
@@ -10,6 +11,7 @@ export interface LocationPickerProps {
 }
 
 export function LocationPicker({ lat, lng, onChange }: LocationPickerProps) {
+  const t = useTranslations('locationPicker')
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<any>(null)
   const markerRef = useRef<any>(null)
@@ -74,13 +76,33 @@ export function LocationPicker({ lat, lng, onChange }: LocationPickerProps) {
         onChange(clickLat, clickLng)
       })
 
-      setTimeout(() => {
+      const t1 = setTimeout(() => {
         map.invalidateSize()
-      }, 200)
+      }, 100)
+      const t2 = setTimeout(() => {
+        map.invalidateSize()
+      }, 300)
+
+      let ro: ResizeObserver | null = null
+      if (mapContainerRef.current) {
+        ro = new ResizeObserver(() => {
+          map.invalidateSize()
+        })
+        ro.observe(mapContainerRef.current)
+      }
+
+      cleanupFn = () => {
+        clearTimeout(t1)
+        clearTimeout(t2)
+        ro?.disconnect()
+      }
     })
+
+    let cleanupFn: (() => void) | null = null
 
     return () => {
       isMounted = false
+      cleanupFn?.()
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove()
         mapInstanceRef.current = null
@@ -102,9 +124,14 @@ export function LocationPicker({ lat, lng, onChange }: LocationPickerProps) {
     <div style={{ marginTop: '4px' }}>
       <div
         ref={mapContainerRef}
+        className="w-full h-60 relative overflow-hidden z-0 [isolation:isolate] bg-[#eef2ec] border border-[var(--line)]"
         style={{
           width: '100%',
           height: '240px',
+          position: 'relative',
+          overflow: 'hidden',
+          isolation: 'isolate',
+          zIndex: 0,
           border: '1px solid var(--line)',
           background: '#eef2ec',
           borderRadius: '2px',
@@ -121,13 +148,13 @@ export function LocationPicker({ lat, lng, onChange }: LocationPickerProps) {
         }}
       >
         <span>
-          Pinned coordinates:{' '}
-          <strong style={{ color: 'var(--forest)' }}>
-            {lat.toFixed(6)}° N, {lng.toFixed(6)}° E
-          </strong>
+          {t('pinnedCoordinates', {
+            coords: `${lat.toFixed(6)}° N, ${lng.toFixed(6)}° E`,
+          })}
         </span>
-        <span>Tap map or drag pin to adjust</span>
+        <span>{t('dragHint')}</span>
       </div>
     </div>
   )
 }
+

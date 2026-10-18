@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Check, X, UserCheck, ClipboardCheck, PhoneCall, ShieldAlert } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 
 export interface VerifiedBadgeProps {
   size?: 'sm' | 'md'
@@ -10,6 +11,7 @@ export interface VerifiedBadgeProps {
 }
 
 export function VerifiedBadge({ size = 'sm', className, style }: VerifiedBadgeProps) {
+  const t = useTranslations('farmDetail.trust')
   const [isOpen, setIsOpen] = useState(false)
 
   useEffect(() => {
@@ -31,7 +33,7 @@ export function VerifiedBadge({ size = 'sm', className, style }: VerifiedBadgePr
           setIsOpen(true)
         }}
         className={className}
-        title="Verified by AgriTrails · Click to read verification details"
+        title={t('badgeTitle')}
         aria-haspopup="dialog"
         aria-expanded={isOpen}
         style={{
@@ -53,7 +55,7 @@ export function VerifiedBadge({ size = 'sm', className, style }: VerifiedBadgePr
         }}
       >
         <Check size={size === 'md' ? 13 : 11} strokeWidth={2.2} style={{ color: 'var(--leaf)' }} />
-        <span>Verified by AgriTrails</span>
+        <span>{t('badge')}</span>
       </button>
 
       {isOpen && (
@@ -105,7 +107,7 @@ export function VerifiedBadge({ size = 'sm', className, style }: VerifiedBadgePr
                     margin: '0 0 4px',
                   }}
                 >
-                  Trust &amp; Safety Standard
+                  {t('modalKicker')}
                 </p>
                 <h3
                   id="verified-dialog-title"
@@ -116,13 +118,13 @@ export function VerifiedBadge({ size = 'sm', className, style }: VerifiedBadgePr
                     margin: 0,
                   }}
                 >
-                  Verified by AgriTrails
+                  {t('modalHeading')}
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}
-                aria-label="Close dialog"
+                aria-label={t('closeDialog')}
                 style={{
                   color: 'var(--muted)',
                   padding: '4px',
@@ -136,7 +138,7 @@ export function VerifiedBadge({ size = 'sm', className, style }: VerifiedBadgePr
             </div>
 
             <p style={{ fontSize: '13px', lineHeight: 1.6, color: '#53685d', margin: '0 0 16px' }}>
-              Every stay carrying this badge has undergone in-person validation by the AgriTrails field team to ensure safe, authentic rural visits.
+              {t('modalIntro')}
             </p>
 
             {/* Checklist items in plain words */}
@@ -146,9 +148,9 @@ export function VerifiedBadge({ size = 'sm', className, style }: VerifiedBadgePr
                   <UserCheck size={16} strokeWidth={1.75} />
                 </div>
                 <div style={{ fontSize: '12.5px', lineHeight: 1.5 }}>
-                  <strong style={{ color: 'var(--ink)', display: 'block' }}>Identity of the host checked by our team</strong>
+                  <strong style={{ color: 'var(--ink)', display: 'block' }}>{t('hostIdentityTitle')}</strong>
                   <span style={{ color: 'var(--muted)' }}>
-                    Our team personally visits the property, meets the host family face-to-face, and confirms primary residence on the farm.
+                    {t('hostIdentityDesc')}
                   </span>
                 </div>
               </div>
@@ -158,9 +160,9 @@ export function VerifiedBadge({ size = 'sm', className, style }: VerifiedBadgePr
                   <ClipboardCheck size={16} strokeWidth={1.75} />
                 </div>
                 <div style={{ fontSize: '12.5px', lineHeight: 1.5 }}>
-                  <strong style={{ color: 'var(--ink)', display: 'block' }}>Farm visit and safety checklist completed</strong>
+                  <strong style={{ color: 'var(--ink)', display: 'block' }}>{t('checklistTitle')}</strong>
                   <span style={{ color: 'var(--muted)' }}>
-                    Physical walkthrough conducted covering clean drinking water, private sanitary living spaces, secure access roads, and basic emergency provisions.
+                    {t('checklistDesc')}
                   </span>
                 </div>
               </div>
@@ -170,9 +172,9 @@ export function VerifiedBadge({ size = 'sm', className, style }: VerifiedBadgePr
                   <PhoneCall size={16} strokeWidth={1.75} />
                 </div>
                 <div style={{ fontSize: '12.5px', lineHeight: 1.5 }}>
-                  <strong style={{ color: 'var(--ink)', display: 'block' }}>Local contact confirmed</strong>
+                  <strong style={{ color: 'var(--ink)', display: 'block' }}>{t('contactTitle')}</strong>
                   <span style={{ color: 'var(--muted)' }}>
-                    Direct community reference and nearest primary healthcare access confirmed with local village elders.
+                    {t('contactDesc')}
                   </span>
                 </div>
               </div>
@@ -194,7 +196,7 @@ export function VerifiedBadge({ size = 'sm', className, style }: VerifiedBadgePr
             >
               <ShieldAlert size={16} strokeWidth={1.75} style={{ flexShrink: 0, marginTop: '2px', color: 'var(--leaf)' }} />
               <div>
-                <strong>Privacy &amp; verification note:</strong> AgriTrails conducts direct, community-level field visits. We do not claim government database checks, and no government ID numbers, documents, or personal identity files are stored anywhere on our platform.
+                <strong>{t('privacyNoteLabel')}</strong> {t('privacyNoteDesc')}
               </div>
             </div>
 
@@ -210,7 +212,7 @@ export function VerifiedBadge({ size = 'sm', className, style }: VerifiedBadgePr
                 fontSize: '12px',
               }}
             >
-              Understood
+              {t('understoodBtn')}
             </button>
           </div>
         </div>

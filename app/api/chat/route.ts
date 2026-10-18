@@ -39,8 +39,10 @@ export async function POST(request: Request) {
       content: String(m.content || '').substring(0, 1000),
     }))
 
+    const locale: 'en' | 'hi' | 'mr' = (body.locale === 'hi' || body.locale === 'mr') ? body.locale : 'en'
+
     // 3. Obtain streaming response
-    const stream = streamChatResponse(cleanMessages)
+    const stream = streamChatResponse(cleanMessages, locale)
 
     return new Response(stream, {
       headers: {

@@ -123,14 +123,16 @@ export async function sendWhatsAppTemplate({
   templateName,
   variables,
   languageCode = 'en_US',
+  previewTextOverride,
 }: {
   to: string
   templateName: string
   variables: (string | number)[]
   languageCode?: string
+  previewTextOverride?: string
 }): Promise<SendWhatsAppResult> {
   const normalizedPhone = normalizeIndianPhoneNumber(to)
-  const previewText = renderTemplatePreview(templateName, variables)
+  const previewText = previewTextOverride || renderTemplatePreview(templateName, variables)
 
   if (!normalizedPhone) {
     return {

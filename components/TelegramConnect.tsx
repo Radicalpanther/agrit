@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { Send, Check, RefreshCw, X } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 
 export interface TelegramConnectProps {
   title?: string
@@ -13,13 +14,16 @@ export interface TelegramConnectProps {
 }
 
 export function TelegramConnect({
-  title = 'Get updates on Telegram',
-  subtitle = 'Receive instant reservation status, arrival directions, and host messages directly in Telegram.',
+  title,
+  subtitle,
   compact = false,
   showDisconnect = false,
   role = 'tourist',
   onStatusChange,
 }: TelegramConnectProps) {
+  const t = useTranslations('telegram')
+  const effectiveTitle = title ?? t('title')
+  const effectiveSubtitle = subtitle ?? t('subtitle')
   const [isLinked, setIsLinked] = useState<boolean>(false)
   const [loading, setLoading] = useState<boolean>(true)
   const [isPolling, setIsPolling] = useState<boolean>(false)
@@ -138,7 +142,7 @@ export function TelegramConnect({
           color: 'var(--muted)',
         }}
       >
-        Checking Telegram status...
+        {t('checking')}
       </div>
     )
   }
@@ -168,12 +172,12 @@ export function TelegramConnect({
             }}
           >
             <Check size={13} />
-            <span>Telegram connected</span>
+            <span>{t('connected')}</span>
             {showDisconnect && (
               <button
                 type="button"
                 onClick={handleDisconnect}
-                title="Disconnect Telegram"
+                title={t('disconnect')}
                 style={{
                   background: 'none',
                   border: 'none',
@@ -209,7 +213,7 @@ export function TelegramConnect({
               }}
             >
               <Send size={13} />
-              <span>{isPolling ? 'Waiting for bot...' : 'Connect Telegram'}</span>
+              <span>{isPolling ? t('waiting') : t('connect')}</span>
             </button>
             {isPolling && generatedLink && (
               <a
@@ -218,7 +222,7 @@ export function TelegramConnect({
                 rel="noopener noreferrer"
                 style={{ fontSize: '10px', color: 'var(--forest)', textDecoration: 'underline' }}
               >
-                Open Telegram manually
+                {t('openManually')}
               </a>
             )}
           </div>
@@ -258,7 +262,7 @@ export function TelegramConnect({
             }}
           >
             <Send size={14} style={{ color: 'var(--forest)' }} />
-            <span>{title}</span>
+            <span>{effectiveTitle}</span>
           </div>
           <p
             style={{
@@ -268,7 +272,7 @@ export function TelegramConnect({
               lineHeight: 1.5,
             }}
           >
-            {subtitle}
+            {effectiveSubtitle}
           </p>
         </div>
 
@@ -295,7 +299,7 @@ export function TelegramConnect({
                 }}
               >
                 <Check size={13} />
-                <span>Telegram connected</span>
+                <span>{t('connected')}</span>
               </span>
 
               {showDisconnect && (
@@ -312,7 +316,7 @@ export function TelegramConnect({
                     fontWeight: 600,
                   }}
                 >
-                  Disconnect
+                  {t('disconnect')}
                 </button>
               )}
             </div>
@@ -339,12 +343,12 @@ export function TelegramConnect({
                 {isPolling ? (
                   <>
                     <RefreshCw size={13} className="spin" />
-                    <span>Waiting for bot (/start)...</span>
+                    <span>{t('waiting')}</span>
                   </>
                 ) : (
                   <>
                     <Send size={13} />
-                    <span>Connect Telegram</span>
+                    <span>{t('connect')}</span>
                   </>
                 )}
               </button>
@@ -361,13 +365,9 @@ export function TelegramConnect({
                     fontWeight: 600,
                   }}
                 >
-                  Click here if Telegram did not open automatically
+                  {t('openManually')}
                 </a>
               )}
-
-              <span style={{ fontSize: '10.5px', color: 'var(--muted)' }}>
-                Optional. Booking works without connecting.
-              </span>
             </div>
           )}
         </div>

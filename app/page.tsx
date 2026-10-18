@@ -1,3 +1,4 @@
+import { getTranslations } from 'next-intl/server'
 import { Hero } from '@/components/Hero'
 import { SearchBar } from '@/components/SearchBar'
 import { FeaturedFarms } from '@/components/FeaturedFarms'
@@ -5,7 +6,10 @@ import { ProduceSection } from '@/components/ProduceSection'
 import { PromiseBanner } from '@/components/PromiseBanner'
 import { HarvestCalendar } from '@/components/HarvestCalendar'
 
-export default function HomePage() {
+export default async function HomePage() {
+  const t = await getTranslations('home.story')
+  const headingLines = t('heading').split('\n')
+
   return (
     <>
       <Hero />
@@ -13,31 +17,29 @@ export default function HomePage() {
 
       <section className="section intro-grid" id="story">
         <div>
-          <p className="section-kicker">Travel that gives back</p>
+          <p className="section-kicker">{t('kicker')}</p>
           <h2>
-            Meet the hands
-            <br />
-            behind the harvest.
+            {headingLines.map((line, idx) => (
+              <span key={idx} style={{ display: 'block' }}>
+                {line}
+              </span>
+            ))}
           </h2>
         </div>
         <div className="intro-copy">
-          <p>
-            AgriTrails connects curious city travellers with farming families across rural India.
-            Stay a little slower, learn something real, and make sure your money goes where it
-            matters.
-          </p>
+          <p>{t('paragraph')}</p>
           <div className="stat-row">
             <div>
-              <strong>100%</strong>
-              <span>direct to farmers</span>
+              <strong>{t('statDirectPercent')}</strong>
+              <span>{t('statDirectLabel')}</span>
             </div>
             <div>
-              <strong>48+</strong>
-              <span>local experiences</span>
+              <strong>{t('statExperiencesCount')}</strong>
+              <span>{t('statExperiencesLabel')}</span>
             </div>
             <div>
-              <strong>4.9/5</strong>
-              <span>guest happiness</span>
+              <strong>{t('statRatingValue')}</strong>
+              <span>{t('statRatingLabel')}</span>
             </div>
           </div>
         </div>

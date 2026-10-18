@@ -1,7 +1,10 @@
 import Link from 'next/link'
 import { Leaf } from 'lucide-react'
+import { getTranslations } from 'next-intl/server'
 
-export function Footer() {
+export async function Footer() {
+  const t = await getTranslations('common')
+
   return (
     <footer className="footer">
       <div className="footer-brand">
@@ -13,13 +16,13 @@ export function Footer() {
             agri<span>trails</span>
           </span>
         </Link>
-        <p>Good stays. Better livelihoods.</p>
+        <p>{t('brandTagline')}</p>
       </div>
       <div className="footer-links">
-        <span>© 2025 AgriTrails</span>
-        <Link href="/#story">Our mission</Link>
-        <Link href="/#story">Help centre</Link>
-        <Link href="/#story">Privacy</Link>
+        <span>{t('copyright')}</span>
+        <Link href="/#story">{t('ourMission')}</Link>
+        <Link href="/#story">{t('helpCentre')}</Link>
+        <Link href="/#story">{t('privacy')}</Link>
       </div>
     </footer>
   )

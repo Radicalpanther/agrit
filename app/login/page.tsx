@@ -1,29 +1,39 @@
 'use client'
 
-import { useState, Suspense } from 'react'
+import { useState, Suspense, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { ArrowRight, CheckCircle2 } from 'lucide-react'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/client'
-
-const loginSchema = z.object({
-  email: z.string().trim().email('Enter a valid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
-})
-
-const registerSchema = z.object({
-  name: z.string().trim().min(2, 'Name must be at least 2 characters'),
-  email: z.string().trim().email('Enter a valid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
-  phone: z.string().trim().min(8, 'Enter a valid phone number'),
-  role: z.enum(['tourist', 'farmer']),
-})
+import { useTranslations } from 'next-intl'
 
 function LoginForm() {
+  const t = useTranslations('auth')
   const router = useRouter()
   const searchParams = useSearchParams()
   const redirectTarget = searchParams.get('redirect')
+
+  const loginSchema = useMemo(
+    () =>
+      z.object({
+        email: z.string().trim().email(t('errors.validEmail')),
+        password: z.string().min(6, t('errors.passwordLength')),
+      }),
+    [t],
+  )
+
+  const registerSchema = useMemo(
+    () =>
+      z.object({
+        name: z.string().trim().min(2, t('errors.nameLength')),
+        email: z.string().trim().email(t('errors.validEmail')),
+        password: z.string().min(6, t('errors.passwordLength')),
+        phone: z.string().trim().min(8, t('errors.validPhone')),
+        role: z.enum(['tourist', 'farmer']),
+      }),
+    [t],
+  )
 
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [email, setEmail] = useState('')
@@ -45,7 +55,7 @@ function LoginForm() {
 
     const parsed = loginSchema.safeParse({ email, password })
     if (!parsed.success) {
-      setErrorMsg(parsed.error.issues[0]?.message || 'Please check your inputs')
+      setErrorMsg(parsed.error.issues[0]?.message || t('checkInputsError'))
       return
     }
 
@@ -99,7 +109,7 @@ function LoginForm() {
         }, 200)
       }
     } catch {
-      setErrorMsg('An unexpected error occurred. Please try again.')
+      setErrorMsg(t('unexpectedError'))
     } finally {
       setLoading(false)
     }
@@ -119,7 +129,7 @@ function LoginForm() {
     })
 
     if (!parsed.success) {
-      setErrorMsg(parsed.error.issues[0]?.message || 'Please check your inputs')
+      setErrorMsg(parsed.error.issues[0]?.message || t('checkInputsError'))
       return
     }
 
@@ -157,12 +167,10 @@ function LoginForm() {
         router.push(destination)
         router.refresh()
       } else {
-        setInfoMsg(
-          'Registration complete. If email confirmation is enabled for your project, please check your inbox before logging in.',
-        )
+        setInfoMsg(t('registrationEmailNote'))
       }
     } catch {
-      setErrorMsg('An unexpected error occurred. Please try again.')
+      setErrorMsg(t('unexpectedError'))
     } finally {
       setLoading(false)
     }
@@ -174,14 +182,14 @@ function LoginForm() {
       style={{ maxWidth: '520px', margin: '40px auto 100px' }}
     >
       <Link className="back-link" href="/">
-        &larr; Back to home
+        &larr; {t('backToHome')}
       </Link>
 
       <div className="booking-form">
         <div className="form-header">
           <div>
-            <p className="section-kicker">Member access</p>
-            <h2>{mode === 'login' ? 'Account login' : 'Create an account'}</h2>
+            <p className="section-kicker">{t('memberAccess')}</p>
+            <h2>{mode === 'login' ? t('loginTitle') : t('registerTitle')}</h2>
           </div>
         </div>
 
@@ -213,7 +221,7 @@ function LoginForm() {
               cursor: 'pointer',
             }}
           >
-            Sign in
+            {t('signInTab')}
           </button>
           <button
             type="button"
@@ -233,7 +241,7 @@ function LoginForm() {
               cursor: 'pointer',
             }}
           >
-            Register
+            {t('registerTab')}
           </button>
         </div>
 
@@ -285,11 +293,11 @@ function LoginForm() {
                   gap: '7px',
                 }}
               >
-                Email address
+                {t('emailLabel')}
                 <input
                   required
                   type="email"
-                  placeholder="you@example.com"
+                  placeholder={t('emailPlaceholder')}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   style={{
@@ -309,11 +317,11 @@ function LoginForm() {
                   gap: '7px',
                 }}
               >
-                Password
+                {t('passwordLabel')}
                 <input
                   required
                   type="password"
-                  placeholder="••••••••"
+                  placeholder={t('passwordPlaceholder')}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   style={{
@@ -331,7 +339,7 @@ function LoginForm() {
               disabled={loading}
               style={{ width: '100%', marginTop: '22px' }}
             >
-              {loading ? 'Signing in...' : 'Sign in'} <ArrowRight size={17} />
+              {loading ? t('signingIn') : t('signInButton')} <ArrowRight size={17} />
             </button>
 
             <div
@@ -352,7 +360,7 @@ function LoginForm() {
                   fontWeight: 600,
                 }}
               >
-                Quick Demo Sign-In
+                {t('quickDemoTitle')}
               </span>
               <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
                 <button
@@ -373,7 +381,7 @@ function LoginForm() {
                     borderRadius: '2px',
                   }}
                 >
-                  Farmer (Rajesh Patil)
+                  {t('demoFarmer')}
                 </button>
                 <button
                   type="button"
@@ -393,7 +401,7 @@ function LoginForm() {
                     borderRadius: '2px',
                   }}
                 >
-                  Tourist (Ananya Roy)
+                  {t('demoTourist')}
                 </button>
               </div>
             </div>
@@ -412,11 +420,11 @@ function LoginForm() {
                   gap: '7px',
                 }}
               >
-                Full name
+                {t('fullNameLabel')}
                 <input
                   required
                   type="text"
-                  placeholder="e.g. Ramesh Deshmukh"
+                  placeholder={t('fullNamePlaceholder')}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   style={{
@@ -436,11 +444,11 @@ function LoginForm() {
                   gap: '7px',
                 }}
               >
-                Email address
+                {t('emailLabel')}
                 <input
                   required
                   type="email"
-                  placeholder="you@example.com"
+                  placeholder={t('emailPlaceholder')}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   style={{
@@ -460,11 +468,11 @@ function LoginForm() {
                   gap: '7px',
                 }}
               >
-                Phone number
+                {t('phoneLabel')}
                 <input
                   required
                   type="tel"
-                  placeholder="+91 98000 00000"
+                  placeholder={t('phonePlaceholder')}
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   style={{
@@ -484,11 +492,11 @@ function LoginForm() {
                   gap: '7px',
                 }}
               >
-                Password
+                {t('passwordLabel')}
                 <input
                   required
                   type="password"
-                  placeholder="At least 6 characters"
+                  placeholder={t('passwordPlaceholderRegister')}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   style={{
@@ -501,7 +509,7 @@ function LoginForm() {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
-                  I want to join AgriTrails as:
+                  {t('roleQuestion')}
                 </span>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                   <label
@@ -527,7 +535,7 @@ function LoginForm() {
                       onChange={() => setRole('tourist')}
                       style={{ accentColor: 'var(--forest)' }}
                     />
-                    Tourist / Guest
+                    {t('roleTourist')}
                   </label>
                   <label
                     style={{
@@ -552,7 +560,7 @@ function LoginForm() {
                       onChange={() => setRole('farmer')}
                       style={{ accentColor: 'var(--forest)' }}
                     />
-                    Host / Farmer
+                    {t('roleFarmer')}
                   </label>
                 </div>
               </div>
@@ -564,12 +572,12 @@ function LoginForm() {
               disabled={loading}
               style={{ width: '100%', marginTop: '22px' }}
             >
-              {loading ? 'Creating account...' : 'Create account'}{' '}
+              {loading ? t('creatingAccount') : t('createAccountButton')}{' '}
               <ArrowRight size={17} />
             </button>
 
             <p className="form-note">
-              Host accounts and guest reservations are secured under rural community guidelines.
+              {t('communityNote')}
             </p>
           </form>
         )}
@@ -578,21 +586,25 @@ function LoginForm() {
   )
 }
 
+function LoginFallback() {
+  const t = useTranslations('auth')
+  return (
+    <section
+      className="booking-page"
+      style={{ maxWidth: '520px', margin: '40px auto 100px', textAlign: 'center' }}
+    >
+      <div className="booking-form">
+        <p style={{ color: 'var(--muted)', fontSize: '13px' }}>{t('loadingMemberAccess')}</p>
+      </div>
+    </section>
+  )
+}
+
 export default function LoginPage() {
   return (
-    <Suspense
-      fallback={
-        <section
-          className="booking-page"
-          style={{ maxWidth: '520px', margin: '40px auto 100px', textAlign: 'center' }}
-        >
-          <div className="booking-form">
-            <p style={{ color: 'var(--muted)', fontSize: '13px' }}>Loading member access...</p>
-          </div>
-        </section>
-      }
-    >
+    <Suspense fallback={<LoginFallback />}>
       <LoginForm />
     </Suspense>
   )
 }
+

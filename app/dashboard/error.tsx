@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import Link from 'next/link'
 import { AlertCircle, RefreshCw, LogIn } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 
 export default function DashboardError({
   error,
@@ -11,6 +12,8 @@ export default function DashboardError({
   error: Error & { digest?: string }
   reset: () => void
 }) {
+  const t = useTranslations('dashboard.errorPage')
+
   useEffect(() => {
     console.error('Dashboard error:', error)
   }, [error])
@@ -42,7 +45,7 @@ export default function DashboardError({
       </div>
 
       <p className="section-kicker" style={{ color: '#b33939', margin: 0 }}>
-        Dashboard unavailable
+        {t('unavailableKicker')}
       </p>
 
       <h2
@@ -54,7 +57,7 @@ export default function DashboardError({
           margin: '8px 0 12px',
         }}
       >
-        Unable to load portal data
+        {t('unableTitle')}
       </h2>
 
       <p
@@ -66,7 +69,7 @@ export default function DashboardError({
           maxWidth: '400px',
         }}
       >
-        We could not load your farm listings or booking management portal. You may need to sign in again.
+        {t('description')}
       </p>
 
       <div
@@ -89,7 +92,7 @@ export default function DashboardError({
             gap: '6px',
           }}
         >
-          <RefreshCw size={14} /> Retry
+          <RefreshCw size={14} /> {t('retry')}
         </button>
 
         <Link
@@ -104,9 +107,10 @@ export default function DashboardError({
             textDecoration: 'none',
           }}
         >
-          <LogIn size={14} /> Sign in
+          <LogIn size={14} /> {t('signIn')}
         </Link>
       </div>
     </div>
   )
 }
+

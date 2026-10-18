@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import { getTranslations, getLocale } from 'next-intl/server'
 import {
   ArrowRight,
   Clock3,
@@ -33,6 +34,8 @@ export default async function FarmDetailPage({
   params: Promise<{ slug: string }>
 }) {
   const { slug } = await params
+  const t = await getTranslations('farmDetail')
+  const locale = await getLocale()
   const farm = await fetchServerFarmBySlug(slug)
 
   if (!farm) {
@@ -55,11 +58,11 @@ export default async function FarmDetailPage({
     <div className="booking-form" style={{ marginTop: '28px' }}>
       <div className="form-header">
         <div>
-          <p className="section-kicker">Experience the land</p>
-          <h2 style={{ fontSize: '20px', margin: '4px 0 0' }}>Stay overview</h2>
+          <p className="section-kicker">{t('experienceTheLand')}</p>
+          <h2 style={{ fontSize: '20px', margin: '4px 0 0' }}>{t('stayOverview')}</h2>
         </div>
         <span>
-          <strong>{formatRupees(farm.pricePaise)}</strong> / guest
+          <strong>{formatRupees(farm.pricePaise, locale)}</strong> {t('perGuest')}
         </span>
       </div>
 
@@ -81,7 +84,7 @@ export default async function FarmDetailPage({
           }}
         >
           <div style={{ fontWeight: 700, fontSize: '13px', color: 'var(--ink)' }}>
-            Hosted by {raw.host_name || farm.hostName || 'the farming family'}
+            {t('hostedBy', { host: raw.host_name || farm.hostName || t('defaultHost') })}
           </div>
           {farm.verified && <VerifiedBadge size="sm" />}
         </div>
@@ -93,7 +96,7 @@ export default async function FarmDetailPage({
             margin: 0,
           }}
         >
-          Bookings are hosted directly by {raw.host_name || farm.hostName || 'the farming family'}. Accommodation includes traditional meals, seasonal harvests, and authentic rural hospitality.
+          {t('hostedByDesc', { host: raw.host_name || farm.hostName || t('defaultHost') })}
         </p>
       </div>
 
@@ -108,10 +111,14 @@ export default async function FarmDetailPage({
           }}
         >
           <div style={{ fontWeight: 700, color: 'var(--forest)', marginBottom: '4px' }}>
-            Day visits also available
+            {t('dayVisitsAvailable')}
           </div>
           <div style={{ color: 'var(--muted)' }}>
-            {formatRupees(raw.day_visit_price_paise)} / guest ({raw.day_visit_start?.slice(0, 5)} to {raw.day_visit_end?.slice(0, 5)})
+            {t('dayVisitPriceTime', {
+              price: formatRupees(raw.day_visit_price_paise, locale),
+              start: raw.day_visit_start?.slice(0, 5) || '',
+              end: raw.day_visit_end?.slice(0, 5) || '',
+            })}
           </div>
         </div>
       )}
@@ -121,11 +128,11 @@ export default async function FarmDetailPage({
         href={`/book/${farm.slug}`}
         style={{ textDecoration: 'none' }}
       >
-        Continue to reservation <ArrowRight size={17} />
+        {t('continueToReservation')} <ArrowRight size={17} />
       </Link>
 
       <p className="form-note">
-        No payment today · Free cancellation up to 48 hours before arrival
+        {t('noPaymentNote')}
       </p>
     </div>
   )
@@ -166,7 +173,7 @@ export default async function FarmDetailPage({
       )}
 
       <div className="booking-copy">
-        <p className="section-kicker">Your rural reset</p>
+        <p className="section-kicker">{t('ruralReset')}</p>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', marginBottom: '8px' }}>
           <h1 style={{ margin: 0 }}>{farm.name}</h1>
           {farm.verified && <VerifiedBadge size="md" />}
@@ -174,23 +181,23 @@ export default async function FarmDetailPage({
         <p className="muted">
           <MapPin size={14} /> {farm.place} ·{' '}
           <Star size={14} fill="currentColor" /> {farm.rating} (
-          {farm.reviews} reviews)
+          {t('reviewsCount', { count: farm.reviews })})
         </p>
         <p>{farm.description}</p>
 
         <div className="amenities">
           <span>
-            <Leaf size={16} /> Organic meals
+            <Leaf size={16} /> {t('amenities.organicMeals')}
           </span>
           <span>
-            <Users size={16} /> Sleeps {farm.sleeps}
+            <Users size={16} /> {t('amenities.sleeps', { count: farm.sleeps })}
           </span>
           <span>
-            <Clock3 size={16} /> Flexible check-in
+            <Clock3 size={16} /> {t('amenities.flexibleCheckIn')}
           </span>
           {raw.allows_day_visit && (
             <span>
-              <Sun size={16} /> Day visits allowed
+              <Sun size={16} /> {t('amenities.dayVisitsAllowed')}
             </span>
           )}
         </div>
@@ -213,7 +220,7 @@ export default async function FarmDetailPage({
   return (
     <section className="booking-page">
       <Link className="back-link" href="/explore">
-        &larr; Back to farm stays
+        {t('backToFarms')}
       </Link>
 
       <div className="booking-layout">
@@ -226,7 +233,7 @@ export default async function FarmDetailPage({
         <Suspense
           fallback={
             <div id="products" style={{ marginTop: '36px', scrollMarginTop: '90px', color: 'var(--muted)', fontSize: '12px' }}>
-              Loading farm products...
+              {t('loadingProducts')}
             </div>
           }
         >
@@ -242,12 +249,12 @@ export default async function FarmDetailPage({
       {/* Nearby farms block within 15 km */}
       {nearbyProducts.length > 0 && (
         <div style={{ marginTop: '36px', borderTop: '1px solid var(--line)', paddingTop: '24px' }}>
-          <p className="section-kicker">Within 15 km</p>
+          <p className="section-kicker">{t('nearby.kicker')}</p>
           <h2 style={{ fontSize: '20px', letterSpacing: '-0.5px', margin: '4px 0 6px', color: 'var(--ink)' }}>
-            Products from neighbouring farms
+            {t('nearby.heading')}
           </h2>
           <p style={{ fontSize: '12px', color: 'var(--muted)', margin: '0 0 16px' }}>
-            Explore produce from nearby growers in the valley. Reserve and collect at the farm.
+            {t('nearby.description')}
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
             {nearbyProducts.map((prod) => (
@@ -272,12 +279,12 @@ export default async function FarmDetailPage({
                     {prod.name}
                   </div>
                   <div style={{ fontSize: '11px', color: 'var(--muted)' }}>
-                    {prod.unit} · {prod.farm.name} ({prod.farm.distanceKm} km away)
+                    {prod.unit} · {prod.farm.name} ({t('nearby.distanceAway', { km: prod.farm.distanceKm ?? 0 })})
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <div style={{ fontWeight: 700, fontSize: '13px', color: 'var(--forest)' }}>
-                    {formatRupees(prod.pricePaise)}
+                    {formatRupees(prod.pricePaise, locale)}
                   </div>
                   <span
                     style={{
@@ -290,7 +297,7 @@ export default async function FarmDetailPage({
                       whiteSpace: 'nowrap',
                     }}
                   >
-                    Reserve &rarr;
+                    {t('nearby.reserveBtn')}
                   </span>
                 </div>
               </Link>

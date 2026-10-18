@@ -5,7 +5,7 @@
 :root { --ink:#17352b; --forest:#245441; --leaf:#5d9067; --mint:#e8f0e4; --cream:#f7f8f2; --line:#dce4da; --muted:#6e7f74; --gold:#d9984a; --white:#fff; }
 * { box-sizing:border-box; }
 html { scroll-behavior:smooth; }
-body { margin:0; background:var(--cream); color:var(--ink); font-family:Arial, Helvetica, sans-serif; }
+body { margin:0; background:var(--cream); color:var(--ink); font-family:var(--font-devanagari), Arial, Helvetica, sans-serif; }
 button,input,select { font:inherit; }
 button { border:0; cursor:pointer; color:inherit; background:none; }
 .site-shell { overflow:hidden; }
@@ -959,10 +959,80 @@ button { border:0; cursor:pointer; color:inherit; background:none; }
 }
 
 /* ==========================================================================
-   Booking Confirmation Full-Width Flow & Reset
+   Booking Confirmation Full-Width Flow, Responsive Layout & Leaflet Reset
    ========================================================================== */
-.booking-layout.booking-confirmed {
-  align-items: start !important;
+.booking-page {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 32px 16px max(120px, calc(env(safe-area-inset-bottom, 0px) + 104px));
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.booking-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 28px;
+  align-items: start;
+  width: 100%;
+  max-width: 100%;
+}
+
+@media (min-width: 1024px) {
+  .booking-layout {
+    grid-template-columns: 1.1fr 0.9fr;
+    gap: 48px;
+  }
+}
+
+.booking-left-column,
+.booking-right-column {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+}
+
+/* Mobile-first: Show confirmation card first, then farm photo & details */
+.booking-layout.booking-confirmed .booking-right-column {
+  order: 1;
+}
+.booking-layout.booking-confirmed .booking-left-column {
+  order: 2;
+}
+
+@media (min-width: 1024px) {
+  .booking-layout.booking-confirmed .booking-left-column {
+    order: 1;
+  }
+  .booking-layout.booking-confirmed .booking-right-column {
+    order: 2;
+  }
+}
+
+.booking-photo {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 10;
+  max-height: 380px;
+  overflow: hidden;
+  position: relative;
+  background: var(--mint);
+  border-radius: 2px;
+}
+
+.booking-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.booking-copy h1 {
+  font-size: clamp(22px, 5vw, 40px);
+  line-height: 1.15;
+  margin-bottom: 12px;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .booking-layout.booking-confirmed .booking-form,
@@ -997,6 +1067,35 @@ button { border:0; cursor:pointer; color:inherit; background:none; }
   width: 100% !important;
   max-width: 100% !important;
   box-sizing: border-box !important;
+}
+
+/* Stop Tailwind's base styles from breaking Leaflet tiles */
+.leaflet-container img,
+.leaflet-tile {
+  max-width: none !important;
+  max-height: none !important;
+}
+
+/* Ensure all map containers strictly encapsulate Leaflet tiles & controls */
+.trip-map-container {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: #ffffff;
+  margin: 16px 0;
+  box-sizing: border-box;
+  overflow: hidden;
+  position: relative;
+  isolation: isolate;
+  z-index: 0;
+}
+
+.trip-map-view,
+.leaflet-offline-map,
+.leaflet-container {
+  position: relative !important;
+  overflow: hidden !important;
+  isolation: isolate !important;
+  z-index: 0 !important;
 }
 
 @media (max-width: 430px) {
@@ -1117,16 +1216,19 @@ button { border:0; cursor:pointer; color:inherit; background:none; }
 .trip-map-source-btn {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  justify-content: center;
+  gap: 6px;
   background: #ffffff;
   border: 1px solid var(--line);
-  padding: 6px 10px;
+  padding: 8px 12px;
+  min-height: 44px;
   font-size: 11px;
   font-weight: 700;
   color: var(--forest);
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.15s ease;
+  box-sizing: border-box;
 }
 
 .trip-map-source-btn:hover {
@@ -1142,39 +1244,73 @@ button { border:0; cursor:pointer; color:inherit; background:none; }
 .trip-map-select {
   border: 1px solid var(--line);
   background: #ffffff;
-  padding: 6px 10px;
+  padding: 8px 12px;
+  min-height: 44px;
   font-size: 11px;
   color: var(--ink);
   cursor: pointer;
+  box-sizing: border-box;
 }
 
 .trip-map-geocode-form {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
 .trip-map-geocode-input {
   border: 1px solid var(--line);
   background: #ffffff;
-  padding: 6px 8px;
+  padding: 8px 10px;
+  min-height: 44px;
   font-size: 11px;
   color: var(--ink);
-  min-width: 140px;
+  min-width: 120px;
+  box-sizing: border-box;
 }
 
 .trip-map-view {
   width: 100%;
-  height: 320px;
-  position: relative;
-  isolation: isolate;
-  z-index: 0;
+  height: 280px;
+  position: relative !important;
+  overflow: hidden !important;
+  isolation: isolate !important;
+  z-index: 0 !important;
   background: #eef3eb;
 }
 
-@media (max-width: 640px) {
+@media (min-width: 768px) {
   .trip-map-view {
-    height: 240px;
+    height: 340px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .trip-map-view {
+    height: 384px;
+  }
+}
+
+@media (max-width: 640px) {
+  .trip-map-source-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 10px;
+  }
+  .trip-map-source-btn,
+  .trip-map-select {
+    width: 100%;
+  }
+  .trip-map-geocode-form {
+    display: flex;
+    width: 100%;
+    gap: 6px;
+  }
+  .trip-map-geocode-input {
+    flex: 1;
+    min-width: 0;
   }
 }
 

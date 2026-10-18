@@ -62,6 +62,7 @@ create table profiles (
   whatsapp_opt_in boolean not null default false,
   telegram_chat_id bigint,
   telegram_linked_at timestamptz,
+  preferred_language text default 'en' check (preferred_language in ('en', 'hi', 'mr')),
   updated_at      timestamptz not null default now()
 );
 
@@ -154,6 +155,7 @@ create table bookings (
   status       booking_status not null default 'pending',
   telegram_message_id bigint,
   telegram_chat_id    bigint,
+  locale       text not null default 'en' check (locale in ('en', 'hi', 'mr')),
   created_at   timestamptz not null default now()
 );
 

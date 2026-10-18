@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import {
   getAllCrops,
   getAllFarms,
@@ -28,6 +29,21 @@ const MONTH_NAMES = [
   'Nov',
   'Dec',
 ]
+
+const MONTH_KEYS = [
+  'jan',
+  'feb',
+  'mar',
+  'apr',
+  'may',
+  'jun',
+  'jul',
+  'aug',
+  'sep',
+  'oct',
+  'nov',
+  'dec',
+] as const
 
 const FULL_MONTH_NAMES = [
   'January',
@@ -77,6 +93,9 @@ function getMatchingActivity(
 }
 
 export function HarvestCalendar() {
+  const t = useTranslations('home.calendar')
+  const tMonths = useTranslations('search.months')
+
   const [crops, setCrops] = useState<CropData[]>(() => getAllCrops())
   const [allFarms, setAllFarms] = useState<Farm[]>(() => getAllFarms())
   const [activities, setActivities] = useState<FarmActivity[]>(() =>
@@ -129,13 +148,13 @@ export function HarvestCalendar() {
     return selectedMonth
   }, [selectedMonth, staysPerMonth])
 
-  const selectedMonthName = FULL_MONTH_NAMES[selectedMonth]
+  const selectedMonthName = tMonths(MONTH_KEYS[selectedMonth])
   const displayedFarms = matchingFarms.slice(0, 3)
 
   const inSeasonText =
     activeCrops.length > 0
       ? activeCrops.map((c) => c.name).join(', ')
-      : 'None (off-season)'
+      : t('noneOffSeason')
 
   return (
     <section
@@ -146,7 +165,7 @@ export function HarvestCalendar() {
       {/* Section Header */}
       <div style={{ marginBottom: '22px' }}>
         <p className="section-kicker" style={{ margin: '0 0 6px' }}>
-          Seasonal calendar
+          {t('kicker')}
         </p>
         <h2
           style={{
@@ -155,10 +174,10 @@ export function HarvestCalendar() {
             lineHeight: 1.1,
             margin: '0 0 8px',
             color: 'var(--ink)',
-            fontFamily: 'Arial, sans-serif',
+            fontFamily: 'inherit',
           }}
         >
-          What&apos;s in season.
+          {t('heading')}
         </h2>
         <p
           style={{
@@ -166,10 +185,10 @@ export function HarvestCalendar() {
             fontSize: '14px',
             lineHeight: 1.6,
             margin: 0,
-            fontFamily: 'Arial, sans-serif',
+            fontFamily: 'inherit',
           }}
         >
-          Plan your farm stay around live harvest cycles and seasonal activities across India.
+          {t('subhead')}
         </p>
       </div>
 
@@ -179,7 +198,7 @@ export function HarvestCalendar() {
         role="tablist"
         aria-label="Seasonal calendar months"
       >
-        {MONTH_NAMES.map((name, index) => {
+        {MONTH_KEYS.map((key, index) => {
           const isSelected = selectedMonth === index
           const isActualCurrent = actualCurrentMonth === index
           const hasStays = staysPerMonth[index].length > 0
@@ -187,15 +206,15 @@ export function HarvestCalendar() {
 
           return (
             <button
-              key={name}
+              key={key}
               type="button"
               role="tab"
               aria-selected={isSelected}
-              aria-label={`${FULL_MONTH_NAMES[index]}${isActualCurrent ? ' (current month)' : ''}${!hasStays ? ' (no stays)' : ''}`}
+              aria-label={tMonths(key)}
               onClick={() => setSelectedMonth(index)}
               className={`seasonal-month-btn ${isSelected ? 'is-active' : ''} ${isFaded ? 'is-faded' : ''}`}
             >
-              <span>{name}</span>
+              <span>{tMonths(key)}</span>
               {isActualCurrent && (
                 <span
                   className="gold-dot"
@@ -215,10 +234,10 @@ export function HarvestCalendar() {
           color: 'var(--muted)',
           margin: '14px 0 20px',
           lineHeight: 1.5,
-          fontFamily: 'Arial, sans-serif',
+          fontFamily: 'inherit',
         }}
       >
-        In season in {selectedMonthName}:{' '}
+        {t('inSeasonInMonth', { month: selectedMonthName })}{' '}
         <span style={{ color: 'var(--ink)', fontWeight: 600 }}>
           {inSeasonText}
         </span>
@@ -309,7 +328,7 @@ export function HarvestCalendar() {
                           marginLeft: '4px',
                         }}
                       >
-                        / night
+                        {t('perNight')}
                       </span>
                     </span>
                     <span
@@ -323,7 +342,7 @@ export function HarvestCalendar() {
                         pointerEvents: 'none',
                       }}
                     >
-                      View stay <ArrowRight size={13} />
+                      {t('viewStay')} <ArrowRight size={13} />
                     </span>
                   </div>
                 </div>
@@ -334,7 +353,7 @@ export function HarvestCalendar() {
           {matchingFarms.length > 3 && (
             <div style={{ marginTop: '14px' }}>
               <Link
-                href={`/explore?when=${encodeURIComponent(selectedMonthName.toLowerCase())}`}
+                href={`/explore?when=${encodeURIComponent(FULL_MONTH_NAMES[selectedMonth].toLowerCase())}`}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -345,7 +364,7 @@ export function HarvestCalendar() {
                   textDecoration: 'none',
                 }}
               >
-                See all {matchingFarms.length} stays in {selectedMonthName}{' '}
+                {t('seeAllStays', { count: matchingFarms.length, month: selectedMonthName })}{' '}
                 <ArrowRight size={14} />
               </Link>
             </div>
@@ -358,7 +377,7 @@ export function HarvestCalendar() {
             background: '#ffffff',
             padding: '36px 20px',
             textAlign: 'center',
-            fontFamily: 'Arial, sans-serif',
+            fontFamily: 'inherit',
           }}
         >
           <p
@@ -369,7 +388,7 @@ export function HarvestCalendar() {
               lineHeight: 1.5,
             }}
           >
-            It is a quiet month across host farms with no scheduled harvests.
+            {t('quietMonth')}
           </p>
           <button
             type="button"
@@ -387,7 +406,7 @@ export function HarvestCalendar() {
               cursor: 'pointer',
             }}
           >
-            Jump to {FULL_MONTH_NAMES[nextMonthIndex]} <ArrowRight size={14} />
+            {t('jumpToMonth', { month: tMonths(MONTH_KEYS[nextMonthIndex]) })} <ArrowRight size={14} />
           </button>
         </div>
       )}
@@ -399,10 +418,10 @@ export function HarvestCalendar() {
           color: 'var(--muted)',
           marginTop: '16px',
           lineHeight: 1.5,
-          fontFamily: 'Arial, sans-serif',
+          fontFamily: 'inherit',
         }}
       >
-        Harvest and sowing dates vary with local rainfall and weather patterns. Dates are indicative.
+        {t('footnote')}
       </p>
     </section>
   )

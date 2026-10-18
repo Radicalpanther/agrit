@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import { useTranslations, useLocale } from 'next-intl'
 import { formatRupees } from '@/lib/money'
 
 export interface ActivityItem {
@@ -236,6 +237,8 @@ export function FarmDayFlow({ farm, activities }: FarmDayFlowProps) {
 
   // Active day tab state: Day visitors see Day 1 first
   const [selectedDay, setSelectedDay] = useState<number>(1)
+  const t = useTranslations('farmDetail.itinerary')
+  const locale = useLocale()
 
   // If farm has no activities, hide the section
   if (!activities || activities.length === 0 || days.length === 0) {
@@ -264,9 +267,9 @@ export function FarmDayFlow({ farm, activities }: FarmDayFlowProps) {
   return (
     <section className="farm-flow-section" aria-label="A day at the farm">
       <div style={{ marginBottom: '16px' }}>
-        <p className="section-kicker" style={{ margin: '0 0 4px' }}>Itinerary</p>
+        <p className="section-kicker" style={{ margin: '0 0 4px' }}>{t('kicker')}</p>
         <h2 style={{ fontSize: '22px', letterSpacing: '-0.5px', margin: 0, color: 'var(--ink)' }}>
-          A day at the farm
+          {t('heading')}
         </h2>
       </div>
 
@@ -284,7 +287,7 @@ export function FarmDayFlow({ farm, activities }: FarmDayFlowProps) {
                 onClick={() => setSelectedDay(dayNum)}
                 className={`farm-flow-tab-btn ${isActive ? 'is-active' : ''}`}
               >
-                Day {dayNum}
+                {t('dayTab', { day: dayNum })}
               </button>
             )
           })}
@@ -307,7 +310,7 @@ export function FarmDayFlow({ farm, activities }: FarmDayFlowProps) {
               <span className="farm-flow-time">{arriveTime}</span>
             </div>
             <div className="farm-flow-title-row">
-              <h3 className="farm-flow-title">Arrive</h3>
+              <h3 className="farm-flow-title">{t('arrive')}</h3>
               <span className="farm-flow-duration">
                 {isFirstDay ? 'Check-in & welcome' : 'Morning dawn start'}
               </span>
@@ -342,12 +345,12 @@ export function FarmDayFlow({ farm, activities }: FarmDayFlowProps) {
                   <span className="farm-flow-time">{act.start_time}</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     {act.isSeasonal && (
-                      <span className="farm-flow-seasonal-tag">Seasonal</span>
+                      <span className="farm-flow-seasonal-tag">{t('seasonal')}</span>
                     )}
                     <span className="farm-flow-kind-tag">{act.kind}</span>
                     {act.price_paise > 0 && (
                       <span className="farm-flow-price">
-                        {formatRupees(act.price_paise)}
+                        {formatRupees(act.price_paise, locale)}
                       </span>
                     )}
                   </div>
@@ -355,7 +358,7 @@ export function FarmDayFlow({ farm, activities }: FarmDayFlowProps) {
 
                 <div className="farm-flow-title-row">
                   <h3 className="farm-flow-title">{act.name}</h3>
-                  <span className="farm-flow-duration">{act.duration_min} mins</span>
+                  <span className="farm-flow-duration">{t('mins', { count: act.duration_min })}</span>
                 </div>
 
                 <p className="farm-flow-desc">{act.description}</p>
@@ -381,7 +384,7 @@ export function FarmDayFlow({ farm, activities }: FarmDayFlowProps) {
               <span className="farm-flow-time">{departTime}</span>
             </div>
             <div className="farm-flow-title-row">
-              <h3 className="farm-flow-title">Depart</h3>
+              <h3 className="farm-flow-title">{t('depart')}</h3>
               <span className="farm-flow-duration">
                 {isLastDay ? 'Farewell & checkout' : 'Day 1 departure'}
               </span>

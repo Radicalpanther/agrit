@@ -5,9 +5,12 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { ArrowRight, Compass, Leaf, LogOut, Menu, Tractor, User, X } from 'lucide-react'
 import type { User as SupabaseUser } from '@supabase/supabase-js'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase/client'
+import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 
 export function Header() {
+  const t = useTranslations('nav')
   const [menuOpen, setMenuOpen] = useState(false)
   const pathname = usePathname()
   const router = useRouter()
@@ -111,7 +114,7 @@ export function Header() {
       <button
         className="mobile-toggle"
         onClick={() => setMenuOpen(!menuOpen)}
-        aria-label="Toggle navigation"
+        aria-label={menuOpen ? t('closeMenu') : t('openMenu')}
         type="button"
       >
         {menuOpen ? <X /> : <Menu />}
@@ -126,24 +129,27 @@ export function Header() {
           href="/"
           onClick={() => setMenuOpen(false)}
         >
-          Home
+          {t('home')}
         </Link>
         <Link
           className={isExplore ? 'active' : ''}
           href="/explore"
           onClick={() => setMenuOpen(false)}
         >
-          Explore farms
+          {t('exploreStays')}
         </Link>
         <a href="/#harvest-calendar" onClick={() => setMenuOpen(false)}>
-          Seasonal harvest
+          {t('seasonalHarvest')}
         </a>
         <a href="/#produce" onClick={() => setMenuOpen(false)}>
-          Farm-fresh produce
+          {t('producePickup')}
         </a>
         <a href="/#story" onClick={() => setMenuOpen(false)}>
-          About us
+          {t('ourStory')}
         </a>
+
+        {/* Mobile language switcher */}
+        {menuOpen && <LanguageSwitcher isMobile />}
 
         {/* Mobile-only auth controls */}
         {menuOpen && (
@@ -162,7 +168,7 @@ export function Header() {
                 href="/dashboard"
                 onClick={() => setMenuOpen(false)}
               >
-                <Tractor size={16} /> Farmer portal
+                <Tractor size={16} /> {t('farmerPortal')}
               </Link>
             ) : user ? (
               <Link
@@ -170,7 +176,7 @@ export function Header() {
                 href="/dashboard?view=tourist"
                 onClick={() => setMenuOpen(false)}
               >
-                <Compass size={16} /> My Bookings & Travel Cards
+                <Compass size={16} /> {t('myBookings')}
               </Link>
             ) : null}
 
@@ -198,7 +204,7 @@ export function Header() {
                   className="login-btn"
                   style={{ padding: '8px 12px', fontSize: '11px' }}
                 >
-                  Sign out <LogOut size={13} />
+                  {t('signOut')} <LogOut size={13} />
                 </button>
               </div>
             ) : (
@@ -207,7 +213,7 @@ export function Header() {
                 href="/login"
                 onClick={() => setMenuOpen(false)}
               >
-                Login / Register <ArrowRight size={15} />
+                {t('loginRegister')} <ArrowRight size={15} />
               </Link>
             )}
           </div>
@@ -216,13 +222,15 @@ export function Header() {
 
       {/* Desktop auth actions */}
       <div className="header-actions">
+        <LanguageSwitcher />
+
         {role === 'farmer' ? (
           <Link
             className="farmer-link"
             href="/dashboard"
             onClick={() => setMenuOpen(false)}
           >
-            <Tractor size={16} /> Farmer portal
+            <Tractor size={16} /> {t('farmerPortal')}
           </Link>
         ) : user ? (
           <Link
@@ -230,7 +238,7 @@ export function Header() {
             href="/dashboard?view=tourist"
             onClick={() => setMenuOpen(false)}
           >
-            <Compass size={16} /> My Bookings
+            <Compass size={16} /> {t('myBookings')}
           </Link>
         ) : null}
 
@@ -262,7 +270,7 @@ export function Header() {
                 boxShadow: 'none',
               }}
             >
-              Sign out <LogOut size={14} />
+              {t('signOut')} <LogOut size={14} />
             </button>
           </div>
         ) : (
@@ -271,7 +279,7 @@ export function Header() {
             href="/login"
             onClick={() => setMenuOpen(false)}
           >
-            Login / Register <ArrowRight size={15} />
+            {t('loginRegister')} <ArrowRight size={15} />
           </Link>
         )}
       </div>

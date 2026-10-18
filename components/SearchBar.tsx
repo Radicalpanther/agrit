@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import {
   CalendarDays,
   ChevronDown,
@@ -28,27 +29,27 @@ const POPULAR_DESTINATIONS = [
 ]
 
 const MONTHS = [
-  { name: 'January', short: 'Jan', season: 'Hurda & Mustard' },
-  { name: 'February', short: 'Feb', season: 'Grapes & Spices' },
-  { name: 'March', short: 'Mar', season: 'First Flush Tea' },
-  { name: 'April', short: 'Apr', season: 'Alphonso Mango' },
-  { name: 'May', short: 'May', season: 'Kesar Mango & Apricot' },
-  { name: 'June', short: 'Jun', season: 'Monsoon Paddy' },
-  { name: 'July', short: 'Jul', season: 'Rainforest Greens' },
-  { name: 'August', short: 'Aug', season: 'Highland Apples' },
-  { name: 'September', short: 'Sep', season: 'Wheat & Walnuts' },
-  { name: 'October', short: 'Oct', season: 'Saffron & Coffee' },
-  { name: 'November', short: 'Nov', season: 'Winter Jowar' },
-  { name: 'December', short: 'Dec', season: 'Frost Tea & Berries' },
-]
+  { name: 'January', short: 'Jan', key: 'jan', season: 'Hurda & Mustard' },
+  { name: 'February', short: 'Feb', key: 'feb', season: 'Grapes & Spices' },
+  { name: 'March', short: 'Mar', key: 'mar', season: 'First Flush Tea' },
+  { name: 'April', short: 'Apr', key: 'apr', season: 'Alphonso Mango' },
+  { name: 'May', short: 'May', key: 'may', season: 'Kesar Mango & Apricot' },
+  { name: 'June', short: 'Jun', key: 'jun', season: 'Monsoon Paddy' },
+  { name: 'July', short: 'Jul', key: 'jul', season: 'Rainforest Greens' },
+  { name: 'August', short: 'Aug', key: 'aug', season: 'Highland Apples' },
+  { name: 'September', short: 'Sep', key: 'sep', season: 'Wheat & Walnuts' },
+  { name: 'October', short: 'Oct', key: 'oct', season: 'Saffron & Coffee' },
+  { name: 'November', short: 'Nov', key: 'nov', season: 'Winter Jowar' },
+  { name: 'December', short: 'Dec', key: 'dec', season: 'Frost Tea & Berries' },
+] as const
 
 const SEASONS = [
-  { label: 'Spring (Mar - Apr)', month: 'March' },
-  { label: 'Summer (May - Jun)', month: 'May' },
-  { label: 'Monsoon (Jul - Aug)', month: 'July' },
-  { label: 'Autumn (Sep - Oct)', month: 'October' },
-  { label: 'Winter (Dec - Feb)', month: 'January' },
-]
+  { key: 'spring', month: 'March' },
+  { key: 'summer', month: 'May' },
+  { key: 'monsoon', month: 'July' },
+  { key: 'autumn', month: 'October' },
+  { key: 'winter', month: 'January' },
+] as const
 
 const EXPERIENCES = [
   {
@@ -126,6 +127,7 @@ const EXPERIENCES = [
 ]
 
 export function SearchBar() {
+  const t = useTranslations('search')
   const router = useRouter()
 
   const [whereValue, setWhereValue] = useState('')
@@ -258,11 +260,11 @@ export function SearchBar() {
           }}
         >
           <MapPin size={18} />
-          <span>Where</span>
+          <span>{t('whereLabel')}</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             <input
               name="where"
-              placeholder="Himachal, Kashmir, Coorg, Assam..."
+              placeholder={t('wherePlaceholder')}
               value={whereValue}
               onChange={(e) => {
                 setWhereValue(e.target.value)
@@ -295,7 +297,7 @@ export function SearchBar() {
                   display: 'flex',
                   alignItems: 'center',
                 }}
-                aria-label="Clear destination"
+                aria-label={t('clearDestination')}
               >
                 <X size={14} />
               </button>
@@ -341,7 +343,7 @@ export function SearchBar() {
                     color: 'var(--forest)',
                   }}
                 >
-                  Major Indian Farming Regions
+                  {t('regionsHeader')}
                 </span>
                 <button
                   type="button"
@@ -358,7 +360,7 @@ export function SearchBar() {
                     fontWeight: 600,
                   }}
                 >
-                  Any region
+                  {t('anyRegion')}
                 </button>
               </div>
 
@@ -445,11 +447,11 @@ export function SearchBar() {
           }}
         >
           <CalendarDays size={18} />
-          <span>When</span>
+          <span>{t('whenLabel')}</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             <input
               name="when"
-              placeholder="Any date, month or season"
+              placeholder={t('whenPlaceholder')}
               value={whenValue}
               onChange={(e) => {
                 setWhenValue(e.target.value)
@@ -482,7 +484,7 @@ export function SearchBar() {
                   display: 'flex',
                   alignItems: 'center',
                 }}
-                aria-label="Clear date"
+                aria-label={t('clearDate')}
               >
                 <X size={14} />
               </button>
@@ -534,7 +536,7 @@ export function SearchBar() {
                       cursor: 'pointer',
                     }}
                   >
-                    Month &amp; Season
+                    {t('monthModeTab')}
                   </button>
                   <button
                     type="button"
@@ -549,7 +551,7 @@ export function SearchBar() {
                       cursor: 'pointer',
                     }}
                   >
-                    Specific Date
+                    {t('dateModeTab')}
                   </button>
                 </div>
 
@@ -569,7 +571,7 @@ export function SearchBar() {
                     fontWeight: 600,
                   }}
                 >
-                  Any time
+                  {t('anyTime')}
                 </button>
               </div>
 
@@ -589,12 +591,12 @@ export function SearchBar() {
                         fontWeight: 600,
                       }}
                     >
-                      By Season
+                      {t('bySeason')}
                     </span>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                       {SEASONS.map((s) => (
                         <button
-                          key={s.label}
+                          key={s.key}
                           type="button"
                           onClick={() => {
                             setWhenValue(s.month)
@@ -616,7 +618,7 @@ export function SearchBar() {
                             fontWeight: 600,
                           }}
                         >
-                          {s.label}
+                          {t(`seasons.${s.key}`)}
                         </button>
                       ))}
                     </div>
@@ -635,7 +637,7 @@ export function SearchBar() {
                         fontWeight: 600,
                       }}
                     >
-                      12-Month Calendar
+                      {t('calendarHeader')}
                     </span>
                     <div
                       style={{
@@ -678,7 +680,7 @@ export function SearchBar() {
                             }}
                           >
                             <span style={{ fontSize: '12px', fontWeight: 700 }}>
-                              {m.short}
+                              {t(`months.${m.key}`)}
                               {isCurrent && (
                                 <span
                                   style={{
@@ -727,7 +729,7 @@ export function SearchBar() {
                       fontWeight: 600,
                     }}
                   >
-                    Quick Days
+                    {t('quickDays')}
                   </span>
 
                   <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
@@ -744,7 +746,7 @@ export function SearchBar() {
                         cursor: 'pointer',
                       }}
                     >
-                      Tomorrow
+                      {t('tomorrow')}
                     </button>
                     <button
                       type="button"
@@ -759,7 +761,7 @@ export function SearchBar() {
                         cursor: 'pointer',
                       }}
                     >
-                      This Weekend
+                      {t('thisWeekend')}
                     </button>
                     <button
                       type="button"
@@ -774,7 +776,7 @@ export function SearchBar() {
                         cursor: 'pointer',
                       }}
                     >
-                      Next Week
+                      {t('nextWeek')}
                     </button>
                   </div>
 
@@ -789,7 +791,7 @@ export function SearchBar() {
                       fontWeight: 600,
                     }}
                   >
-                    Choose Exact Date
+                    {t('chooseExactDate')}
                   </span>
 
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -831,11 +833,11 @@ export function SearchBar() {
           }}
         >
           <Compass size={18} />
-          <span>Experience</span>
+          <span>{t('experienceLabel')}</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             <input
               name="experience"
-              placeholder="Any activity or stay"
+              placeholder={t('experiencePlaceholder')}
               value={experienceValue}
               onChange={(e) => {
                 setExperienceValue(e.target.value)
@@ -868,7 +870,7 @@ export function SearchBar() {
                   display: 'flex',
                   alignItems: 'center',
                 }}
-                aria-label="Clear activity"
+                aria-label={t('clearExperience')}
               >
                 <X size={14} />
               </button>
@@ -924,7 +926,7 @@ export function SearchBar() {
                     color: 'var(--forest)',
                   }}
                 >
-                  Curated Farm Activities
+                  {t('experiencesHeader')}
                 </span>
                 <button
                   type="button"
@@ -941,7 +943,7 @@ export function SearchBar() {
                     fontWeight: 600,
                   }}
                 >
-                  Any activity
+                  {t('anyExperience')}
                 </button>
               </div>
 
@@ -1062,7 +1064,7 @@ export function SearchBar() {
         {/* SUBMIT BUTTON */}
         <button className="search-btn" type="submit">
           <Search size={19} />
-          <span>Search farms</span>
+          <span>{t('submitBtn')}</span>
         </button>
       </form>
     </div>

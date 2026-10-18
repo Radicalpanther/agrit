@@ -12,15 +12,27 @@ export interface ChatMessage {
   content: string
 }
 
-export const SYSTEM_PROMPT = `You are AgriGuide, the rural farm stay and harvest seasonal advisor for AgriTrails.
+export function getSystemPrompt(locale: string = 'en'): string {
+  let langInstruction = 'Respond in English.'
+  if (locale === 'hi') {
+    langInstruction = 'Respond in Hindi (हिन्दी).'
+  } else if (locale === 'mr') {
+    langInstruction = 'Respond in Marathi (मराठी).'
+  }
+
+  return `You are AgriGuide, the rural farm stay and harvest seasonal advisor for AgriTrails.
 CRITICAL OPERATING RULES:
 1. Answer ONLY using data returned by the provided tools. NEVER invent or assume prices, amenities, dates, or host details from memory.
-2. Recommend 1 to 3 farms with a single-line reason each, always including a markdown link in the format: [Farm Name](/farms/[slug]). When recommending or mentioning artisanal farm products, link to the farm using: [Product Name](/farms/[slug]).
+2. Recommend 1 to 3 farms with a single-line reason each, always including a markdown link in the format: [Farm Name](/farms/[slug]). When recommending or mentioning artisanal farm products, link to the farm using: [Product Name](/farms/[slug]). Do NOT translate or modify the URL path or farm slug.
 3. If no farm or crop matches the criteria, say so plainly without inventing alternatives.
 4. Ask at most ONE clarifying question if the user request is underspecified.
 5. NEVER use emojis in any part of your reply.
 6. Keep replies concise, factual, and formatted with plain paragraphs and clean bullet points.
-7. Format all currency in Indian Rupees (e.g. ₹2,500).`
+7. Format all currency in Indian Rupees (e.g. ₹2,500). When invoking tools, keep all budget and price arguments strictly in paise (e.g. 250000 for ₹2,500).
+8. LANGUAGE: ${langInstruction} Provide your entire conversational narrative in this language, while keeping tool parameters, prices in paise, and markdown links to /farms/[slug] unchanged.`
+}
+
+export const SYSTEM_PROMPT = getSystemPrompt('en')
 
 // Tool definitions for Anthropic Claude
 const CLAUDE_TOOLS = [
@@ -128,6 +140,7 @@ const FARM_DIRECTORY = [
 async function runMockAiStream(
   messages: ChatMessage[],
   writer: WritableStreamDefaultWriter<Uint8Array>,
+  locale: string = 'en',
 ) {
   const encoder = new TextEncoder()
   const sendChunk = async (text: string) => {
@@ -170,6 +183,21 @@ async function runMockAiStream(
     targetFarm = FARM_DIRECTORY[0] // fallback to Kokan Roots Farmstay
   }
 
+  const formatPriceLine = (f: any) => {
+    if (f.allows_day_visit && f.day_visit_price_inr) {
+      if (locale === 'hi') {
+        return `₹${f.overnight_price_inr}/रात (दिन की यात्रा: ₹${f.day_visit_price_inr})`
+      }
+      if (locale === 'mr') {
+        return `₹${f.overnight_price_inr}/रात्र (दिवसाची भेट: ₹${f.day_visit_price_inr})`
+      }
+      return `₹${f.overnight_price_inr}/night (Day visit: ₹${f.day_visit_price_inr})`
+    }
+    if (locale === 'hi') return `₹${f.overnight_price_inr}/रात`
+    if (locale === 'mr') return `₹${f.overnight_price_inr}/रात्र`
+    return `₹${f.overnight_price_inr}/night`
+  }
+
   try {
     const isAffirmative =
       q === 'yes' ||
@@ -182,7 +210,15 @@ async function runMockAiStream(
       q.includes('tell me more') ||
       q.includes('show details') ||
       q.includes('tell me details') ||
-      q.includes('more details')
+      q.includes('more details') ||
+      q === 'हाँ' ||
+      q === 'हां' ||
+      q === 'हो' ||
+      q === 'होय' ||
+      q.includes('अधिक माहिती') ||
+      q.includes('अधिक विवरण') ||
+      q.includes('सांगा') ||
+      q.includes('बताओ')
 
     const isAskingDirections =
       q.includes('direction') ||
@@ -193,7 +229,13 @@ async function runMockAiStream(
       q.includes('distance') ||
       q.includes('map') ||
       q.includes('address') ||
-      q.includes('where is')
+      q.includes('where is') ||
+      q.includes('दिशा') ||
+      q.includes('मार्ग') ||
+      q.includes('रस्ता') ||
+      q.includes('पहुंच') ||
+      q.includes('पत्ता') ||
+      q.includes('नकाशा')
 
     const isAskingActivities =
       q.includes('activit') ||
@@ -202,7 +244,11 @@ async function runMockAiStream(
       q.includes('bullock') ||
       q.includes('workshop') ||
       q.includes('tour') ||
-      q.includes('experience')
+      q.includes('experience') ||
+      q.includes('गतिविधि') ||
+      q.includes('उपक्रम') ||
+      q.includes('बैलगाड़ी') ||
+      q.includes('बैलगाडी')
 
     const isAskingFoodOrAmenities =
       q.includes('food') ||
@@ -212,7 +258,12 @@ async function runMockAiStream(
       q.includes('breakfast') ||
       q.includes('lunch') ||
       q.includes('dinner') ||
-      q.includes('organic food')
+      q.includes('organic food') ||
+      q.includes('खाना') ||
+      q.includes('जेवण') ||
+      q.includes('भोजन') ||
+      q.includes('सुविधा') ||
+      q.includes('नाश्ता')
 
     const isAskingPricingOrBooking =
       q.includes('price') ||
@@ -222,51 +273,95 @@ async function runMockAiStream(
       q.includes('overnight') ||
       q.includes('how much') ||
       q.includes('book') ||
-      q.includes('reservation')
+      q.includes('reservation') ||
+      q.includes('मूल्य') ||
+      q.includes('किराया') ||
+      q.includes('दर') ||
+      q.includes('पैसे') ||
+      q.includes('बुकिंग') ||
+      q.includes('खर्च')
 
     const isAskingReviews =
       q.includes('review') ||
       q.includes('rating') ||
       q.includes('score') ||
-      q.includes('feedback')
+      q.includes('feedback') ||
+      q.includes('समीक्षा') ||
+      q.includes('रेटिंग') ||
+      q.includes('पुनरावलोकन') ||
+      q.includes('अभिप्राय')
 
     // 1. Follow-up to seasonal crops question
-    if (isAffirmative && prevAssistantMsg.includes('harvest regions')) {
+    if (isAffirmative && (prevAssistantMsg.includes('harvest regions') || prevAssistantMsg.includes('फसल') || prevAssistantMsg.includes('पीक'))) {
       const data = await searchFarms({ budget_max_paise: 300000 })
       const farms = data.farms || []
-      await sendChunk(`Here are verified farm stays in active harvest regions:\n\n`)
+      const header = locale === 'hi'
+        ? `सक्रिय फसल क्षेत्रों में सत्यापित कृषि प्रवास यहां दिए गए हैं:\n\n`
+        : locale === 'mr'
+        ? `सक्रिय पीक क्षेत्रांमधील पडताळणी केलेले फार्म स्टे येथे आहेत:\n\n`
+        : `Here are verified farm stays in active harvest regions:\n\n`
+      await sendChunk(header)
+
       for (const f of farms.slice(0, 3)) {
-        const priceLine = f.allows_day_visit && f.day_visit_price_inr
-          ? `₹${f.overnight_price_inr}/night (Day visit: ₹${f.day_visit_price_inr})`
-          : `₹${f.overnight_price_inr}/night`
-        await sendChunk(`- [${f.name}](/farms/${f.slug}) (${f.place}, ${f.region}) — ${priceLine}: ${f.summary}\n`)
+        await sendChunk(`- [${f.name}](/farms/${f.slug}) (${f.place}, ${f.region}) — ${formatPriceLine(f)}: ${f.summary}\n`)
       }
-      await sendChunk(`\nWould you like details on farm activities or directions for any of these stays?`)
+
+      const followup = locale === 'hi'
+        ? `\nक्या आप इनमें से किसी भी प्रवास के लिए कृषि गतिविधियों या दिशा-निर्देशों का विवरण चाहेंगे?`
+        : locale === 'mr'
+        ? `\nतुम्हाला यापैकी कोणत्याही स्टेसाठी शेती उपक्रम किंवा रस्त्याच्या दिशानिर्देशांची माहिती हवी आहे का?`
+        : `\nWould you like details on farm activities or directions for any of these stays?`
+      await sendChunk(followup)
       return
     }
 
     // 2. Follow-up: Affirmative or Asking for Directions
-    if (isAskingDirections || (isAffirmative && (prevAssistantMsg.includes('directions') || prevAssistantMsg.includes('farm activities')))) {
+    if (isAskingDirections || (isAffirmative && (prevAssistantMsg.includes('directions') || prevAssistantMsg.includes('दिशा') || prevAssistantMsg.includes('मार्ग') || prevAssistantMsg.includes('farm activities')))) {
       const farmRes = await getFarmDetails({ slug: targetFarm.slug })
       if ((farmRes as any).error) {
-        await sendChunk(`Could not find details for ${targetFarm.name}.`)
+        const notFound = locale === 'hi'
+          ? `${targetFarm.name} के विवरण नहीं मिल सके।`
+          : locale === 'mr'
+          ? `${targetFarm.name} ची माहिती सापडली नाही.`
+          : `Could not find details for ${targetFarm.name}.`
+        await sendChunk(notFound)
         return
       }
 
       const f = farmRes as any
-      await sendChunk(`Directions and arrival guidelines for [${f.name}](/farms/${f.slug}) in ${f.place}, ${f.region}:\n\n`)
+      const dirHeader = locale === 'hi'
+        ? `[${f.name}](/farms/${f.slug}) (${f.place}, ${f.region}) के लिए दिशा-निर्देश और आगमन दिशानिर्देश:\n\n`
+        : locale === 'mr'
+        ? `[${f.name}](/farms/${f.slug}) (${f.place}, ${f.region}) साठी दिशानिर्देश आणि आगमनाची माहिती:\n\n`
+        : `Directions and arrival guidelines for [${f.name}](/farms/${f.slug}) in ${f.place}, ${f.region}:\n\n`
+      await sendChunk(dirHeader)
+
       if (f.check_in_info?.landmark_note) {
-        await sendChunk(`- Landmark: ${f.check_in_info.landmark_note}\n`)
+        const lmPrefix = locale === 'hi' ? `- लैंडमार्क: ` : locale === 'mr' ? `- लँडमार्क: ` : `- Landmark: `
+        await sendChunk(`${lmPrefix}${f.check_in_info.landmark_note}\n`)
       }
       if (Array.isArray(f.check_in_info?.directions_steps) && f.check_in_info.directions_steps.length > 0) {
-        await sendChunk(`- Route steps:\n`)
+        const stepsPrefix = locale === 'hi' ? `- मार्ग के चरण:\n` : locale === 'mr' ? `- प्रवासाचे टप्पे:\n` : `- Route steps:\n`
+        await sendChunk(stepsPrefix)
         for (let idx = 0; idx < f.check_in_info.directions_steps.length; idx++) {
           const step = f.check_in_info.directions_steps[idx]
           await sendChunk(`  ${idx + 1}. ${step.trim()}\n`)
         }
       }
-      await sendChunk(`- Check-in: ${f.check_in_info?.overnight_check_in || '12:00 PM check-in, 10:00 AM checkout'}\n\n`)
-      await sendChunk(`You can access the full offline route map and travel safety card on [${f.name}](/farms/${f.slug}). Would you like information on farm activities or meals?`)
+      const checkInPrefix = locale === 'hi' ? `- चेक-इन: ` : locale === 'mr' ? `- चेक-इन: ` : `- Check-in: `
+      const defCheckIn = locale === 'hi'
+        ? 'दोपहर 12:00 बजे चेक-इन, सुबह 10:00 बजे चेकआउट'
+        : locale === 'mr'
+        ? 'दुपारी 12:00 चेक-इन, सकाळी 10:00 चेकआउट'
+        : '12:00 PM check-in, 10:00 AM checkout'
+      await sendChunk(`${checkInPrefix}${f.check_in_info?.overnight_check_in || defCheckIn}\n\n`)
+
+      const dirFooter = locale === 'hi'
+        ? `आप [${f.name}](/farms/${f.slug}) पर पूरा ऑफ़लाइन मार्ग और यात्रा सुरक्षा कार्ड देख सकते हैं। क्या आप कृषि गतिविधियों या भोजन की जानकारी चाहते हैं?`
+        : locale === 'mr'
+        ? `तुम्ही [${f.name}](/farms/${f.slug}) वर संपूर्ण ऑफलाइन नकाशा आणि प्रवास सुरक्षा कार्ड पाहू शकता. तुम्हाला शेती उपक्रम किंवा जेवणाची माहिती हवी आहे का?`
+        : `You can access the full offline route map and travel safety card on [${f.name}](/farms/${f.slug}). Would you like information on farm activities or meals?`
+      await sendChunk(dirFooter)
       return
     }
 
@@ -274,7 +369,13 @@ async function runMockAiStream(
     if (isAskingActivities) {
       const farmRes = await getFarmDetails({ slug: targetFarm.slug })
       const f = farmRes as any
-      await sendChunk(`Activities and farm experiences at [${f.name}](/farms/${f.slug}):\n\n`)
+      const actHeader = locale === 'hi'
+        ? `[${f.name}](/farms/${f.slug}) पर गतिविधियां और कृषि अनुभव:\n\n`
+        : locale === 'mr'
+        ? `[${f.name}](/farms/${f.slug}) वरील उपक्रम आणि कृषी अनुभव:\n\n`
+        : `Activities and farm experiences at [${f.name}](/farms/${f.slug}):\n\n`
+      await sendChunk(actHeader)
+
       if (Array.isArray(f.activities) && f.activities.length > 0) {
         for (const act of f.activities) {
           const durationStr = act.duration_min ? ` (${act.duration_min} mins)` : ''
@@ -282,9 +383,20 @@ async function runMockAiStream(
           await sendChunk(`- ${act.name}${kindStr}${durationStr}\n`)
         }
       } else {
-        await sendChunk(`- Organic orchard walk and seasonal fruit harvesting\n- Traditional village bullock cart ride\n- Evening community campfire and stargazing\n`)
+        const defaultActs = locale === 'hi'
+          ? `- जैविक बगीचा भ्रमण और मौसमी फलों की तुड़ाई\n- पारंपरिक ग्रामीण बैलगाड़ी की सवारी\n- शाम को अलाव और तारों को देखना\n`
+          : locale === 'mr'
+          ? `- सेंद्रिय फळबागेची सफर आणि हंगामी फळांची काढणी\n- पारंपरिक बैलगाडी सफर\n- संध्याकाळी कॅम्पफायर आणि तारांगण दर्शन\n`
+          : `- Organic orchard walk and seasonal fruit harvesting\n- Traditional village bullock cart ride\n- Evening community campfire and stargazing\n`
+        await sendChunk(defaultActs)
       }
-      await sendChunk(`\nAll farm activities are conducted with local hosts. Would you like to check pricing or how to reach?`)
+
+      const actFooter = locale === 'hi'
+        ? `\nसभी कृषि गतिविधियां स्थानीय मेजबानों के साथ आयोजित की जाती हैं। क्या आप मूल्य या पहुंचने का मार्ग देखना चाहते हैं?`
+        : locale === 'mr'
+        ? `\nसर्व शेती उपक्रम स्थानिक यजमानांसोबत आयोजित केले जातात. तुम्हाला दर किंवा पोहोचण्याचा मार्ग जाणून घ्यायचा आहे का?`
+        : `\nAll farm activities are conducted with local hosts. Would you like to check pricing or how to reach?`
+      await sendChunk(actFooter)
       return
     }
 
@@ -292,15 +404,38 @@ async function runMockAiStream(
     if (isAskingFoodOrAmenities) {
       const farmRes = await getFarmDetails({ slug: targetFarm.slug })
       const f = farmRes as any
-      await sendChunk(`Food and amenities at [${f.name}](/farms/${f.slug}):\n\n`)
+      const foodHeader = locale === 'hi'
+        ? `[${f.name}](/farms/${f.slug}) पर भोजन और सुविधाएं:\n\n`
+        : locale === 'mr'
+        ? `[${f.name}](/farms/${f.slug}) वरील भोजन आणि सुविधा:\n\n`
+        : `Food and amenities at [${f.name}](/farms/${f.slug}):\n\n`
+      await sendChunk(foodHeader)
+
       if (Array.isArray(f.amenities) && f.amenities.length > 0) {
         for (const am of f.amenities) {
           await sendChunk(`- ${am}\n`)
         }
       }
-      await sendChunk(`- Meals: Freshly prepared traditional farm thali using crops harvested directly from the fields.\n`)
-      await sendChunk(`- Capacity: Accommodates up to ${f.max_guests || 6} guests comfortably.\n\n`)
-      await sendChunk(`Would you like to know the pricing or read check-in rules?`)
+      const mealsLine = locale === 'hi'
+        ? `- भोजन: खेतों से सीधे तोड़ी गई उपज से तैयार ताज़ा पारंपरिक ग्रामीण भोजन।\n`
+        : locale === 'mr'
+        ? `- भोजन: शेतातून ताज्या तोडलेल्या पिकांपासून तयार केलेले पारंपरिक अस्सल जेवण.\n`
+        : `- Meals: Freshly prepared traditional farm thali using crops harvested directly from the fields.\n`
+      await sendChunk(mealsLine)
+
+      const capLine = locale === 'hi'
+        ? `- क्षमता: ${f.max_guests || 6} अतिथियों तक के लिए आरामदायक आवास।\n\n`
+        : locale === 'mr'
+        ? `- क्षमता: ${f.max_guests || 6} पाहुण्यांसाठी सोयीस्कर राहण्याची सोय.\n\n`
+        : `- Capacity: Accommodates up to ${f.max_guests || 6} guests comfortably.\n\n`
+      await sendChunk(capLine)
+
+      const foodFooter = locale === 'hi'
+        ? `क्या आप मूल्य जानना चाहते हैं या चेक-इन नियम पढ़ना चाहते हैं?`
+        : locale === 'mr'
+        ? `तुम्हाला दर जाणून घ्यायचे आहेत की चेक-इन नियम वाचायचे आहेत?`
+        : `Would you like to know the pricing or read check-in rules?`
+      await sendChunk(foodFooter)
       return
     }
 
@@ -308,16 +443,62 @@ async function runMockAiStream(
     if (isAskingPricingOrBooking) {
       const farmRes = await getFarmDetails({ slug: targetFarm.slug })
       const f = farmRes as any
-      const dayVisitText = f.day_visit_price_inr
-        ? `₹${f.day_visit_price_inr} per guest (Hours: ${f.check_in_info?.day_visit_hours || '09:00 to 17:00'})`
-        : 'Day visits are currently not offered (overnight stay only)'
 
-      await sendChunk(`Pricing and booking for [${f.name}](/farms/${f.slug}):\n\n`)
-      await sendChunk(`- Overnight stay: ₹${f.overnight_price_inr}/night (Includes organic home-cooked meals)\n`)
-      await sendChunk(`- Day visit: ${dayVisitText}\n`)
-      await sendChunk(`- Group capacity: Up to ${f.max_guests || 6} guests\n`)
-      await sendChunk(`- Cancellation: Free cancellation up to 48 hours prior to arrival\n\n`)
-      await sendChunk(`You can submit a booking request without payment today directly on [${f.name}](/farms/${f.slug}). Your host will confirm availability shortly.`)
+      let dayVisitText = 'Day visits are currently not offered (overnight stay only)'
+      if (f.day_visit_price_inr) {
+        const hours = f.check_in_info?.day_visit_hours || '09:00 to 17:00'
+        dayVisitText = locale === 'hi'
+          ? `₹${f.day_visit_price_inr} प्रति अतिथि (समय: ${hours})`
+          : locale === 'mr'
+          ? `₹${f.day_visit_price_inr} प्रति पाहुणा (वेळ: ${hours})`
+          : `₹${f.day_visit_price_inr} per guest (Hours: ${hours})`
+      } else if (locale === 'hi') {
+        dayVisitText = 'दिन की यात्रा वर्तमान में उपलब्ध नहीं है (केवल रात्रि प्रवास)'
+      } else if (locale === 'mr') {
+        dayVisitText = 'दिवसाची भेट सध्या उपलब्ध नाही (केवळ मुक्काम)'
+      }
+
+      const pHeader = locale === 'hi'
+        ? `[${f.name}](/farms/${f.slug}) के लिए मूल्य और बुकिंग:\n\n`
+        : locale === 'mr'
+        ? `[${f.name}](/farms/${f.slug}) चे दर आणि बुकिंग:\n\n`
+        : `Pricing and booking for [${f.name}](/farms/${f.slug}):\n\n`
+      await sendChunk(pHeader)
+
+      const overLine = locale === 'hi'
+        ? `- रात्रि प्रवास: ₹${f.overnight_price_inr}/रात (घर का बना भोजन शामिल)\n`
+        : locale === 'mr'
+        ? `- मुक्काम: ₹${f.overnight_price_inr}/रात्र (घरगुती जेवण समाविष्ट)\n`
+        : `- Overnight stay: ₹${f.overnight_price_inr}/night (Includes organic home-cooked meals)\n`
+      await sendChunk(overLine)
+
+      const dayLine = locale === 'hi'
+        ? `- दिन की यात्रा: ${dayVisitText}\n`
+        : locale === 'mr'
+        ? `- दिवसाची भेट: ${dayVisitText}\n`
+        : `- Day visit: ${dayVisitText}\n`
+      await sendChunk(dayLine)
+
+      const capLine = locale === 'hi'
+        ? `- समूह क्षमता: ${f.max_guests || 6} अतिथियों तक\n`
+        : locale === 'mr'
+        ? `- गट क्षमता: ${f.max_guests || 6} पाहुण्यांपर्यंत\n`
+        : `- Group capacity: Up to ${f.max_guests || 6} guests\n`
+      await sendChunk(capLine)
+
+      const cancelLine = locale === 'hi'
+        ? `- रद्दीकरण: आगमन से 48 घंटे पहले तक निःशुल्क रद्दीकरण\n\n`
+        : locale === 'mr'
+        ? `- रद्द करण्याचे नियम: आगमनापूर्वी 48 तास आधी मोफत रद्दीकरण\n\n`
+        : `- Cancellation: Free cancellation up to 48 hours prior to arrival\n\n`
+      await sendChunk(cancelLine)
+
+      const pFooter = locale === 'hi'
+        ? `आप आज बिना किसी भुगतान के सीधे [${f.name}](/farms/${f.slug}) पर बुकिंग अनुरोध भेज सकते हैं। आपके मेजबान शीघ्र ही उपलब्धता की पुष्टि करेंगे।`
+        : locale === 'mr'
+        ? `तुम्ही आज कोणतेही शुल्क न भरता थेट [${f.name}](/farms/${f.slug}) वर बुकिंग विनंती करू शकता. तुमचे यजमान लवकरच उपलब्धतेची खात्री करतील.`
+        : `You can submit a booking request without payment today directly on [${f.name}](/farms/${f.slug}). Your host will confirm availability shortly.`
+      await sendChunk(pFooter)
       return
     }
 
@@ -326,44 +507,148 @@ async function runMockAiStream(
       const farmRes = await getFarmDetails({ slug: targetFarm.slug })
       const f = farmRes as any
       const rb = f.rating_breakdown || {}
-      await sendChunk(`Verified guest ratings for [${f.name}](/farms/${f.slug}):\n\n`)
-      await sendChunk(`- Overall score: ${rb.overall_avg || 4.8} / 5 (${rb.review_count || 12} reviews)\n`)
-      await sendChunk(`- Food authenticity: ${rb.food_authenticity || 4.9} / 5\n`)
-      await sendChunk(`- Cleanliness: ${rb.cleanliness || 4.8} / 5\n`)
-      await sendChunk(`- Hospitality: ${rb.hospitality || 4.9} / 5\n`)
-      await sendChunk(`- Location: ${rb.location || 4.7} / 5\n\n`)
-      await sendChunk(`Reviews are collected only from verified travellers who completed their farm stay.`)
+
+      const rHeader = locale === 'hi'
+        ? `[${f.name}](/farms/${f.slug}) के लिए सत्यापित अतिथि समीक्षाएं:\n\n`
+        : locale === 'mr'
+        ? `[${f.name}](/farms/${f.slug}) साठी पडताळणी केलेली पाहुण्यांची रेटिंग:\n\n`
+        : `Verified guest ratings for [${f.name}](/farms/${f.slug}):\n\n`
+      await sendChunk(rHeader)
+
+      const revCount = rb.review_count || 12
+      const overallStr = locale === 'hi'
+        ? `- समग्र स्कोर: ${rb.overall_avg || 4.8} / 5 (${revCount} समीक्षाएं)\n`
+        : locale === 'mr'
+        ? `- एकूण गुण: ${rb.overall_avg || 4.8} / 5 (${revCount} पुनरावलोकने)\n`
+        : `- Overall score: ${rb.overall_avg || 4.8} / 5 (${revCount} reviews)\n`
+      await sendChunk(overallStr)
+
+      const foodStr = locale === 'hi'
+        ? `- भोजन प्रामाणिकता: ${rb.food_authenticity || 4.9} / 5\n`
+        : locale === 'mr'
+        ? `- अस्सल जेवण: ${rb.food_authenticity || 4.9} / 5\n`
+        : `- Food authenticity: ${rb.food_authenticity || 4.9} / 5\n`
+      await sendChunk(foodStr)
+
+      const cleanStr = locale === 'hi'
+        ? `- स्वच्छता: ${rb.cleanliness || 4.8} / 5\n`
+        : locale === 'mr'
+        ? `- स्वच्छता: ${rb.cleanliness || 4.8} / 5\n`
+        : `- Cleanliness: ${rb.cleanliness || 4.8} / 5\n`
+      await sendChunk(cleanStr)
+
+      const hospStr = locale === 'hi'
+        ? `- आतिथ्य: ${rb.hospitality || 4.9} / 5\n`
+        : locale === 'mr'
+        ? `- पाहुणचार: ${rb.hospitality || 4.9} / 5\n`
+        : `- Hospitality: ${rb.hospitality || 4.9} / 5\n`
+      await sendChunk(hospStr)
+
+      const locStr = locale === 'hi'
+        ? `- स्थान: ${rb.location || 4.7} / 5\n\n`
+        : locale === 'mr'
+        ? `- स्थान: ${rb.location || 4.7} / 5\n\n`
+        : `- Location: ${rb.location || 4.7} / 5\n\n`
+      await sendChunk(locStr)
+
+      const rFooter = locale === 'hi'
+        ? `समीक्षाएं केवल उन सत्यापित यात्रियों से ली जाती हैं जिन्होंने अपना कृषि प्रवास पूरा किया है।`
+        : locale === 'mr'
+        ? `पुनरावलोकने केवळ अशा पडताळणी केलेल्या प्रवाशांकडून गोळा केली जातात ज्यांनी त्यांचा मुक्काम पूर्ण केला आहे.`
+        : `Reviews are collected only from verified travellers who completed their farm stay.`
+      await sendChunk(rFooter)
       return
     }
 
     // 7. Queries about seasons, harvests, or crops
-    if (q.includes('season') || q.includes('crop') || q.includes('harvest') || q.includes('month')) {
+    if (q.includes('season') || q.includes('crop') || q.includes('harvest') || q.includes('month') || q.includes('मौसम') || q.includes('हंगाम') || q.includes('फसल') || q.includes('पीक')) {
       const currentMonth = new Date().getMonth()
       const data = await getSeasonalCrops({ month: currentMonth })
       const active = data.active_crops || []
 
       if (active.length === 0) {
-        await sendChunk(`No major harvest crops are recorded for ${data.month_name} at this time.\n`)
+        const noCrops = locale === 'hi'
+          ? `${data.month_name} के लिए इस समय कोई मुख्य फसल दर्ज नहीं है।\n`
+          : locale === 'mr'
+          ? `${data.month_name} साठी या वेळी कोणतीही मोठी पिके नोंदवलेली नाहीत.\n`
+          : `No major harvest crops are recorded for ${data.month_name} at this time.\n`
+        await sendChunk(noCrops)
       } else {
-        await sendChunk(`In ${data.month_name}, the following crops are in season across our partner regions:\n\n`)
+        const sHeader = locale === 'hi'
+          ? `${data.month_name} में, हमारे सहयोगी क्षेत्रों में निम्नलिखित फसलें मौसम में हैं:\n\n`
+          : locale === 'mr'
+          ? `${data.month_name} मध्ये, आमच्या भागीदार भागांमध्ये खालील पिकांचा हंगाम आहे:\n\n`
+          : `In ${data.month_name}, the following crops are in season across our partner regions:\n\n`
+        await sendChunk(sHeader)
+
         for (const c of active.slice(0, 4)) {
-          await sendChunk(`- ${c.name} (${c.place}, ${c.region}) — ${c.kind === 'harvest' ? 'Harvest season' : 'Sowing season'}\n`)
+          const kindStr = c.kind === 'harvest'
+            ? (locale === 'hi' ? 'कटाई का मौसम' : locale === 'mr' ? 'काढणीचा हंगाम' : 'Harvest season')
+            : (locale === 'hi' ? 'बुवाई का मौसम' : locale === 'mr' ? 'पेरणीचा हंगाम' : 'Sowing season')
+          await sendChunk(`- ${c.name} (${c.place}, ${c.region}) — ${kindStr}\n`)
         }
-        await sendChunk(`\nWould you like farm stay recommendations near these harvest regions?`)
+
+        const sFooter = locale === 'hi'
+          ? `\nक्या आप इन फसल क्षेत्रों के पास कृषि प्रवास की सिफारिशें चाहेंगे?`
+          : locale === 'mr'
+          ? `\nतुम्हाला या पीक क्षेत्रांजवळील फार्म स्टेच्या शिफारसी हव्या आहेत का?`
+          : `\nWould you like farm stay recommendations near these harvest regions?`
+        await sendChunk(sFooter)
       }
       return
     }
 
     // 8. Rules and Check-in Policies
-    if (q.includes('rule') || q.includes('check-in') || q.includes('check in') || q.includes('policy')) {
+    if (q.includes('rule') || q.includes('check-in') || q.includes('check in') || q.includes('policy') || q.includes('नियम') || q.includes('धोरण') || q.includes('वेळ')) {
       const farmRes = await getFarmDetails({ slug: targetFarm.slug })
       const f = farmRes as any
-      await sendChunk(`Check-in policies and rules at [${f.name}](/farms/${f.slug}):\n\n`)
-      await sendChunk(`- Overnight check-in: ${f.check_in_info?.overnight_check_in || '12:00 PM check-in, 10:00 AM checkout'}.\n`)
-      await sendChunk(`- Day visits: ${f.check_in_info?.day_visit_hours || '09:00 to 17:00'}.\n`)
-      await sendChunk(`- Farm etiquette: Respect quiet hours after 10:00 PM; no synthetic litter in orchards.\n`)
-      await sendChunk(`- Cancellation: Free cancellation up to 48 hours prior to scheduled arrival.\n\n`)
-      await sendChunk(`You can review detailed farm rules on [${f.name}](/farms/${f.slug}).`)
+
+      const ruleHeader = locale === 'hi'
+        ? `[${f.name}](/farms/${f.slug}) पर चेक-इन नीतियां और नियम:\n\n`
+        : locale === 'mr'
+        ? `[${f.name}](/farms/${f.slug}) वरील चेक-इन धोरणे आणि नियम:\n\n`
+        : `Check-in policies and rules at [${f.name}](/farms/${f.slug}):\n\n`
+      await sendChunk(ruleHeader)
+
+      const defOver = locale === 'hi'
+        ? 'दोपहर 12:00 बजे चेक-इन, सुबह 10:00 बजे चेकआउट'
+        : locale === 'mr'
+        ? 'दुपारी 12:00 चेक-इन, सकाळी 10:00 चेकआउट'
+        : '12:00 PM check-in, 10:00 AM checkout'
+      const overnightLine = locale === 'hi'
+        ? `- रात्रि प्रवास चेक-इन: ${f.check_in_info?.overnight_check_in || defOver}।\n`
+        : locale === 'mr'
+        ? `- मुक्काम चेक-इन: ${f.check_in_info?.overnight_check_in || defOver}.\n`
+        : `- Overnight check-in: ${f.check_in_info?.overnight_check_in || defOver}.\n`
+      await sendChunk(overnightLine)
+
+      const dayVisitsLine = locale === 'hi'
+        ? `- दिन की यात्रा: ${f.check_in_info?.day_visit_hours || '09:00 से 17:00'}।\n`
+        : locale === 'mr'
+        ? `- दिवसाची भेट: ${f.check_in_info?.day_visit_hours || '09:00 ते 17:00'}.\n`
+        : `- Day visits: ${f.check_in_info?.day_visit_hours || '09:00 to 17:00'}.\n`
+      await sendChunk(dayVisitsLine)
+
+      const etiquetteLine = locale === 'hi'
+        ? `- कृषि शिष्टाचार: रात 10:00 बजे के बाद शांत समय का पालन करें; बगीचों में प्लास्टिक कचरा न फैलाएं।\n`
+        : locale === 'mr'
+        ? `- शेताचे नियम: रात्री 10:00 नंतर शांततेचे पालन करा; फळबागेत प्लास्टिक कचरा टाकू नका.\n`
+        : `- Farm etiquette: Respect quiet hours after 10:00 PM; no synthetic litter in orchards.\n`
+      await sendChunk(etiquetteLine)
+
+      const cancelLine = locale === 'hi'
+        ? `- रद्दीकरण: आगमन से 48 घंटे पहले तक निःशुल्क रद्दीकरण।\n\n`
+        : locale === 'mr'
+        ? `- रद्द करण्याचे नियम: आगमनापूर्वी 48 तास आधी मोफत रद्दीकरण.\n\n`
+        : `- Cancellation: Free cancellation up to 48 hours prior to scheduled arrival.\n\n`
+      await sendChunk(cancelLine)
+
+      const ruleFooter = locale === 'hi'
+        ? `आप [${f.name}](/farms/${f.slug}) पर विस्तृत नियम देख सकते हैं।`
+        : locale === 'mr'
+        ? `तुम्ही [${f.name}](/farms/${f.slug}) वर सविस्तर नियम पाहू शकता.`
+        : `You can review detailed farm rules on [${f.name}](/farms/${f.slug}).`
+      await sendChunk(ruleFooter)
       return
     }
 
@@ -376,58 +661,82 @@ async function runMockAiStream(
     if (mentionedDirectly) {
       const farmRes = await getFarmDetails({ slug: mentionedDirectly.slug })
       const f = farmRes as any
-      const priceLine = f.allows_day_visit && f.day_visit_price_inr
-        ? `₹${f.overnight_price_inr}/night (Day visit: ₹${f.day_visit_price_inr})`
-        : `₹${f.overnight_price_inr}/night`
+      const priceLine = formatPriceLine(f)
       await sendChunk(`[${f.name}](/farms/${f.slug}) in ${f.place}, ${f.region} (${priceLine}):\n\n`)
       if (f.amenities?.length) {
-        await sendChunk(`- Highlights: ${f.amenities.slice(0, 3).join(', ')}\n`)
+        const hl = locale === 'hi' ? `- प्रमुख विशेषताएं: ` : locale === 'mr' ? `- वैशिष्ट्ये: ` : `- Highlights: `
+        await sendChunk(`${hl}${f.amenities.slice(0, 3).join(', ')}\n`)
       }
       if (f.check_in_info?.landmark_note) {
-        await sendChunk(`- Landmark: ${f.check_in_info.landmark_note}\n`)
+        const lm = locale === 'hi' ? `- लैंडमार्क: ` : locale === 'mr' ? `- लँडमार्क: ` : `- Landmark: `
+        await sendChunk(`${lm}${f.check_in_info.landmark_note}\n`)
       }
-      await sendChunk(`\nWould you like details on farm activities or directions for [${f.name}](/farms/${f.slug})?`)
+      const mfFooter = locale === 'hi'
+        ? `\nक्या आप [${f.name}](/farms/${f.slug}) के लिए गतिविधियों या मार्ग का विवरण चाहेंगे?`
+        : locale === 'mr'
+        ? `\nतुम्हाला [${f.name}](/farms/${f.slug}) साठी उपक्रम किंवा दिशानिर्देश हवे आहेत का?`
+        : `\nWould you like details on farm activities or directions for [${f.name}](/farms/${f.slug})?`
+      await sendChunk(mfFooter)
       return
     }
 
     // 10. Default: Search farms matching budget or location
     let budgetPaise = 300000 // default 3000 INR
-    if (q.includes('2500') || q.includes('2,500')) budgetPaise = 250000
-    if (q.includes('2000') || q.includes('2,000')) budgetPaise = 200000
-    if (q.includes('1500') || q.includes('1,500')) budgetPaise = 150000
-    if (q.includes('1000') || q.includes('1,000')) budgetPaise = 100000
+    if (q.includes('2500') || q.includes('2,500') || q.includes('२,५००') || q.includes('२५००')) budgetPaise = 250000
+    if (q.includes('2000') || q.includes('2,000') || q.includes('२,०००') || q.includes('२०००')) budgetPaise = 200000
+    if (q.includes('1500') || q.includes('1,500') || q.includes('१,५००') || q.includes('१५००')) budgetPaise = 150000
+    if (q.includes('1000') || q.includes('1,000') || q.includes('१,०००') || q.includes('१०००')) budgetPaise = 100000
 
     let region: string | undefined = undefined
-    if (q.includes('maharashtra') || q.includes('konkan') || q.includes('ratnagiri') || q.includes('nashik') || q.includes('kolhapur')) region = 'Maharashtra'
-    else if (q.includes('kerala') || q.includes('wayanad')) region = 'Kerala'
-    else if (q.includes('punjab') || q.includes('amritsar')) region = 'Punjab'
-    else if (q.includes('himachal') || q.includes('shimla') || q.includes('kotgarh')) region = 'Himachal Pradesh'
-    else if (q.includes('kashmir') || q.includes('pampore')) region = 'Kashmir'
-    else if (q.includes('rajasthan') || q.includes('pushkar')) region = 'Rajasthan'
-    else if (q.includes('karnataka') || q.includes('coorg') || q.includes('madikeri')) region = 'Karnataka'
-    else if (q.includes('tamil nadu') || q.includes('coonoor') || q.includes('nilgiris')) region = 'Tamil Nadu'
-    else if (q.includes('uttarakhand') || q.includes('mukteshwar') || q.includes('kumaon')) region = 'Uttarakhand'
-    else if (q.includes('gujarat') || q.includes('gir') || q.includes('talala')) region = 'Gujarat'
-    else if (q.includes('west bengal') || q.includes('darjeeling')) region = 'West Bengal'
-    else if (q.includes('assam') || q.includes('tezpur')) region = 'Assam'
+    if (q.includes('maharashtra') || q.includes('konkan') || q.includes('ratnagiri') || q.includes('nashik') || q.includes('kolhapur') || q.includes('महाराष्ट्र') || q.includes('कोकण')) region = 'Maharashtra'
+    else if (q.includes('kerala') || q.includes('wayanad') || q.includes('केरल') || q.includes('केरळ')) region = 'Kerala'
+    else if (q.includes('punjab') || q.includes('amritsar') || q.includes('पंजाब')) region = 'Punjab'
+    else if (q.includes('himachal') || q.includes('shimla') || q.includes('kotgarh') || q.includes('हिमाचल')) region = 'Himachal Pradesh'
+    else if (q.includes('kashmir') || q.includes('pampore') || q.includes('कश्मीर') || q.includes('काश्मीर')) region = 'Kashmir'
+    else if (q.includes('rajasthan') || q.includes('pushkar') || q.includes('राजस्थान')) region = 'Rajasthan'
+    else if (q.includes('karnataka') || q.includes('coorg') || q.includes('madikeri') || q.includes('कर्नाटक')) region = 'Karnataka'
+    else if (q.includes('tamil nadu') || q.includes('coonoor') || q.includes('nilgiris') || q.includes('तमिलनाडु')) region = 'Tamil Nadu'
+    else if (q.includes('uttarakhand') || q.includes('mukteshwar') || q.includes('kumaon') || q.includes('उत्तराखंड')) region = 'Uttarakhand'
+    else if (q.includes('gujarat') || q.includes('gir') || q.includes('talala') || q.includes('गुजरात')) region = 'Gujarat'
+    else if (q.includes('west bengal') || q.includes('darjeeling') || q.includes('पश्चिम बंगाल')) region = 'West Bengal'
+    else if (q.includes('assam') || q.includes('tezpur') || q.includes('असम') || q.includes('आसाम')) region = 'Assam'
 
     const data = await searchFarms({ budget_max_paise: budgetPaise, region })
     const farms = data.farms || []
 
     if (farms.length === 0) {
-      await sendChunk(`No farm stays found matching that budget or location. Would you like to adjust your budget or explore other regions?`)
+      const noFarms = locale === 'hi'
+        ? `उस बजट या स्थान से मेल खाने वाला कोई फार्म स्टे नहीं मिला। क्या आप अपना बजट समायोजित करना चाहते हैं या अन्य क्षेत्रों का पता लगाना चाहते हैं?`
+        : locale === 'mr'
+        ? `त्या बजेट किंवा स्थानाशी जुळणारा कोणताही फार्म स्टे आढळला नाही. तुम्हाला तुमचे बजेट बदलायचे आहे की इतर प्रदेश पाहायचे आहेत?`
+        : `No farm stays found matching that budget or location. Would you like to adjust your budget or explore other regions?`
+      await sendChunk(noFarms)
     } else {
-      await sendChunk(`Here are recommendations based on verified farm data:\n\n`)
+      const recHeader = locale === 'hi'
+        ? `सत्यापित कृषि डेटा के आधार पर यहां कुछ सिफारिशें दी गई हैं:\n\n`
+        : locale === 'mr'
+        ? `पडताळणी केलेल्या शेती माहितीवर आधारित काही शिफारसी येथे आहेत:\n\n`
+        : `Here are recommendations based on verified farm data:\n\n`
+      await sendChunk(recHeader)
+
       for (const f of farms.slice(0, 3)) {
-        const priceLine = f.allows_day_visit && f.day_visit_price_inr
-          ? `₹${f.overnight_price_inr}/night (Day visit: ₹${f.day_visit_price_inr})`
-          : `₹${f.overnight_price_inr}/night`
-        await sendChunk(`- [${f.name}](/farms/${f.slug}) (${f.place}) — ${priceLine}: ${f.summary}\n`)
+        await sendChunk(`- [${f.name}](/farms/${f.slug}) (${f.place}) — ${formatPriceLine(f)}: ${f.summary}\n`)
       }
-      await sendChunk(`\nWould you like details on farm activities or directions for any of these stays?`)
+
+      const recFooter = locale === 'hi'
+        ? `\nक्या आप इनमें से किसी भी प्रवास के लिए कृषि गतिविधियों या दिशा-निर्देशों का विवरण चाहेंगे?`
+        : locale === 'mr'
+        ? `\nतुम्हाला यापैकी कोणत्याही स्टेसाठी शेती उपक्रम किंवा रस्त्याच्या दिशानिर्देशांची माहिती हवी आहे का?`
+        : `\nWould you like details on farm activities or directions for any of these stays?`
+      await sendChunk(recFooter)
     }
   } catch (err: any) {
-    await sendChunk(`Unable to retrieve farm data at this time: ${err.message}`)
+    const errMsg = locale === 'hi'
+      ? `इस समय कृषि डेटा प्राप्त करने में असमर्थ: ${err.message}`
+      : locale === 'mr'
+      ? `या वेळी शेती माहिती मिळवणे शक्य झाले नाही: ${err.message}`
+      : `Unable to retrieve farm data at this time: ${err.message}`
+    await sendChunk(errMsg)
   } finally {
     await writer.close()
   }
@@ -440,6 +749,7 @@ async function runClaudeStream(
   messages: ChatMessage[],
   apiKey: string,
   writer: WritableStreamDefaultWriter<Uint8Array>,
+  locale: string = 'en',
 ) {
   const encoder = new TextEncoder()
   const sendChunk = async (text: string) => {
@@ -463,7 +773,7 @@ async function runClaudeStream(
       body: JSON.stringify({
         model: 'claude-3-5-sonnet-latest',
         max_tokens: 800,
-        system: SYSTEM_PROMPT,
+        system: getSystemPrompt(locale),
         messages: claudeMessages,
         tools: CLAUDE_TOOLS,
       }),
@@ -508,7 +818,7 @@ async function runClaudeStream(
         body: JSON.stringify({
           model: 'claude-3-5-sonnet-latest',
           max_tokens: 800,
-          system: SYSTEM_PROMPT,
+          system: getSystemPrompt(locale),
           messages: followUpMessages,
           stream: true,
         }),
@@ -546,7 +856,7 @@ async function runClaudeStream(
     }
   } catch (err: any) {
     console.error('[Claude Error, falling back to database mock]:', err.message)
-    await runMockAiStream(messages, writer)
+    await runMockAiStream(messages, writer, locale)
     return
   } finally {
     try {
@@ -645,6 +955,7 @@ async function callGeminiWithModel(
   model: string,
   apiKey: string,
   messages: ChatMessage[],
+  locale: string = 'en',
 ): Promise<string> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`
   const geminiContents = messages.map((m) => ({
@@ -656,7 +967,7 @@ async function callGeminiWithModel(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+      systemInstruction: { parts: [{ text: getSystemPrompt(locale) }] },
       contents: geminiContents,
       tools: [{ functionDeclarations: GEMINI_FUNCTION_DECLARATIONS }],
     }),
@@ -686,7 +997,7 @@ async function callGeminiWithModel(
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+        systemInstruction: { parts: [{ text: getSystemPrompt(locale) }] },
         contents: [
           ...geminiContents,
           { role: 'model', parts: parts },
@@ -747,12 +1058,13 @@ async function runGeminiStream(
   messages: ChatMessage[],
   apiKey: string,
   writer: WritableStreamDefaultWriter<Uint8Array>,
+  locale: string = 'en',
 ) {
   try {
     const cleanKey = (apiKey || '').trim()
     if (!cleanKey) {
       console.warn('[AgriGuide] Missing Gemini API key. Falling back to database mock AI.')
-      await runMockAiStream(messages, writer)
+      await runMockAiStream(messages, writer, locale)
       return
     }
 
@@ -778,7 +1090,7 @@ async function runGeminiStream(
 
     for (const model of modelsToTry) {
       try {
-        finalAnswer = await callGeminiWithModel(model, cleanKey, messages)
+        finalAnswer = await callGeminiWithModel(model, cleanKey, messages, locale)
         successfulModel = model
         break
       } catch (err: any) {
@@ -812,11 +1124,11 @@ async function runGeminiStream(
     }
 
     console.warn('[AgriGuide] All Gemini models failed or rate-limited. Falling back to database mock AI.')
-    await runMockAiStream(messages, writer)
+    await runMockAiStream(messages, writer, locale)
   } catch (err: any) {
     console.error('[AgriGuide] Fatal error in runGeminiStream, falling back to mock AI:', err)
     try {
-      await runMockAiStream(messages, writer)
+      await runMockAiStream(messages, writer, locale)
     } catch {
       try {
         await writer.close()
@@ -832,7 +1144,7 @@ async function runGeminiStream(
  * - GEMINI_API_KEY / GOOGLE_API_KEY -> Gemini
  * - Missing -> Deterministic database mock AI stream
  */
-export function streamChatResponse(messages: ChatMessage[]): ReadableStream<Uint8Array> {
+export function streamChatResponse(messages: ChatMessage[], locale: string = 'en'): ReadableStream<Uint8Array> {
   const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>()
   const writer = writable.getWriter()
 
@@ -840,11 +1152,11 @@ export function streamChatResponse(messages: ChatMessage[]): ReadableStream<Uint
   const geminiKey = (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '').trim()
 
   if (anthropicKey) {
-    runClaudeStream(messages, anthropicKey, writer)
+    runClaudeStream(messages, anthropicKey, writer, locale)
   } else if (geminiKey) {
-    runGeminiStream(messages, geminiKey, writer)
+    runGeminiStream(messages, geminiKey, writer, locale)
   } else {
-    runMockAiStream(messages, writer)
+    runMockAiStream(messages, writer, locale)
   }
 
   return readable

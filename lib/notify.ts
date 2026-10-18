@@ -10,6 +10,61 @@ import {
   type SendWhatsAppResult,
 } from '@/lib/whatsapp'
 import { formatRupees } from '@/lib/money'
+import enMessages from '@/messages/en.json'
+import hiMessages from '@/messages/hi.json'
+import mrMessages from '@/messages/mr.json'
+
+export type Locale = 'en' | 'hi' | 'mr'
+
+const messageCatalogs: Record<Locale, any> = {
+  en: enMessages,
+  hi: hiMessages,
+  mr: mrMessages,
+}
+
+export function getNotificationText(
+  locale: Locale,
+  keyPath: string,
+  vars: Record<string, string | number> = {},
+): string {
+  const cat = messageCatalogs[locale] || messageCatalogs.en
+  const parts = keyPath.split('.')
+  let cur: any = cat
+  for (const p of parts) {
+    if (!cur || typeof cur !== 'object') break
+    cur = cur[p]
+  }
+  if (typeof cur !== 'string') {
+    let fallback: any = messageCatalogs.en
+    for (const p of parts) {
+      if (!fallback || typeof fallback !== 'object') break
+      fallback = fallback[p]
+    }
+    cur = typeof fallback === 'string' ? fallback : keyPath
+  }
+
+  return cur.replace(/\{([a-zA-Z0-9_]+)\}/g, (_: string, name: string) => {
+    return vars[name] !== undefined ? String(vars[name]) : ''
+  })
+}
+
+export function formatVisitType(
+  visitType: string | undefined,
+  nights: number | undefined,
+  locale: Locale,
+): string {
+  if (visitType === 'day') {
+    return getNotificationText(locale, 'notifications.common.dayVisit')
+  }
+  const n = nights || 1
+  if (locale === 'hi') {
+    return `${n} रात का प्रवास`
+  }
+  if (locale === 'mr') {
+    return `${n} रात्रीचा मुक्काम`
+  }
+  return n === 1 ? '1 night stay' : `${n} nights stay`
+}
 
 export type BookingNotificationEvent =
   | 'created'
@@ -45,39 +100,45 @@ export interface FarmerBookingMessagePayload {
 export function buildFarmerBookingMessage(
   booking: FarmerBookingMessagePayload,
   reservedProductsText?: string,
+  locale: Locale = 'en',
 ): { text: string; replyMarkup: { inline_keyboard: { text: string; callback_data: string }[][] } } {
-  const visitTypeStr = booking.visit_type === 'day' ? 'Day visit' : `${booking.nights || 1} nights stay`
-  const formattedTotal = formatRupees(booking.total_paise || 0)
-  const discountNote = Number(booking.discount_pct) > 0 ? ` (${booking.discount_pct}% package discount applied)` : ''
-  const farmName = booking.farm?.name || 'Farm Stay'
-  const guestName = booking.tourist?.full_name || 'Guest'
+  const visitTypeStr = formatVisitType(booking.visit_type, booking.nights, locale)
+  const formattedTotal = formatRupees(booking.total_paise || 0, locale)
+  const discountPct = Number(booking.discount_pct) || 0
+  const discountNote = discountPct > 0
+    ? getNotificationText(locale, 'notifications.farmerNewBooking.discountApplied', { discountPct })
+    : ''
+  const farmName = booking.farm?.name || getNotificationText(locale, 'notifications.common.farmStay')
+  const guestName = booking.tourist?.full_name || getNotificationText(locale, 'notifications.common.guest')
 
   const lines = [
-    `New booking request: ${farmName}`,
-    `Reference: ${booking.id}`,
-    `Guest: ${guestName}`,
+    getNotificationText(locale, 'notifications.farmerNewBooking.title', { farmName }),
+    getNotificationText(locale, 'notifications.farmerNewBooking.reference', { bookingId: booking.id }),
+    getNotificationText(locale, 'notifications.farmerNewBooking.guest', { guestName }),
   ]
   if (booking.tourist?.phone) {
-    lines.push(`Phone: ${booking.tourist.phone}`)
+    lines.push(getNotificationText(locale, 'notifications.farmerNewBooking.phone', { phone: booking.tourist.phone }))
   }
   lines.push(
-    `Visit type: ${visitTypeStr}`,
-    `Check-in date: ${booking.check_in || 'Scheduled'}`,
+    getNotificationText(locale, 'notifications.farmerNewBooking.visitType', { visitType: visitTypeStr }),
+    getNotificationText(locale, 'notifications.farmerNewBooking.checkInDate', {
+      checkIn: booking.check_in || getNotificationText(locale, 'notifications.common.scheduled'),
+    }),
   )
   if (booking.arrival_time) {
-    lines.push(`Arrival time: ${booking.arrival_time}`)
+    lines.push(getNotificationText(locale, 'notifications.farmerNewBooking.arrivalTime', { arrivalTime: booking.arrival_time }))
   }
-  lines.push(`Guests: ${booking.guests || 1}`)
+  lines.push(getNotificationText(locale, 'notifications.farmerNewBooking.guests', { guests: booking.guests || 1 }))
   if (reservedProductsText) {
-    lines.push(`Reserved products: ${reservedProductsText}`)
+    lines.push(getNotificationText(locale, 'notifications.farmerNewBooking.reservedProducts', { reservedProducts: reservedProductsText }))
   }
-  lines.push(`Total: ${formattedTotal}${discountNote}`)
+  lines.push(getNotificationText(locale, 'notifications.farmerNewBooking.total', { total: formattedTotal, discountNote }))
 
   const replyMarkup = {
     inline_keyboard: [
       [
-        { text: 'Accept', callback_data: `bk:${booking.id}:a` },
-        { text: 'Decline', callback_data: `bk:${booking.id}:d` },
+        { text: getNotificationText(locale, 'notifications.farmerNewBooking.accept'), callback_data: `bk:${booking.id}:a` },
+        { text: getNotificationText(locale, 'notifications.farmerNewBooking.decline'), callback_data: `bk:${booking.id}:d` },
       ],
     ],
   }
@@ -99,6 +160,7 @@ export async function notifyBookingStatus(
   bookingId: string,
   eventType: BookingNotificationEvent = 'created',
   reservedProductsText?: string,
+  guestLocale?: Locale,
 ): Promise<NotificationDispatchRecord[]> {
   const dispatched: NotificationDispatchRecord[] = []
 
@@ -124,7 +186,8 @@ export async function notifyBookingStatus(
           full_name,
           phone,
           telegram_chat_id,
-          whatsapp_opt_in
+          whatsapp_opt_in,
+          preferred_language
         )
       `)
       .eq('id', bookingId)
@@ -143,16 +206,32 @@ export async function notifyBookingStatus(
     if (farm.owner_id) {
       const { data: fProfile } = await serviceClient
         .from('profiles')
-        .select('id, full_name, phone, telegram_chat_id, whatsapp_opt_in')
+        .select('id, full_name, phone, telegram_chat_id, whatsapp_opt_in, preferred_language')
         .eq('id', farm.owner_id)
         .maybeSingle()
       farmerProfile = fProfile
     }
 
     const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/+$/, '')
-    const visitTypeStr = booking.visit_type === 'day' ? 'Day visit' : `${booking.nights || 1} nights stay`
-    const formattedTotal = formatRupees(booking.total_paise || 0)
-    const discountNote = Number(booking.discount_pct) > 0 ? ` (${booking.discount_pct}% package discount applied)` : ''
+
+    // Resolve recipient languages
+    const farmerLocale: Locale =
+      farmerProfile?.preferred_language === 'hi' || farmerProfile?.preferred_language === 'mr'
+        ? farmerProfile.preferred_language
+        : 'en'
+
+    const touristLocale: Locale =
+      (guestLocale === 'hi' || guestLocale === 'mr' || guestLocale === 'en')
+        ? guestLocale
+        : booking.locale === 'hi' || booking.locale === 'mr'
+        ? booking.locale
+        : tourist.preferred_language === 'hi' || tourist.preferred_language === 'mr'
+        ? tourist.preferred_language
+        : 'en'
+
+    const visitTypeStrFarmer = formatVisitType(booking.visit_type, booking.nights, farmerLocale)
+    const visitTypeStrTourist = formatVisitType(booking.visit_type, booking.nights, touristLocale)
+    const formattedTotalTourist = formatRupees(booking.total_paise || 0, touristLocale)
 
     // ──────────────────────────────────────────────────────────────────────────
     // TELEGRAM CHANNEL (ACTIVE DEFAULT)
@@ -202,7 +281,7 @@ export async function notifyBookingStatus(
       }
 
       if (eventType === 'created') {
-        // Message to farmer with inline Accept/Decline approval buttons
+        // Message to farmer with inline Accept/Decline approval buttons in farmer's language
         const { text: farmerText, replyMarkup: inlineKeyboard } = buildFarmerBookingMessage(
           {
             id: booking.id,
@@ -217,6 +296,7 @@ export async function notifyBookingStatus(
             tourist: { full_name: tourist.full_name, phone: tourist.phone },
           },
           reservedProductsText,
+          farmerLocale,
         )
 
         // Send to farmer if chat ID is known (or log mock if not yet linked)
@@ -226,7 +306,6 @@ export async function notifyBookingStatus(
             reply_markup: inlineKeyboard,
           })
 
-          // Save sent message_id and chat_id on the booking for future edit
           if (res.messageId && farmerChatId) {
             await serviceClient
               .from('bookings')
@@ -237,7 +316,6 @@ export async function notifyBookingStatus(
               .eq('id', booking.id)
           }
 
-          // Log in notifications table
           const { data: nRow } = await serviceClient
             .from('notifications')
             .insert({
@@ -268,21 +346,24 @@ export async function notifyBookingStatus(
           })
         }
 
-        // Message to tourist: Request received
+        // Message to tourist: Request received in tourist's language
+        const farmName = farm.name || getNotificationText(touristLocale, 'notifications.common.farmStay')
         const touristLines = [
-          `Booking request received: ${farm.name || 'Farm Stay'}`,
-          `Reference: ${booking.id}`,
-          `Date: ${booking.check_in || 'Scheduled'}`,
-          `Visit type: ${visitTypeStr}`,
-          `Guests: ${booking.guests || 1}`,
+          getNotificationText(touristLocale, 'notifications.touristBookingReceived.title', { farmName }),
+          getNotificationText(touristLocale, 'notifications.touristBookingReceived.reference', { bookingId: booking.id }),
+          getNotificationText(touristLocale, 'notifications.touristBookingReceived.date', {
+            checkIn: booking.check_in || getNotificationText(touristLocale, 'notifications.common.scheduled'),
+          }),
+          getNotificationText(touristLocale, 'notifications.touristBookingReceived.visitType', { visitType: visitTypeStrTourist }),
+          getNotificationText(touristLocale, 'notifications.touristBookingReceived.guests', { guests: booking.guests || 1 }),
         ]
         if (reservedProductsText) {
-          touristLines.push(`Reserved products: ${reservedProductsText}`)
+          touristLines.push(getNotificationText(touristLocale, 'notifications.touristBookingReceived.reservedProducts', { reservedProducts: reservedProductsText }))
         }
         touristLines.push(
-          `Total: ${formattedTotal}`,
-          'Your host will review availability and confirm your request shortly. No payment is required today.',
-          `View booking: ${siteUrl}/dashboard?view=tourist`,
+          getNotificationText(touristLocale, 'notifications.touristBookingReceived.total', { total: formattedTotalTourist }),
+          getNotificationText(touristLocale, 'notifications.touristBookingReceived.note'),
+          getNotificationText(touristLocale, 'notifications.touristBookingReceived.viewBooking', { url: `${siteUrl}/dashboard?view=tourist` }),
         )
         const touristText = touristLines.join('\n')
 
@@ -320,19 +401,23 @@ export async function notifyBookingStatus(
           })
         }
       } else if (eventType === 'confirmed') {
-        // Message to tourist: Booking confirmed
+        const farmName = farm.name || getNotificationText(touristLocale, 'notifications.common.farmStay')
         const lines = [
-          `Booking confirmed: ${farm.name || 'Farm Stay'}`,
-          `Reference: ${booking.id}`,
-          `Date: ${booking.check_in || 'Scheduled'}`,
-          `Host: ${farm.host_name || 'Your Host'}`,
+          getNotificationText(touristLocale, 'notifications.touristBookingConfirmed.title', { farmName }),
+          getNotificationText(touristLocale, 'notifications.touristBookingConfirmed.reference', { bookingId: booking.id }),
+          getNotificationText(touristLocale, 'notifications.touristBookingConfirmed.date', {
+            checkIn: booking.check_in || getNotificationText(touristLocale, 'notifications.common.scheduled'),
+          }),
+          getNotificationText(touristLocale, 'notifications.touristBookingConfirmed.host', {
+            hostName: farm.host_name || getNotificationText(touristLocale, 'notifications.common.yourHost'),
+          }),
         ]
         if (farm.host_phone) {
-          lines.push(`Host phone: ${farm.host_phone}`)
+          lines.push(getNotificationText(touristLocale, 'notifications.touristBookingConfirmed.hostPhone', { hostPhone: farm.host_phone }))
         }
         lines.push(
-          'Your host has accepted your visit. Safe travels!',
-          `View directions and travel safety card: ${siteUrl}/dashboard?view=tourist`,
+          getNotificationText(touristLocale, 'notifications.touristBookingConfirmed.note'),
+          getNotificationText(touristLocale, 'notifications.touristBookingConfirmed.viewCard', { url: `${siteUrl}/dashboard?view=tourist` }),
         )
         const text = lines.join('\n')
 
@@ -370,13 +455,15 @@ export async function notifyBookingStatus(
           })
         }
       } else if (eventType === 'declined') {
-        // Message to tourist: Booking declined (polite, suggesting other stays)
+        const farmName = farm.name || getNotificationText(touristLocale, 'notifications.common.farmStay')
         const text = [
-          `Booking request update: ${farm.name || 'Farm Stay'}`,
-          `Reference: ${booking.id}`,
-          `Date: ${booking.check_in || 'Scheduled'}`,
-          'The host is unable to accommodate this visit. You can explore other authentic farm stays across India on AgriTrails.',
-          `Explore farm stays: ${siteUrl}/explore`,
+          getNotificationText(touristLocale, 'notifications.touristBookingDeclined.title', { farmName }),
+          getNotificationText(touristLocale, 'notifications.touristBookingDeclined.reference', { bookingId: booking.id }),
+          getNotificationText(touristLocale, 'notifications.touristBookingDeclined.date', {
+            checkIn: booking.check_in || getNotificationText(touristLocale, 'notifications.common.scheduled'),
+          }),
+          getNotificationText(touristLocale, 'notifications.touristBookingDeclined.note'),
+          getNotificationText(touristLocale, 'notifications.touristBookingDeclined.explore', { url: `${siteUrl}/explore` }),
         ].join('\n')
 
         const targetTouristChat = touristChatId || (channel === 'mock' ? 'demo-tourist-chat' : null)
@@ -413,17 +500,20 @@ export async function notifyBookingStatus(
           })
         }
       } else if (eventType === 'reminder') {
-        // Pre-arrival reminder day before visit
+        const farmName = farm.name || getNotificationText(touristLocale, 'notifications.common.farmStay')
         const lines = [
-          `Reminder: Your farm stay at ${farm.name || 'Farm Stay'} begins tomorrow (${booking.check_in})`,
-          `Reference: ${booking.id}`,
+          getNotificationText(touristLocale, 'notifications.touristPreArrivalReminder.title', {
+            farmName,
+            checkIn: booking.check_in || '',
+          }),
+          getNotificationText(touristLocale, 'notifications.touristPreArrivalReminder.reference', { bookingId: booking.id }),
         ]
         if (farm.host_phone) {
-          lines.push(`Host contact: ${farm.host_phone}`)
+          lines.push(getNotificationText(touristLocale, 'notifications.touristPreArrivalReminder.hostContact', { hostPhone: farm.host_phone }))
         }
         lines.push(
-          'Please download your offline travel safety card before leaving:',
-          `${siteUrl}/dashboard?view=tourist`,
+          getNotificationText(touristLocale, 'notifications.touristPreArrivalReminder.note'),
+          getNotificationText(touristLocale, 'notifications.touristPreArrivalReminder.viewCard', { url: `${siteUrl}/dashboard?view=tourist` }),
         )
         const text = lines.join('\n')
 
@@ -473,28 +563,48 @@ export async function notifyBookingStatus(
         templateName: string
         variables: (string | number)[]
         recipientRole: 'farmer' | 'tourist'
+        previewText: string
       }> = []
 
       if (eventType === 'created') {
         const farmerPhone = farmerProfile?.phone || farm.host_phone
         if (farmerPhone && farmerProfile?.whatsapp_opt_in !== false) {
+          const fPreview = getNotificationText(farmerLocale, 'notifications.whatsapp.farmerNewBooking', {
+            farmerName: farmerProfile?.full_name || farm.host_name || 'Farmer',
+            farmName: farm.name || 'Farm stay',
+            guestName: tourist.full_name || 'Guest',
+            visitType: visitTypeStrFarmer,
+            guests: booking.guests || 1,
+            checkIn: booking.check_in || 'Scheduled',
+            bookingId: booking.id,
+          })
+
           messagesToSend.push({
             to: farmerPhone,
             templateName: 'farmer_new_booking',
             variables: [
               farmerProfile?.full_name || farm.host_name || 'Farmer',
               tourist.full_name || 'Guest',
-              visitTypeStr,
+              visitTypeStrFarmer,
               booking.check_in || 'Scheduled',
               booking.guests || 1,
               farm.name || 'Farm stay',
               booking.id,
             ],
             recipientRole: 'farmer',
+            previewText: fPreview,
           })
         }
 
         if (tourist.phone && tourist.whatsapp_opt_in) {
+          const tPreview = getNotificationText(touristLocale, 'notifications.whatsapp.touristBookingReceived', {
+            guestName: tourist.full_name || 'Guest',
+            bookingId: booking.id,
+            farmName: farm.name || 'Farm stay',
+            visitType: visitTypeStrTourist,
+            checkIn: booking.check_in || 'Scheduled',
+          })
+
           messagesToSend.push({
             to: tourist.phone,
             templateName: 'tourist_booking_received',
@@ -502,14 +612,24 @@ export async function notifyBookingStatus(
               tourist.full_name || 'Guest',
               booking.id,
               farm.name || 'Farm stay',
-              visitTypeStr,
+              visitTypeStrTourist,
               booking.check_in || 'Scheduled',
             ],
             recipientRole: 'tourist',
+            previewText: tPreview,
           })
         }
       } else if (eventType === 'confirmed') {
         if (tourist.phone && tourist.whatsapp_opt_in) {
+          const tPreview = getNotificationText(touristLocale, 'notifications.whatsapp.touristBookingConfirmed', {
+            guestName: tourist.full_name || 'Guest',
+            farmName: farm.name || 'Farm stay',
+            checkIn: booking.check_in || 'Scheduled',
+            hostName: farm.host_name || 'Your host',
+            hostPhone: farm.host_phone || 'Host contact',
+            directionsUrl,
+          })
+
           messagesToSend.push({
             to: tourist.phone,
             templateName: 'tourist_booking_confirmed',
@@ -522,10 +642,17 @@ export async function notifyBookingStatus(
               directionsUrl,
             ],
             recipientRole: 'tourist',
+            previewText: tPreview,
           })
         }
       } else if (eventType === 'declined') {
         if (tourist.phone && tourist.whatsapp_opt_in) {
+          const tPreview = getNotificationText(touristLocale, 'notifications.whatsapp.touristBookingDeclined', {
+            guestName: tourist.full_name || 'Guest',
+            farmName: farm.name || 'Farm stay',
+            checkIn: booking.check_in || 'Scheduled',
+          })
+
           messagesToSend.push({
             to: tourist.phone,
             templateName: 'tourist_booking_declined',
@@ -535,10 +662,19 @@ export async function notifyBookingStatus(
               booking.check_in || 'Scheduled',
             ],
             recipientRole: 'tourist',
+            previewText: tPreview,
           })
         }
       } else if (eventType === 'reminder') {
         if (tourist.phone && tourist.whatsapp_opt_in) {
+          const tPreview = getNotificationText(touristLocale, 'notifications.whatsapp.touristPreArrivalReminder', {
+            guestName: tourist.full_name || 'Guest',
+            farmName: farm.name || 'Farm stay',
+            checkIn: booking.check_in || 'Scheduled',
+            hostPhone: farm.host_phone || 'Host contact',
+            directionsUrl,
+          })
+
           messagesToSend.push({
             to: tourist.phone,
             templateName: 'tourist_pre_arrival_reminder',
@@ -550,6 +686,7 @@ export async function notifyBookingStatus(
               directionsUrl,
             ],
             recipientRole: 'tourist',
+            previewText: tPreview,
           })
         }
       }
@@ -562,6 +699,7 @@ export async function notifyBookingStatus(
           to: normalized,
           templateName: msg.templateName,
           variables: msg.variables,
+          previewTextOverride: msg.previewText,
         })
 
         let finalPreview = result.previewText

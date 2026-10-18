@@ -1,22 +1,22 @@
 import Link from 'next/link'
 import { ArrowRight, Sprout } from 'lucide-react'
+import { getTranslations } from 'next-intl/server'
 
-export function PromiseBanner() {
+export async function PromiseBanner() {
+  const t = await getTranslations('home.promise')
+
   return (
     <section className="promise">
       <div className="promise-icon">
         <Sprout size={24} />
       </div>
       <div>
-        <p className="section-kicker">A fairer way forward</p>
-        <h2>Every booking helps a farm thrive.</h2>
-        <p>
-          We keep it simple: no commissions hidden from farmers, no mass-produced experiences.
-          Just a direct connection and a little more good in the world.
-        </p>
+        <p className="section-kicker">{t('kicker')}</p>
+        <h2>{t('heading')}</h2>
+        <p>{t('paragraph')}</p>
       </div>
       <Link className="outline-btn" href="/dashboard">
-        List your farm <ArrowRight size={16} />
+        {t('listFarm')} <ArrowRight size={16} />
       </Link>
     </section>
   )

@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
+import { getTranslations } from 'next-intl/server'
 import { fetchServerProductsWithFarm, type ProductWithFarm } from '@/lib/supabase/queries-server'
 import { formatRupees } from '@/lib/money'
 
@@ -126,28 +127,37 @@ function selectThreeDistinctFarmProducts(products: ProductWithFarm[]): ProductWi
 }
 
 export async function ProduceSection() {
+  const t = await getTranslations('home.produce')
   const allProducts = await fetchServerProductsWithFarm(20)
   const products = selectThreeDistinctFarmProducts(allProducts)
+
+  const headingLines = t('heading').split('\n')
 
   return (
     <section className="section produce-section" id="produce" style={{ scrollMarginTop: '85px' }}>
       <div className="section-heading">
         <div>
-          <p className="section-kicker">Reserve and collect at the farm</p>
+          <p className="section-kicker">{t('kicker')}</p>
           <h2>
-            Farm-fresh produce,
-            <br />
-            waiting for your arrival.
+            {headingLines.map((line, idx) => (
+              <span key={idx} style={{ display: 'block' }}>
+                {line}
+              </span>
+            ))}
           </h2>
         </div>
         <p className="heading-note">
-          Reserve authentic artisanal products and seasonal harvests to collect at the farm. Pay directly to your host upon arrival.
+          {t('headingNote')}
         </p>
       </div>
 
       <div className="produce-grid-vertical">
         {products.map((item, idx) => {
           const category = getProductCategory(item.name)
+          const categoryKey = ['Fruit', 'Spice', 'Dairy', 'Tea', 'Grain', 'Sweet'].includes(category)
+            ? category
+            : 'Farm produce'
+          const translatedCategory = t(`categories.${categoryKey}`)
           const plate = getPlateColors(category, idx)
           const farmHref = `/farms/${item.farm.slug}`
           const imageUrl = getProduceImage(item.name, item.image)
@@ -193,7 +203,7 @@ export async function ProduceSection() {
                     pointerEvents: 'none',
                   }}
                 >
-                  {category}
+                  {translatedCategory}
                 </span>
               </div>
 
@@ -241,7 +251,7 @@ export async function ProduceSection() {
                     fontWeight: 600,
                   }}
                 >
-                  From {item.farm.name}, {item.farm.place}
+                  {t('fromFarm', { farm: item.farm.name || '', place: item.farm.place || '' })}
                 </p>
 
                 {/* Footer: Price on left, "View farm" text button on right */}
@@ -269,7 +279,7 @@ export async function ProduceSection() {
                       gap: '4px',
                     }}
                   >
-                    View farm <ArrowRight size={13} />
+                    {t('viewFarm')} <ArrowRight size={13} />
                   </span>
                 </div>
               </div>

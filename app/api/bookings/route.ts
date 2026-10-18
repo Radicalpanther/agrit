@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
 import { bookingSchema } from '@/lib/validations/booking'
 import { calculateBookingPrice, type PricingAddOn } from '@/lib/pricing'
 import { fetchServerFarmBySlug } from '@/lib/supabase/queries-server'
@@ -138,26 +139,44 @@ export async function POST(request: Request) {
       touristId = demoProfile?.id
     }
 
+    const cookieStore = await cookies()
+    const cookieLocale = cookieStore.get('NEXT_LOCALE')?.value
+    const locale: 'en' | 'hi' | 'mr' = (cookieLocale === 'hi' || cookieLocale === 'mr') ? cookieLocale : 'en'
+
     let bookingId = `BK-${Date.now().toString(36).toUpperCase()}`
 
     // Insert into database if farm has database uuid and tourist exists
     if (raw.id && touristId) {
-      const { data: bookingRow, error: bookingErr } = await supabase
+      const bookingPayload: Record<string, any> = {
+        farm_id: raw.id,
+        tourist_id: touristId,
+        visit_type: visitType,
+        check_in: checkInDate,
+        nights: pricing.nights,
+        guests: pricing.guests,
+        base_paise: pricing.discountedBasePaise,
+        discount_pct: pricing.discountPct,
+        total_paise: pricing.totalPaise,
+        status: 'pending',
+        locale,
+      }
+
+      let { data: bookingRow, error: bookingErr } = await supabase
         .from('bookings')
-        .insert({
-          farm_id: raw.id,
-          tourist_id: touristId,
-          visit_type: visitType,
-          check_in: checkInDate,
-          nights: pricing.nights,
-          guests: pricing.guests,
-          base_paise: pricing.discountedBasePaise,
-          discount_pct: pricing.discountPct,
-          total_paise: pricing.totalPaise,
-          status: 'pending',
-        })
+        .insert(bookingPayload)
         .select('id')
         .single()
+
+      if (bookingErr && (bookingErr.message?.includes('locale') || bookingErr.code === '42703')) {
+        delete bookingPayload.locale
+        const retry = await supabase
+          .from('bookings')
+          .insert(bookingPayload)
+          .select('id')
+          .single()
+        bookingRow = retry.data
+        bookingErr = retry.error
+      }
 
       if (!bookingErr && bookingRow?.id) {
         bookingId = bookingRow.id
@@ -190,16 +209,18 @@ export async function POST(request: Request) {
           .update(updatePayload)
           .eq('id', touristId)
 
-        // Trigger outbound WhatsApp notifications via notifyBookingStatus
+        // Trigger outbound WhatsApp/Telegram notifications via notifyBookingStatus
         const dispatches = await notifyBookingStatus(
           bookingId,
           'created',
           reservedProductsText,
+          locale,
         )
 
         // Find the tourist-facing notification for preview
         const touristNotif =
-          dispatches.find((d) => d.template === 'tourist_booking_received') ||
+          dispatches.find((d) => d.template === 'tourist_booking_received' || d.template === 'telegram_tourist_booking_received') ||
+          dispatches[dispatches.length - 1] ||
           dispatches[0] ||
           null
 

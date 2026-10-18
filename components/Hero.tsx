@@ -1,26 +1,29 @@
 import Link from 'next/link'
 import { ArrowRight, CircleHelp } from 'lucide-react'
+import { getTranslations } from 'next-intl/server'
 
-export function Hero() {
+export async function Hero() {
+  const t = await getTranslations('home.hero')
+  const headlineLines = t('headline').split('\n')
+
   return (
     <section className="hero">
       <div className="hero-image" />
       <div className="hero-content">
         <h1>
-          Come for the <em>land.</em>
-          <br />
-          Stay for the stories.
+          {headlineLines.map((line, idx) => (
+            <span key={idx} style={{ display: 'block' }}>
+              {line}
+            </span>
+          ))}
         </h1>
-        <p>
-          Discover working farms, seasonal traditions and warm village stays—directly from the
-          people who call rural India home.
-        </p>
+        <p>{t('subhead')}</p>
         <div className="hero-ctas">
           <Link className="primary-btn" href="/explore">
-            Explore farm stays <ArrowRight size={17} />
+            {t('exploreStays')} <ArrowRight size={17} />
           </Link>
           <Link className="text-btn" href="/#story">
-            How AgriTrails works <CircleHelp size={16} />
+            {t('howItWorks')} <CircleHelp size={16} />
           </Link>
         </div>
       </div>

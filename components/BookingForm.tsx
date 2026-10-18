@@ -13,7 +13,11 @@ import {
   Star,
   Sun,
   Users,
+  Copy,
+  Check,
+  Loader2,
 } from 'lucide-react'
+import { useTranslations, useLocale } from 'next-intl'
 import type { Farm, Produce } from '@/lib/mock-data'
 import { formatRupees } from '@/lib/money'
 import { calculateBookingPrice } from '@/lib/pricing'
@@ -73,6 +77,10 @@ export interface BookingFormProps {
 }
 
 export function BookingForm({ farm, produce }: BookingFormProps) {
+  const t = useTranslations('booking')
+  const tFarm = useTranslations('farmDetail')
+  const locale = useLocale()
+
   const raw = farm.raw || {}
   const dayRate = raw.day_visit_price_paise || farm.pricePaise
   const overnightRate = farm.pricePaise
@@ -104,6 +112,15 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
     status: 'sent' | 'failed' | 'mock'
     previewText: string
   } | null>(null)
+  const [copiedRef, setCopiedRef] = useState(false)
+
+  const handleCopyRef = () => {
+    if (!bookingId) return
+    navigator.clipboard.writeText(bookingId).then(() => {
+      setCopiedRef(true)
+      setTimeout(() => setCopiedRef(false), 2000)
+    })
+  }
 
   // Poll status every 20 seconds while on the confirmation view
   useEffect(() => {
@@ -175,12 +192,12 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
     setErrorMsg(null)
 
     if (!phone || phone.trim().length < 8) {
-      setErrorMsg('Please enter a valid phone number.')
+      setErrorMsg(t('errors.invalidPhone'))
       return
     }
 
     if (!checkInDate) {
-      setErrorMsg('Please select a date for your visit.')
+      setErrorMsg(t('errors.selectDate'))
       return
     }
 
@@ -214,7 +231,7 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
       const data = await response.json()
 
       if (!response.ok) {
-        setErrorMsg(data.error || 'Failed to submit booking request.')
+        setErrorMsg(data.error || t('errors.submitFailed'))
         return
       }
 
@@ -234,7 +251,7 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
       }
       setSent(true)
     } catch {
-      setErrorMsg('An unexpected error occurred while communicating with the server.')
+      setErrorMsg(t('errors.serverError'))
     } finally {
       setLoading(false)
     }
@@ -245,135 +262,134 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
       {/* Two-column booking layout: Left keeps farm info; Right shows form or short confirmation */}
       <div className={`booking-layout ${sent ? 'booking-confirmed' : ''}`} style={sent ? { position: 'static' } : undefined}>
         {/* Left column: Farm photo, title, verified status, description and amenities */}
-        <div className="booking-left-column">
+        <div className={`booking-left-column ${sent ? 'order-2 lg:order-1' : 'order-1'} min-w-0 w-full`}>
           <div className="booking-photo">
             <FarmImage src={farm.image} alt={farm.name} />
           </div>
           <div className="booking-copy">
-            <p className="section-kicker">Your rural reset</p>
+            <p className="section-kicker">{tFarm('ruralReset')}</p>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', marginBottom: '8px' }}>
-              <h1 style={{ margin: 0 }}>{farm.name}</h1>
+              <h1 className="text-[clamp(22px,5vw,40px)] font-bold text-[var(--ink)] m-0 leading-tight break-words [overflow-wrap:anywhere]">{farm.name}</h1>
               {farm.verified && <VerifiedBadge size="md" />}
             </div>
             <p className="muted">
               <MapPin size={14} /> {farm.place} ·{' '}
               <Star size={14} fill="currentColor" /> {farm.rating} (
-              {farm.reviews} reviews)
+              {tFarm('reviewsCount', { count: farm.reviews })})
             </p>
-            <p>{farm.description}</p>
+            <p className="break-words [overflow-wrap:anywhere]">{farm.description}</p>
             <div className="amenities">
               <span>
-                <Leaf size={16} /> Organic meals
+                <Leaf size={16} /> {tFarm('amenities.organicMeals')}
               </span>
               <span>
-                <Users size={16} /> Sleeps {farm.sleeps}
+                <Users size={16} /> {tFarm('amenities.sleeps', { count: farm.sleeps })}
               </span>
               <span>
-                <Clock3 size={16} /> Flexible check-in
+                <Clock3 size={16} /> {tFarm('amenities.flexibleCheckIn')}
               </span>
               {raw.allows_day_visit && (
                 <span>
-                  <Sun size={16} /> Day visits allowed
+                  <Sun size={16} /> {tFarm('amenities.dayVisitsAllowed')}
                 </span>
               )}
             </div>
           </div>
         </div>
 
-        {/* Right column: Form or Short "Request received by host" message */}
-        {sent ? (
-          <div
-            className="booking-form booking-confirmed"
-            style={{
-              position: 'static',
-              boxSizing: 'border-box',
-              width: '100%',
-              maxWidth: '100%',
-            }}
-          >
-            <div className="success-state" style={{ textAlign: 'center', padding: '36px 20px' }}>
-              <div
-                style={{
-                  color: 'var(--forest)',
-                  margin: '0 auto 16px',
-                  width: '52px',
-                  height: '52px',
-                  background: 'var(--mint)',
-                  borderRadius: '50%',
-                  display: 'grid',
-                  placeItems: 'center',
-                }}
-              >
-                <ShieldCheck size={28} />
-              </div>
-              <h3 style={{ margin: '0 0 8px', fontSize: '18px', color: 'var(--ink)' }}>
-                Request received by host.
-              </h3>
-              <p
-                style={{
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  textTransform: 'uppercase',
-                  color: 'var(--forest)',
-                  letterSpacing: '1px',
-                  margin: '0 0 10px',
-                }}
-              >
-                Booking Reference: {bookingId}
-              </p>
+        {/* Right column: Form or Confirmation card */}
+        <div className={`booking-right-column ${sent ? 'order-1 lg:order-2' : 'order-2'} min-w-0 w-full`}>
+          {sent ? (
+            <div
+              className="booking-form booking-confirmed w-full max-w-full bg-white border border-[var(--line)] p-5 sm:p-7 shadow-xs box-border"
+            >
+              <div className="flex flex-col items-center gap-3 sm:gap-4 text-center w-full max-w-full">
+                {/* 1. Icon */}
+                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-[var(--mint)] text-[var(--forest)] flex items-center justify-center shrink-0">
+                  <ShieldCheck className="w-6 h-6 sm:w-7 sm:h-7" />
+                </div>
 
-              {/* Live status badge with 20-second polling */}
-              <div style={{ margin: '0 0 16px' }}>
-                <span
-                  style={{
-                    display: 'inline-block',
-                    padding: '5px 12px',
-                    fontSize: '11px',
-                    fontWeight: 800,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.8px',
-                    background:
-                      bookingStatus === 'confirmed'
-                        ? '#e4f0e1'
-                        : bookingStatus === 'declined'
-                        ? '#f8d7da'
-                        : '#fff1dd',
-                    color:
-                      bookingStatus === 'confirmed'
-                        ? 'var(--forest)'
-                        : bookingStatus === 'declined'
-                        ? '#842029'
-                        : '#a86f27',
-                    border: '1px solid var(--line)',
-                  }}
-                >
-                  Status: {bookingStatus.charAt(0).toUpperCase() + bookingStatus.slice(1)}
-                </span>
-                <span style={{ display: 'block', fontSize: '10.5px', color: 'var(--muted)', marginTop: '4px' }}>
-                  Auto-refreshing live status (updates within 20s)
-                </span>
-              </div>
+                {/* 2. Heading */}
+                <h3 className="text-lg sm:text-xl font-bold text-[var(--ink)] m-0 leading-tight">
+                  {t('confirmation.requestReceived')}
+                </h3>
 
-              <p
-                style={{
-                  lineHeight: 1.6,
-                  color: '#53685d',
-                  fontSize: '13px',
-                  margin: 0,
-                }}
-              >
-                Your request for a {visitType === 'day' ? 'Day visit' : 'Overnight stay'} ({guests} guest{guests > 1 ? 's' : ''}) has been submitted to your host at {farm.name}.
-                {phone ? ` Your host will contact you directly at ${phone}.` : ''}
-                {' '}No payment is required today.
-              </p>
+                {/* 3. Booking Reference */}
+                <div className="flex flex-col items-center gap-1 w-full max-w-full">
+                  <span className="text-[10.5px] uppercase tracking-wider font-semibold text-[var(--muted)]">
+                    {t('confirmation.bookingRefLabel')}
+                  </span>
+                  <div className="flex items-center justify-center gap-2 max-w-full flex-wrap">
+                    <code className="font-mono text-xs sm:text-sm font-bold text-[var(--forest)] bg-[var(--cream)] px-2.5 py-1 rounded-xs border border-[var(--line)] break-all [overflow-wrap:anywhere] max-w-full">
+                      {bookingId}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={handleCopyRef}
+                      aria-label={t('confirmation.copyRef')}
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--muted)] hover:text-[var(--forest)] bg-white border border-[var(--line)] px-2.5 py-1 min-h-[36px] transition-colors shrink-0 cursor-pointer"
+                    >
+                      {copiedRef ? <Check className="w-3.5 h-3.5 text-[var(--forest)]" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedRef ? t('confirmation.copiedRef') : t('confirmation.copyRef')}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* 4. Status Pill */}
+                <div className="flex flex-col items-center gap-1.5 w-full">
+                  <span
+                    className={`inline-flex items-center gap-1.5 px-3 py-1 text-[11px] font-extrabold uppercase tracking-wider border rounded-xs ${
+                      bookingStatus === 'confirmed'
+                        ? 'bg-[#e4f0e1] text-[var(--forest)] border-[#c4dec0]'
+                        : bookingStatus === 'declined'
+                        ? 'bg-[#f8d7da] text-[#842029] border-[#f5c2c7]'
+                        : 'bg-[#fff1dd] text-[#a86f27] border-[#ffe5c4]'
+                    }`}
+                  >
+                    <span
+                      className={`w-2 h-2 rounded-full shrink-0 ${
+                        bookingStatus === 'confirmed'
+                          ? 'bg-[var(--forest)]'
+                          : bookingStatus === 'declined'
+                          ? 'bg-[#842029]'
+                          : 'bg-[#d9984a]'
+                      }`}
+                    />
+                    {t('confirmation.statusLabel', {
+                      status:
+                        bookingStatus === 'confirmed'
+                          ? t('statuses.confirmed')
+                          : bookingStatus === 'declined'
+                          ? t('statuses.declined')
+                          : t('statuses.pending'),
+                    })}
+                  </span>
+
+                  {/* 5. Auto-refresh note with small spinner icon */}
+                  <span className="inline-flex items-center gap-1.5 text-[11px] text-[var(--muted)]">
+                    <Loader2 className="w-3 h-3 animate-spin text-[var(--muted)] shrink-0" />
+                    {t('confirmation.autoRefresh')}
+                  </span>
+                </div>
+
+                {/* 6. Message Paragraph */}
+                <p className="text-xs sm:text-[13px] text-[#53685d] leading-relaxed max-w-md m-0">
+                  {t('confirmation.requestSummary', {
+                    visitType: visitType === 'day' ? t('visitTypes.day') : t('visitTypes.overnight'),
+                    guests,
+                    farmName: farm.name,
+                  })}
+                  {phone ? ` ${t('confirmation.hostContactNote', { phone })}` : ''}
+                  {' '}{t('confirmation.noPaymentRequired')}
+                </p>
+              </div>
             </div>
-          </div>
-        ) : (
+          ) : (
           <form className="booking-form" onSubmit={handleSubmit}>
             <div className="form-header">
               <div>
-                <p className="section-kicker">Reserve your stay</p>
-                <h2>Make it a visit.</h2>
+                <p className="section-kicker">{t('reserveStay')}</p>
+                <h2>{t('makeItAVisit')}</h2>
                 {pricing.discountPct > 0 && (
                   <span
                     style={{
@@ -386,7 +402,7 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
                       marginTop: '4px',
                     }}
                   >
-                    {pricing.packageName} ({pricing.discountPct}% off)
+                    {t('packageDiscount', { packageName: pricing.packageName, pct: pricing.discountPct })}
                   </span>
                 )}
               </div>
@@ -401,22 +417,22 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
                         textDecoration: 'line-through',
                       }}
                     >
-                      {formatRupees(activeRate)}
+                      {formatRupees(activeRate, locale)}
                     </del>
                     <strong style={{ fontSize: '18px', color: 'var(--ink)' }}>
-                      {formatRupees(pricing.effectiveRatePerGuestPaise)}
+                      {formatRupees(pricing.effectiveRatePerGuestPaise, locale)}
                     </strong>
                     <small style={{ display: 'block', fontSize: '10px', color: 'var(--muted)' }}>
-                      / guest {visitType === 'overnight' ? '/ night' : ''}
+                      {t('perGuest')} {visitType === 'overnight' ? t('perNight') : ''}
                     </small>
                   </div>
                 ) : (
                   <div>
                     <strong style={{ fontSize: '18px', color: 'var(--ink)' }}>
-                      {formatRupees(activeRate)}
+                      {formatRupees(activeRate, locale)}
                     </strong>
                     <small style={{ display: 'block', fontSize: '10px', color: 'var(--muted)' }}>
-                      / guest {visitType === 'overnight' ? '/ night' : ''}
+                      {t('perGuest')} {visitType === 'overnight' ? t('perNight') : ''}
                     </small>
                   </div>
                 )}
@@ -465,7 +481,7 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
                   cursor: 'pointer',
                 }}
               >
-                <Sun size={15} /> Day visit
+                <Sun size={15} /> {t('dayVisit')}
               </button>
               <button
                 type="button"
@@ -485,45 +501,45 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
                   cursor: 'pointer',
                 }}
               >
-                Overnight stay
+                {t('overnightStay')}
               </button>
             </div>
 
             <div className="form-grid">
               <label>
-                Your name
+                {t('yourName')}
                 <input
                   required
                   type="text"
-                  placeholder="e.g. Ramesh Deshmukh"
+                  placeholder={t('namePlaceholder')}
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                 />
               </label>
 
               <label>
-                Email address
+                {t('emailAddress')}
                 <input
                   required
                   type="email"
-                  placeholder="you@example.com"
+                  placeholder={t('emailPlaceholder')}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
               </label>
 
               <label>
-                Mobile number (optional)
+                {t('mobileNumber')}
                 <input
                   type="tel"
-                  placeholder="+91 98765 43210"
+                  placeholder={t('mobilePlaceholder')}
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                 />
               </label>
 
               <label>
-                Check-in date
+                {t('checkInDate')}
                 <input
                   required
                   type="date"
@@ -534,7 +550,7 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
 
               {visitType === 'day' ? (
                 <label>
-                  Arrival time
+                  {t('arrivalTime')}
                   <input
                     type="time"
                     value={arrivalTime}
@@ -543,36 +559,36 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
                 </label>
               ) : (
                 <label>
-                  Nights
+                  {t('nights')}
                   <select
                     value={nights}
                     onChange={(e) => setNights(Number(e.target.value))}
                   >
-                    <option value={1}>1 night</option>
-                    <option value={2}>2 nights</option>
-                    <option value={3}>3 nights</option>
-                    <option value={4}>4 nights</option>
-                    <option value={5}>5 nights</option>
-                    <option value={7}>7 nights</option>
+                    <option value={1}>{t('nightsCount', { count: 1 })}</option>
+                    <option value={2}>{t('nightsCount', { count: 2 })}</option>
+                    <option value={3}>{t('nightsCount', { count: 3 })}</option>
+                    <option value={4}>{t('nightsCount', { count: 4 })}</option>
+                    <option value={5}>{t('nightsCount', { count: 5 })}</option>
+                    <option value={7}>{t('nightsCount', { count: 7 })}</option>
                   </select>
                 </label>
               )}
 
               <label>
-                Guests
+                {t('guests')}
                 <select
                   value={guests}
                   onChange={(e) => setGuests(Number(e.target.value))}
                 >
-                  <option value={1}>1 guest</option>
-                  <option value={2}>2 guests</option>
-                  <option value={3}>3 guests</option>
-                  <option value={4}>4 guests (Family Package 10% off)</option>
-                  <option value={6}>6 guests (Family Package 10% off)</option>
-                  <option value={8}>8 guests (Family Package 10% off)</option>
-                  <option value={10}>10 guests (Group Package 20% off)</option>
-                  <option value={12}>12 guests (Group Package 20% off)</option>
-                  <option value={15}>15 guests (Group Package 20% off)</option>
+                  <option value={1}>{t('guestsCount', { count: 1 })}</option>
+                  <option value={2}>{t('guestsCount', { count: 2 })}</option>
+                  <option value={3}>{t('guestsCount', { count: 3 })}</option>
+                  <option value={4}>{t('guestsCountWithPkg', { count: 4, pkg: t('familyPkg') })}</option>
+                  <option value={6}>{t('guestsCountWithPkg', { count: 6, pkg: t('familyPkg') })}</option>
+                  <option value={8}>{t('guestsCountWithPkg', { count: 8, pkg: t('familyPkg') })}</option>
+                  <option value={10}>{t('guestsCountWithPkg', { count: 10, pkg: t('groupPkg') })}</option>
+                  <option value={12}>{t('guestsCountWithPkg', { count: 12, pkg: t('groupPkg') })}</option>
+                  <option value={15}>{t('guestsCountWithPkg', { count: 15, pkg: t('groupPkg') })}</option>
                 </select>
               </label>
             </div>
@@ -582,10 +598,10 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
               <div className="add-ons" style={{ marginTop: '24px', paddingTop: '18px', borderTop: '1px solid var(--line)' }}>
                 <div className="add-on-heading" style={{ marginBottom: '14px' }}>
                   <div>
-                    <p className="section-kicker" style={{ margin: '0 0 4px' }}>Reserve and collect at the farm</p>
-                    <h3 style={{ margin: 0, fontSize: '15px' }}>Optional farm products</h3>
+                    <p className="section-kicker" style={{ margin: '0 0 4px' }}>{t('productsKicker')}</p>
+                    <h3 style={{ margin: 0, fontSize: '15px' }}>{t('optionalProducts')}</h3>
                   </div>
-                  <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Pay at the farm</span>
+                  <span style={{ fontSize: '11px', color: 'var(--muted)' }}>{t('payAtFarm')}</span>
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -641,7 +657,7 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
                           </label>
 
                           <div style={{ fontWeight: 700, fontSize: '13px', color: 'var(--ink)', whiteSpace: 'nowrap' }}>
-                            {formatRupees(item.pricePaise)}
+                            {formatRupees(item.pricePaise, locale)}
                           </div>
                         </div>
 
@@ -660,7 +676,7 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
                             <div className="booking-produce-stepper">
                               <button
                                 type="button"
-                                aria-label="Decrease quantity"
+                                aria-label={t('decreaseQty')}
                                 onClick={() => updateProductQty(item.id, -1, maxStock)}
                                 disabled={qty <= 1}
                               >
@@ -669,7 +685,7 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
                               <span>{qty}</span>
                               <button
                                 type="button"
-                                aria-label="Increase quantity"
+                                aria-label={t('increaseQty')}
                                 onClick={() => updateProductQty(item.id, 1, maxStock)}
                                 disabled={qty >= maxStock}
                               >
@@ -678,7 +694,10 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
                             </div>
 
                             <div style={{ fontSize: '11.5px', color: 'var(--muted)' }}>
-                              Line total: <strong style={{ color: 'var(--ink)', fontSize: '12.5px' }}>{formatRupees(lineTotal)}</strong>
+                              {t('lineTotal')}{' '}
+                              <strong style={{ color: 'var(--ink)', fontSize: '12.5px' }}>
+                                {formatRupees(lineTotal, locale)}
+                              </strong>
                             </div>
                           </div>
                         )}
@@ -705,7 +724,7 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
                         gap: '4px',
                       }}
                     >
-                      {showAllProduce ? 'Show fewer products' : `Show more products (${produce.length - 6} more)`}
+                      {showAllProduce ? t('showFewer') : t('showMore', { count: produce.length - 6 })}
                     </button>
                   </div>
                 )}
@@ -726,10 +745,10 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--muted)' }}>
                 <span>
-                  {visitType === 'day' ? 'Day visit' : 'Overnight'} ({pricing.guests} guests
-                  {visitType === 'overnight' ? ` × ${pricing.nights} night${pricing.nights > 1 ? 's' : ''}` : ''})
+                  {visitType === 'day' ? t('visitTypes.day') : t('visitTypes.overnight')} ({t('guestsCount', { count: pricing.guests })}
+                  {visitType === 'overnight' ? ` × ${t('nightsCount', { count: pricing.nights })}` : ''})
                 </span>
-                <span>{formatRupees(pricing.subtotalPaise)}</span>
+                <span>{formatRupees(pricing.subtotalPaise, locale)}</span>
               </div>
 
               {pricing.discountPct > 0 && (
@@ -742,9 +761,9 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
                   }}
                 >
                   <span>
-                    {pricing.packageName} ({pricing.discountPct}% off)
+                    {t('packageDiscount', { packageName: pricing.packageName, pct: pricing.discountPct })}
                   </span>
-                  <span>-{formatRupees(pricing.discountPaise)}</span>
+                  <span>-{formatRupees(pricing.discountPaise, locale)}</span>
                 </div>
               )}
 
@@ -759,8 +778,8 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
                   marginTop: '2px',
                 }}
               >
-                <span>Stay total</span>
-                <span>{formatRupees(pricing.discountedBasePaise)}</span>
+                <span>{t('stayTotal')}</span>
+                <span>{formatRupees(pricing.discountedBasePaise, locale)}</span>
               </div>
 
               {pricing.addOnsTotalPaise > 0 && (
@@ -775,8 +794,8 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
                     marginTop: '2px',
                   }}
                 >
-                  <span>Products to collect at the farm (pay there)</span>
-                  <span>+{formatRupees(pricing.addOnsTotalPaise)}</span>
+                  <span>{t('productsSummary')}</span>
+                  <span>+{formatRupees(pricing.addOnsTotalPaise, locale)}</span>
                 </div>
               )}
 
@@ -792,8 +811,8 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
                   color: 'var(--ink)',
                 }}
               >
-                <span>Total</span>
-                <span>{formatRupees(pricing.totalPaise)}</span>
+                <span>{t('total')}</span>
+                <span>{formatRupees(pricing.totalPaise, locale)}</span>
               </div>
 
               <EcoScore
@@ -810,15 +829,16 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
               type="submit"
               disabled={loading}
             >
-              {loading ? 'Submitting request...' : 'Request to book'}{' '}
+              {loading ? t('submitting') : t('requestToBook')}{' '}
               <ArrowRight size={17} />
             </button>
 
             <p className="form-note">
-              No payment today · Free cancellation up to 48 hours before arrival
+              {t('formNote')}
             </p>
           </form>
         )}
+        </div>
       </div>
 
       {/* Confirmation content rendered as a normal full-width section BELOW the two-column booking layout */}
@@ -851,7 +871,7 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
               }}
             >
               <div style={{ fontWeight: 700, fontSize: '13px', color: 'var(--forest)', marginBottom: '8px' }}>
-                Reserved products to collect at the farm ({selectedAddOns.length}):
+                {t('confirmation.reservedProductsHeading', { count: selectedAddOns.length })}
               </div>
               <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '13px', color: '#53685d', lineHeight: 1.65 }}>
                 {produce
@@ -860,7 +880,7 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
                     const qty = productQuantities[p.id] || 1
                     return (
                       <li key={p.id}>
-                        <strong>{p.name} x {qty}</strong> · {formatRupees(p.pricePaise * qty)} (Pay at the farm upon pickup)
+                        <strong>{p.name} x {qty}</strong> · {formatRupees(p.pricePaise * qty, locale)} ({t('confirmation.payAtFarmUponPickup')})
                       </li>
                     )
                   })}
@@ -914,7 +934,7 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
                     color: 'var(--forest)',
                   }}
                 >
-                  Message preview
+                  {t('notification.previewTitle')}
                 </span>
                 <span
                   style={{
@@ -927,13 +947,13 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
                   }}
                 >
                   {notificationPreview.status === 'mock'
-                    ? 'Mock mode'
-                    : 'Sent via Telegram'}
+                    ? t('notification.mockMode')
+                    : t('notification.sentViaTelegram')}
                 </span>
               </div>
 
               <p style={{ fontSize: '12px', color: 'var(--muted)', margin: '0 0 10px', wordBreak: 'break-word' }}>
-                Channel: <strong>{notificationPreview.status === 'mock' ? 'Mock (No Telegram Token configured)' : 'Telegram'}</strong> · Event: <code>{notificationPreview.template || 'booking_created'}</code>
+                {t('notification.channel')} <strong>{notificationPreview.status === 'mock' ? t('notification.mockChannel') : t('notification.telegramChannel')}</strong> · {t('notification.event')} <code>{notificationPreview.template || 'booking_created'}</code>
               </p>
 
               <div
@@ -952,7 +972,7 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
               </div>
 
               <p style={{ fontSize: '11px', color: 'var(--muted)', margin: '10px 0 0' }}>
-                Outbound notification logged to notifications table.
+                {t('notification.loggedNote')}
               </p>
             </div>
           )}
@@ -983,13 +1003,12 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
             guests={guests}
           />
 
-          <div style={{ marginTop: '24px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+          <div className="mt-6 flex gap-3 flex-wrap w-full">
             <Link
-              className="primary-btn"
+              className="primary-btn min-h-[44px] px-6 py-3 inline-flex items-center justify-center text-xs sm:text-sm font-bold no-underline w-full sm:w-auto"
               href="/explore"
-              style={{ textDecoration: 'none', display: 'inline-flex', padding: '12px 24px', fontSize: '13px' }}
             >
-              Explore more stays
+              {t('confirmation.exploreMoreStays')}
             </Link>
           </div>
         </section>

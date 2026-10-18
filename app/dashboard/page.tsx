@@ -25,9 +25,31 @@ import {
   Image as ImageIcon,
 } from 'lucide-react'
 import { formatRupees } from '@/lib/money'
-import { LocationPicker } from '@/components/LocationPicker'
 import { TelegramConnect } from '@/components/TelegramConnect'
+import { useTranslations, useLocale } from 'next-intl'
 import dynamic from 'next/dynamic'
+
+const LocationPicker = dynamic(
+  () => import('@/components/LocationPicker').then((m) => m.LocationPicker),
+  {
+    ssr: false,
+    loading: () => (
+      <div
+        style={{
+          height: '240px',
+          background: '#eef2ec',
+          border: '1px solid var(--line)',
+          display: 'grid',
+          placeItems: 'center',
+          color: 'var(--muted)',
+          fontSize: '12px',
+        }}
+      >
+        Loading map...
+      </div>
+    ),
+  },
+)
 
 const TripMap = dynamic(
   () => import('@/components/TripMap').then((m) => m.TripMap),
@@ -68,6 +90,31 @@ interface FarmerData {
 }
 
 export default function DashboardPage() {
+  const t = useTranslations('dashboard')
+  const tBooking = useTranslations('booking')
+  const locale = useLocale()
+
+  const getStatusLabel = (status: string) => {
+    const map: Record<string, string> = {
+      pending: tBooking('statuses.pending'),
+      confirmed: tBooking('statuses.confirmed'),
+      declined: tBooking('statuses.declined'),
+      completed: tBooking('statuses.completed'),
+      cancelled: tBooking('statuses.cancelled'),
+    }
+    return map[status.toLowerCase()] || status
+  }
+
+  const getReservationStatusLabel = (status: string) => {
+    const map: Record<string, string> = {
+      reserved: t('inventory.reservationStatuses.reserved'),
+      ready: t('inventory.reservationStatuses.ready'),
+      collected: t('inventory.reservationStatuses.collected'),
+      cancelled: t('inventory.reservationStatuses.cancelled'),
+    }
+    return map[status.toLowerCase()] || status
+  }
+
   const [data, setData] = useState<FarmerData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -439,7 +486,7 @@ export default function DashboardPage() {
 
   // Delete listing
   const handleDeleteFarm = async (farmId: string, farmName: string) => {
-    if (!confirm(`Are you sure you want to delete "${farmName}"? This cannot be undone.`)) {
+    if (!confirm(t('listings.confirmDelete', { name: farmName }))) {
       return
     }
     try {
@@ -553,8 +600,8 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <section className="dashboard-page" style={{ textAlign: 'center', padding: '100px 20px' }}>
-        <p className="section-kicker">Farmer portal</p>
-        <h2>Loading your farm dashboard...</h2>
+        <p className="section-kicker">{t('farmerPortal')}</p>
+        <h2>{t('loading')}</h2>
       </section>
     )
   }
@@ -562,8 +609,8 @@ export default function DashboardPage() {
   if (viewMode !== 'tourist' && error && !data) {
     return (
       <section className="dashboard-page" style={{ textAlign: 'center', padding: '80px 20px' }}>
-        <p className="section-kicker" style={{ color: '#b33939' }}>Portal Error</p>
-        <h2>Unable to load dashboard</h2>
+        <p className="section-kicker" style={{ color: '#b33939' }}>{t('portalError')}</p>
+        <h2>{t('unableToLoad')}</h2>
         <p className="muted" style={{ maxWidth: '420px', margin: '10px auto 24px', lineHeight: 1.6 }}>
           {error}
         </p>
@@ -577,7 +624,7 @@ export default function DashboardPage() {
           className="outline-btn"
           style={{ padding: '10px 20px', fontSize: '12px' }}
         >
-          Retry connection
+          {t('retryConnection')}
         </button>
       </section>
     )
@@ -608,33 +655,31 @@ export default function DashboardPage() {
         <div>
           <div className="dashboard-head" style={{ marginBottom: '28px' }}>
             <div>
-              <p className="section-kicker">Tourist portal</p>
-              <h1>My Rural Stays &amp; Travel Safety Cards</h1>
-              <p>
-                Offline directions, host contact details, and emergency travel cards for your farm reservations.
-              </p>
+              <p className="section-kicker">{t('tourist.portalKicker')}</p>
+              <h1>{t('tourist.heading')}</h1>
+              <p>{t('tourist.subhead')}</p>
             </div>
             <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
               <Link className="primary-btn" href="/explore" style={{ textDecoration: 'none' }}>
-                Explore more stays
+                {t('tourist.exploreMore')}
               </Link>
             </div>
           </div>
 
           {touristLoading ? (
             <div style={{ textAlign: 'center', padding: '60px 20px', background: '#fff', border: '1px solid var(--line)' }}>
-              <p className="muted">Loading your bookings and travel safety cards...</p>
+              <p className="muted">{t('tourist.loadingBookings')}</p>
             </div>
           ) : !touristData?.bookings || touristData.bookings.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '60px 20px', background: '#fff', border: '1px solid var(--line)' }}>
               <p style={{ fontSize: '15px', color: 'var(--ink)', marginBottom: '8px' }}>
-                No active bookings found.
+                {t('tourist.emptyHeading')}
               </p>
               <p className="muted" style={{ marginBottom: '20px' }}>
-                Discover rural escapes and traditional farm stays across India.
+                {t('tourist.emptySubhead')}
               </p>
               <Link className="primary-btn" href="/explore" style={{ textDecoration: 'none' }}>
-                Browse stays
+                {t('tourist.browseStays')}
               </Link>
             </div>
           ) : (
@@ -672,10 +717,10 @@ export default function DashboardPage() {
                             className={`booking-status ${isPending ? 'pending' : ''}`}
                             style={{ textTransform: 'uppercase', fontSize: '10px', fontWeight: 800 }}
                           >
-                            {booking.status}
+                            {getStatusLabel(booking.status)}
                           </span>
                           <span style={{ fontSize: '11px', color: 'var(--muted)', letterSpacing: '0.5px' }}>
-                            REF: {booking.id}
+                            {t('tourist.ref', { id: booking.id })}
                           </span>
                         </div>
                         <h2 style={{ fontSize: '24px', letterSpacing: '-0.5px', margin: '4px 0' }}>
@@ -688,14 +733,20 @@ export default function DashboardPage() {
 
                       <div style={{ textAlign: 'right' }}>
                         <strong style={{ fontSize: '20px', color: 'var(--ink)' }}>
-                          {formatRupees(booking.total_paise)}
+                          {formatRupees(booking.total_paise, locale)}
                         </strong>
                         <small style={{ display: 'block', fontSize: '11px', color: 'var(--muted)', marginTop: '2px' }}>
-                          {booking.visit_type === 'day' ? 'Day visit' : `${booking.nights} night(s)`} · {booking.guests} guest{booking.guests > 1 ? 's' : ''}
+                          {booking.visit_type === 'day' ? t('bookings.dayVisit') : t('bookings.nightCount', { count: booking.nights })} · {t('bookings.guestCount', { count: booking.guests })}
                         </small>
                         {booking.check_in && (
                           <small style={{ display: 'block', fontSize: '11px', color: 'var(--forest)', fontWeight: 700, marginTop: '2px' }}>
-                            Arrival: {booking.check_in}
+                            {t('tourist.arrival', {
+                              date: new Date(booking.check_in).toLocaleDateString(locale, {
+                                day: 'numeric',
+                                month: 'short',
+                                year: 'numeric',
+                              }),
+                            })}
                           </small>
                         )}
                       </div>
@@ -711,12 +762,12 @@ export default function DashboardPage() {
                         }}
                       >
                         <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--forest)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
-                          Reserved farm products for pickup ({reservations.length}):
+                          {t('tourist.reservedProducts', { count: reservations.length })}
                         </span>
                         <ul style={{ margin: '6px 0 0', paddingLeft: '20px', fontSize: '12px', color: '#53685d' }}>
                           {reservations.map((res: any) => (
                             <li key={res.id}>
-                              <strong>{res.product?.name}</strong> × {res.qty} ({res.product?.unit}) — {formatRupees((res.product?.price_paise || 0) * res.qty)} · Status: <em>{res.status}</em>
+                              <strong>{res.product?.name}</strong> × {res.qty} ({res.product?.unit}) — {formatRupees((res.product?.price_paise || 0) * res.qty, locale)} · {t('tourist.status', { status: getReservationStatusLabel(res.status) })}
                             </li>
                           ))}
                         </ul>
@@ -747,7 +798,7 @@ export default function DashboardPage() {
                         }}
                       >
                         <Compass size={14} />
-                        <span>Travel map & directions</span>
+                        <span>{t('tourist.travelMapDirections')}</span>
                         <span
                           style={{
                             fontSize: '11px',
@@ -756,7 +807,7 @@ export default function DashboardPage() {
                             marginLeft: 'auto',
                           }}
                         >
-                          (Tap to view route)
+                          {t('tourist.tapToViewRoute')}
                         </span>
                       </summary>
                       <div style={{ padding: '14px' }}>
@@ -780,11 +831,9 @@ export default function DashboardPage() {
           {/* Head */}
           <div className="dashboard-head">
             <div>
-              <p className="section-kicker">Farmer portal</p>
-              <h1>Good morning, {farmerName}.</h1>
-              <p>
-                Real-time management for your farm stays, bookings, and harvest pantry.
-              </p>
+              <p className="section-kicker">{t('farmerPortal')}</p>
+              <h1>{t('greeting', { name: farmerName })}</h1>
+              <p>{t('subtitle')}</p>
             </div>
             <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
               <TelegramConnect compact showDisconnect role="farmer" />
@@ -793,7 +842,7 @@ export default function DashboardPage() {
                 type="button"
                 onClick={openCreateListing}
               >
-                <span>+</span> Add a new listing
+                <span>+</span> {t('addNewListing')}
               </button>
             </div>
           </div>
@@ -806,9 +855,9 @@ export default function DashboardPage() {
           </span>
           <span>
             <strong>{stats.upcomingGuests}</strong>
-            <small>upcoming guests</small>
+            <small>{t('stats.upcomingGuests')}</small>
           </span>
-          <b>Active</b>
+          <b>{t('stats.active')}</b>
         </div>
 
         <div>
@@ -816,10 +865,10 @@ export default function DashboardPage() {
             <CalendarDays size={19} />
           </span>
           <span>
-            <strong>{formatRupees(stats.thisMonthEarningsPaise)}</strong>
-            <small>this month&apos;s earnings</small>
+            <strong>{formatRupees(stats.thisMonthEarningsPaise, locale)}</strong>
+            <small>{t('stats.monthEarnings')}</small>
           </span>
-          <b>Direct</b>
+          <b>{t('stats.direct')}</b>
         </div>
 
         <div>
@@ -828,9 +877,9 @@ export default function DashboardPage() {
           </span>
           <span>
             <strong>{stats.newProduceOrders}</strong>
-            <small>new produce orders</small>
+            <small>{t('stats.newOrders')}</small>
           </span>
-          <b>Pickup</b>
+          <b>{t('stats.pickup')}</b>
         </div>
       </div>
 
@@ -840,21 +889,21 @@ export default function DashboardPage() {
         <div className="dashboard-panel">
           <div className="panel-title">
             <div>
-              <p className="section-kicker">Your stays ({farms.length})</p>
-              <h2>Active farm stays</h2>
+              <p className="section-kicker">{t('listings.kicker', { count: farms.length })}</p>
+              <h2>{t('listings.heading')}</h2>
             </div>
             <button
               className="text-btn"
               type="button"
               onClick={openCreateListing}
             >
-              + New stay
+              {t('listings.newStay')}
             </button>
           </div>
 
           {farms.length === 0 ? (
             <p style={{ color: 'var(--muted)', fontSize: '13px', margin: '20px 0' }}>
-              No farm listings yet. Click &quot;Add a new listing&quot; to publish your stay!
+              {t('listings.empty')}
             </p>
           ) : (
             farms.map((farm) => {
@@ -879,7 +928,7 @@ export default function DashboardPage() {
                       </Link>
                     </h3>
                     <p style={{ margin: '0 0 5px' }}>
-                      {farm.place} · {farm.max_guests} guests max
+                      {farm.place} · {t('listings.guestsMax', { count: farm.max_guests })}
                     </p>
                     <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                       <span
@@ -889,23 +938,23 @@ export default function DashboardPage() {
                           color: isPub ? 'var(--forest)' : 'var(--muted)',
                         }}
                       >
-                        {isPub ? 'Published' : 'Unpublished'}
+                        {isPub ? t('listings.published') : t('listings.unpublished')}
                       </span>
                       {farm.allows_day_visit && (
                         <span className="status-pill" style={{ background: '#e8f0fe', color: '#1a56db' }}>
-                          Day visits
+                          {t('listings.dayVisits')}
                         </span>
                       )}
                     </div>
                   </div>
                   <strong>
-                    {formatRupees(farm.price_paise)}
-                    <small>/ guest</small>
+                    {formatRupees(farm.price_paise, locale)}
+                    <small>{t('listings.perGuest')}</small>
                   </strong>
                   <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                     <button
                       className="icon-only"
-                      title={isPub ? 'Unpublish listing' : 'Publish listing'}
+                      title={isPub ? t('listings.unpublishAction') : t('listings.publishAction')}
                       onClick={() => handleTogglePublish(farm.id, isPub)}
                       type="button"
                       style={{ padding: '6px', cursor: 'pointer' }}
@@ -914,7 +963,7 @@ export default function DashboardPage() {
                     </button>
                     <button
                       className="icon-only"
-                      title="Edit stay"
+                      title={t('listings.editAction')}
                       onClick={() => openEditListing(farm)}
                       type="button"
                       style={{ padding: '6px', cursor: 'pointer' }}
@@ -923,7 +972,7 @@ export default function DashboardPage() {
                     </button>
                     <button
                       className="icon-only"
-                      title="Delete stay"
+                      title={t('listings.deleteAction')}
                       onClick={() => handleDeleteFarm(farm.id, farm.name)}
                       type="button"
                       style={{ padding: '6px', cursor: 'pointer', color: '#c0392b' }}
@@ -941,24 +990,24 @@ export default function DashboardPage() {
         <div className="dashboard-panel">
           <div className="panel-title">
             <div>
-              <p className="section-kicker">Next up ({bookings.length})</p>
-              <h2>Visitor bookings</h2>
+              <p className="section-kicker">{t('bookings.kicker', { count: bookings.length })}</p>
+              <h2>{t('bookings.heading')}</h2>
             </div>
             <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
-              Confirm or decline pending stays
+              {t('bookings.subhead')}
             </span>
           </div>
 
           {bookings.length === 0 ? (
             <p style={{ color: 'var(--muted)', fontSize: '13px', margin: '20px 0' }}>
-              No bookings received yet.
+              {t('bookings.empty')}
             </p>
           ) : (
             bookings.map((booking) => {
               const dateObj = booking.check_in ? new Date(booking.check_in) : new Date()
-              const dayStr = String(dateObj.getDate())
+              const dayStr = dateObj.toLocaleDateString(locale, { day: 'numeric' })
               const monthStr = dateObj
-                .toLocaleString('en-US', { month: 'short' })
+                .toLocaleDateString(locale, { month: 'short' })
                 .toUpperCase()
 
               const isPending = booking.status === 'pending'
@@ -973,11 +1022,10 @@ export default function DashboardPage() {
                   <div>
                     <h3>{booking.tourist?.full_name || 'Guest'}</h3>
                     <p>
-                      {booking.farm?.name || 'Stay'} · {booking.guests} guest
-                      {booking.guests > 1 ? 's' : ''} ({booking.visit_type === 'day' ? 'Day visit' : `${booking.nights} night(s)`})
+                      {booking.farm?.name || 'Stay'} · {t('bookings.guestCount', { count: booking.guests })} ({booking.visit_type === 'day' ? t('bookings.dayVisit') : t('bookings.nightCount', { count: booking.nights })})
                     </p>
                     <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px' }}>
-                      Total: <strong>{formatRupees(booking.total_paise)}</strong>
+                      {t('bookings.total', { total: formatRupees(booking.total_paise, locale) })}
                       {booking.tourist?.phone && ` · ${booking.tourist.phone}`}
                     </div>
                   </div>
@@ -990,7 +1038,7 @@ export default function DashboardPage() {
                         color: isConfirmed ? 'var(--forest)' : isPending ? '#a86f27' : 'var(--muted)',
                       }}
                     >
-                      {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+                      {getStatusLabel(booking.status)}
                     </span>
 
                     {isPending && (
@@ -1007,7 +1055,7 @@ export default function DashboardPage() {
                             borderRadius: '2px',
                           }}
                         >
-                          Confirm
+                          {t('bookings.confirm')}
                         </button>
                         <button
                           type="button"
@@ -1021,7 +1069,7 @@ export default function DashboardPage() {
                             borderRadius: '2px',
                           }}
                         >
-                          Decline
+                          {t('bookings.decline')}
                         </button>
                       </div>
                     )}
@@ -1038,9 +1086,9 @@ export default function DashboardPage() {
         <div className="panel-title">
           <div>
             <p className="section-kicker">
-              Reserve and collect at the farm{products.length > 0 ? ` (${products.length} items)` : ''}
+              {products.length > 0 ? t('inventory.kicker', { count: products.length }) : t('inventory.kickerEmpty')}
             </p>
-            <h2>Pantry products &amp; inventory</h2>
+            <h2>{t('inventory.heading')}</h2>
           </div>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             {hasMoreProducts && (
@@ -1050,7 +1098,7 @@ export default function DashboardPage() {
                 onClick={() => setShowAllProducts((prev) => !prev)}
                 style={{ fontSize: '12px' }}
               >
-                {showAllProducts ? 'Show less' : `View all (${products.length})`}
+                {showAllProducts ? t('inventory.showLess') : t('inventory.viewAll', { count: products.length })}
               </button>
             )}
             <button
@@ -1058,14 +1106,14 @@ export default function DashboardPage() {
               type="button"
               onClick={() => setIsProductModalOpen(true)}
             >
-              + Add product
+              {t('inventory.addProduct')}
             </button>
           </div>
         </div>
 
         {products.length === 0 ? (
           <p style={{ color: 'var(--muted)', fontSize: '13px', margin: '20px 0' }}>
-            No products listed yet. Click &quot;Add product&quot; to offer fresh harvests for guest pickup!
+            {t('inventory.empty')}
           </p>
         ) : (
           <>
@@ -1085,11 +1133,12 @@ export default function DashboardPage() {
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
                       <em className={isLow ? 'low' : ''}>
-                        {isLow ? 'Low stock' : 'In stock'} · {formatRupees(item.price_paise)}
+                        {isLow ? t('inventory.lowStock') : t('inventory.inStock')} · {formatRupees(item.price_paise, locale)}
                       </em>
                       <div style={{ display: 'flex', gap: '3px' }}>
                         <button
                           type="button"
+                          aria-label={t('inventory.decreaseStock')}
                           onClick={() => handleStockUpdate(item.id, item.stock, -1)}
                           style={{
                             background: 'var(--mint)',
@@ -1106,6 +1155,7 @@ export default function DashboardPage() {
                         </button>
                         <button
                           type="button"
+                          aria-label={t('inventory.increaseStock')}
                           onClick={() => handleStockUpdate(item.id, item.stock, 1)}
                           style={{
                             background: 'var(--forest)',
@@ -1148,8 +1198,8 @@ export default function DashboardPage() {
                   }}
                 >
                   {showAllProducts
-                    ? 'Show less'
-                    : `View all (${products.length} products)`}
+                    ? t('inventory.showLess')
+                    : t('inventory.viewAll', { count: products.length })}
                 </button>
               </div>
             )}
@@ -1162,14 +1212,14 @@ export default function DashboardPage() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '12px' }}>
               <div>
                 <p className="section-kicker" style={{ margin: '0 0 2px' }}>
-                  Guest pickup basket
+                  {t('inventory.pickupBasketKicker')}
                 </p>
                 <h3 style={{ fontSize: '16px', fontWeight: 800, margin: 0, color: 'var(--ink)' }}>
-                  Active product reservations ({reservations.length})
+                  {t('inventory.reservationsHeading', { count: reservations.length })}
                 </h3>
               </div>
               <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
-                Pay directly upon collection
+                {t('inventory.payUponCollection')}
               </span>
             </div>
 
@@ -1192,7 +1242,7 @@ export default function DashboardPage() {
                         {res.product?.name || 'Produce item'}
                       </strong>
                       <div style={{ fontSize: '11px', color: 'var(--muted)' }}>
-                        Qty: {res.qty} · Reserved by {res.tourist?.full_name || 'Guest'}
+                        {t('inventory.reservedBy', { qty: res.qty, name: res.tourist?.full_name || 'Guest' })}
                       </div>
                     </div>
                     <span
@@ -1212,7 +1262,7 @@ export default function DashboardPage() {
                             : '#a86f27',
                       }}
                     >
-                      {res.status}
+                      {getReservationStatusLabel(res.status)}
                     </span>
                   </div>
 
@@ -1231,7 +1281,7 @@ export default function DashboardPage() {
                           borderRadius: '2px',
                         }}
                       >
-                        Mark ready for pickup
+                        {t('inventory.markReady')}
                       </button>
                     )}
                     {res.status === 'ready' && (
@@ -1247,7 +1297,7 @@ export default function DashboardPage() {
                           borderRadius: '2px',
                         }}
                       >
-                        Mark collected &amp; paid
+                        {t('inventory.markCollected')}
                       </button>
                     )}
                   </div>
@@ -1293,16 +1343,16 @@ export default function DashboardPage() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '18px' }}>
               <div>
                 <p className="section-kicker" style={{ margin: '0 0 2px' }}>
-                  {editingFarmId ? 'Edit listing' : 'Create new listing'}
+                  {editingFarmId ? t('farmModal.editKicker') : t('farmModal.createKicker')}
                 </p>
                 <h2 style={{ fontSize: '22px', fontWeight: 800, margin: 0, color: 'var(--ink)' }}>
-                  {editingFarmId ? `Update ${name}` : 'List your working farm stay'}
+                  {editingFarmId ? t('farmModal.updateTitle', { name }) : t('farmModal.createTitle')}
                 </h2>
               </div>
               <button
                 type="button"
                 onClick={() => setIsListingModalOpen(false)}
-                aria-label="Close modal"
+                aria-label={t('farmModal.close')}
                 style={{ padding: '6px', color: 'var(--muted)' }}
               >
                 <X size={20} />
@@ -1327,19 +1377,19 @@ export default function DashboardPage() {
             <form onSubmit={handleSaveListing}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
                 <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                  Farm stay name *
+                  {t('farmModal.nameLabel')}
                   <input
                     required
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g. Kokan Roots Farmstay"
+                    placeholder={t('farmModal.namePlaceholder')}
                     style={{ border: '1px solid var(--line)', padding: '9px 11px', fontSize: '13px' }}
                   />
                 </label>
 
                 <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                  Region *
+                  {t('farmModal.regionLabel')}
                   <select
                     value={region}
                     onChange={(e) => setRegion(e.target.value)}
@@ -1363,38 +1413,38 @@ export default function DashboardPage() {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
                 <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                  Place / Village *
+                  {t('farmModal.placeLabel')}
                   <input
                     required
                     type="text"
                     value={place}
                     onChange={(e) => setPlace(e.target.value)}
-                    placeholder="e.g. Ratnagiri, Alphonso country"
+                    placeholder={t('farmModal.placePlaceholder')}
                     style={{ border: '1px solid var(--line)', padding: '9px 11px', fontSize: '13px' }}
                   />
                 </label>
 
                 <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                  Overnight price per guest (paise) *
+                  {t('farmModal.priceLabel')}
                   <input
                     required
                     type="number"
                     value={pricePaise}
                     onChange={(e) => setPricePaise(Number(e.target.value))}
-                    placeholder="250000 = ₹2,500"
+                    placeholder={t('farmModal.pricePlaceholder')}
                     style={{ border: '1px solid var(--line)', padding: '9px 11px', fontSize: '13px' }}
                   />
                 </label>
               </div>
 
               <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'flex', flexDirection: 'column', gap: '5px', marginBottom: '14px' }}>
-                Description *
+                {t('farmModal.descriptionLabel')}
                 <textarea
                   required
                   rows={3}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Describe your working farm, family meals, crops cultivated, and stay highlights..."
+                  placeholder={t('farmModal.descriptionPlaceholder')}
                   style={{ border: '1px solid var(--line)', padding: '9px 11px', fontSize: '13px', resize: 'vertical' }}
                 />
               </label>
@@ -1415,23 +1465,23 @@ export default function DashboardPage() {
                     onChange={(e) => setAllowsDayVisit(e.target.checked)}
                     style={{ accentColor: 'var(--forest)' }}
                   />
-                  Allow day visits at this farm
+                  {t('farmModal.allowDayVisits')}
                 </label>
 
                 {allowsDayVisit && (
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginTop: '10px' }}>
                     <label style={{ fontSize: '11px', color: 'var(--muted)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      Day price per guest (paise)
+                      {t('farmModal.dayPriceLabel')}
                       <input
                         type="number"
                         value={dayVisitPricePaise}
                         onChange={(e) => setDayVisitPricePaise(Number(e.target.value))}
-                        placeholder="85000 = ₹850"
+                        placeholder={t('farmModal.dayPricePlaceholder')}
                         style={{ border: '1px solid var(--line)', padding: '8px', fontSize: '12px' }}
                       />
                     </label>
                     <label style={{ fontSize: '11px', color: 'var(--muted)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      Start hour
+                      {t('farmModal.startHourLabel')}
                       <input
                         type="time"
                         value={dayVisitStart}
@@ -1440,7 +1490,7 @@ export default function DashboardPage() {
                       />
                     </label>
                     <label style={{ fontSize: '11px', color: 'var(--muted)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      End hour
+                      {t('farmModal.endHourLabel')}
                       <input
                         type="time"
                         value={dayVisitEnd}
@@ -1455,7 +1505,7 @@ export default function DashboardPage() {
               {/* Host contact & limits */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '14px' }}>
                 <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                  Max guests *
+                  {t('farmModal.maxGuestsLabel')}
                   <input
                     required
                     type="number"
@@ -1467,23 +1517,23 @@ export default function DashboardPage() {
                   />
                 </label>
                 <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                  Host name *
+                  {t('farmModal.hostNameLabel')}
                   <input
                     required
                     type="text"
                     value={hostName}
                     onChange={(e) => setHostName(e.target.value)}
-                    placeholder="Host full name"
+                    placeholder={t('farmModal.hostNamePlaceholder')}
                     style={{ border: '1px solid var(--line)', padding: '9px 11px', fontSize: '13px' }}
                   />
                 </label>
                 <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                  Host phone (optional)
+                  {t('farmModal.hostPhoneLabel')}
                   <input
                     type="tel"
                     value={hostPhone}
                     onChange={(e) => setHostPhone(e.target.value)}
-                    placeholder="+91 98000 00000"
+                    placeholder={t('farmModal.hostPhonePlaceholder')}
                     style={{ border: '1px solid var(--line)', padding: '9px 11px', fontSize: '13px' }}
                   />
                 </label>
@@ -1492,22 +1542,22 @@ export default function DashboardPage() {
               {/* Tags and Landmark */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
                 <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                  Tags (comma-separated)
+                  {t('farmModal.tagsLabel')}
                   <input
                     type="text"
                     value={tagsInput}
                     onChange={(e) => setTagsInput(e.target.value)}
-                    placeholder="organic, mango, coastal, hurda-party"
+                    placeholder={t('farmModal.tagsPlaceholder')}
                     style={{ border: '1px solid var(--line)', padding: '9px 11px', fontSize: '13px' }}
                   />
                 </label>
                 <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                  Landmark note
+                  {t('farmModal.landmarkLabel')}
                   <input
                     type="text"
                     value={landmarkNote}
                     onChange={(e) => setLandmarkNote(e.target.value)}
-                    placeholder="e.g. Near old banyan tree at village crossroad"
+                    placeholder={t('farmModal.landmarkPlaceholder')}
                     style={{ border: '1px solid var(--line)', padding: '9px 11px', fontSize: '13px' }}
                   />
                 </label>
@@ -1517,16 +1567,16 @@ export default function DashboardPage() {
               <div style={{ border: '1px solid var(--line)', background: '#fafbfa', padding: '14px', marginBottom: '16px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                   <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink)' }}>
-                    Farm photos & gallery ({galleryImages.length} photo{galleryImages.length === 1 ? '' : 's'})
+                    {t('farmModal.photosHeading', { count: galleryImages.length })}
                   </label>
                   <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
-                    First photo or selected cover is shown as primary
+                    {t('farmModal.firstPhotoNote')}
                   </span>
                 </div>
 
                 {/* Primary Cover Image URL */}
                 <label style={{ fontSize: '11px', color: 'var(--muted)', display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '10px' }}>
-                  Primary cover image URL *
+                  {t('farmModal.coverUrlLabel')}
                   <input
                     required
                     type="url"
@@ -1573,7 +1623,7 @@ export default function DashboardPage() {
                       }}
                     >
                       <Upload size={14} />
-                      {isUploadingImages ? 'Reading files...' : 'Upload multiple photos'}
+                      {isUploadingImages ? t('farmModal.readingFiles') : t('farmModal.uploadPhotos')}
                     </label>
                   </div>
 
@@ -1588,7 +1638,7 @@ export default function DashboardPage() {
                           handleAddImageUrl()
                         }
                       }}
-                      placeholder="Or paste image URL"
+                      placeholder={t('farmModal.pasteUrlPlaceholder')}
                       style={{ flex: 1, border: '1px solid var(--line)', padding: '8px 10px', fontSize: '12px', background: '#fff' }}
                     />
                     <button
@@ -1604,7 +1654,7 @@ export default function DashboardPage() {
                         cursor: 'pointer',
                       }}
                     >
-                      + Add
+                      {t('farmModal.addPhoto')}
                     </button>
                   </div>
                 </div>
@@ -1666,13 +1716,13 @@ export default function DashboardPage() {
                                 textTransform: 'uppercase',
                               }}
                             >
-                              Cover
+                              {t('farmModal.coverBadge')}
                             </span>
                           ) : (
                             <button
                               type="button"
                               onClick={() => setImageUrl(imgSrc)}
-                              title="Set as primary cover"
+                              title={t('farmModal.setCover')}
                               style={{
                                 position: 'absolute',
                                 bottom: 0,
@@ -1687,7 +1737,7 @@ export default function DashboardPage() {
                                 textAlign: 'center',
                               }}
                             >
-                              Set cover
+                              {t('farmModal.setCover')}
                             </button>
                           )}
 
@@ -1695,7 +1745,7 @@ export default function DashboardPage() {
                           <button
                             type="button"
                             onClick={() => handleRemoveGalleryImage(idx)}
-                            title="Remove photo"
+                            title={t('farmModal.removePhoto')}
                             style={{
                               position: 'absolute',
                               top: 2,
@@ -1725,7 +1775,7 @@ export default function DashboardPage() {
               <div style={{ marginBottom: '16px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                   <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink)' }}>
-                    Directions steps (road directions for arrival)
+                    {t('farmModal.directionsHeading')}
                   </label>
                   <button
                     type="button"
@@ -1739,7 +1789,7 @@ export default function DashboardPage() {
                       borderRadius: '2px',
                     }}
                   >
-                    + Add step
+                    {t('farmModal.addStep')}
                   </button>
                 </div>
                 {directionsSteps.map((step, idx) => (
@@ -1752,7 +1802,7 @@ export default function DashboardPage() {
                         copy[idx] = e.target.value
                         setDirectionsSteps(copy)
                       }}
-                      placeholder={`Step ${idx + 1}`}
+                      placeholder={t('farmModal.stepPlaceholder', { step: idx + 1 })}
                       style={{ flex: 1, border: '1px solid var(--line)', padding: '8px 10px', fontSize: '12px' }}
                     />
                     {directionsSteps.length > 1 && (
@@ -1778,7 +1828,7 @@ export default function DashboardPage() {
               {/* Seasonal Crops Picker */}
               <div style={{ marginBottom: '18px' }}>
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: 'var(--ink)', marginBottom: '6px' }}>
-                  Seasonal crops (feeds harvest calendar)
+                  {t('farmModal.seasonalCropsHeading')}
                 </label>
                 <div
                   style={{
@@ -1827,7 +1877,7 @@ export default function DashboardPage() {
               {/* Location Picker with Leaflet Map */}
               <div style={{ marginBottom: '20px' }}>
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: 'var(--ink)', marginBottom: '4px' }}>
-                  Farm geolocation (interactive pin)
+                  {t('farmModal.geolocationHeading')}
                 </label>
                 <LocationPicker
                   lat={lat}
@@ -1847,7 +1897,7 @@ export default function DashboardPage() {
                   onChange={(e) => setPublished(e.target.checked)}
                   style={{ accentColor: 'var(--forest)' }}
                 />
-                Published immediately on website
+                {t('farmModal.publishedImmediate')}
               </label>
 
               {/* Submit */}
@@ -1857,7 +1907,7 @@ export default function DashboardPage() {
                 className="primary-btn"
                 style={{ width: '100%', padding: '12px', fontSize: '13px' }}
               >
-                {listingSubmitting ? 'Saving listing...' : editingFarmId ? 'Update listing' : 'Create & publish listing'}
+                {listingSubmitting ? t('farmModal.savingListing') : editingFarmId ? t('farmModal.updateListing') : t('farmModal.createListing')}
               </button>
             </form>
           </div>
@@ -1894,15 +1944,16 @@ export default function DashboardPage() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
               <div>
                 <p className="section-kicker" style={{ margin: '0 0 2px' }}>
-                  Harvest pantry
+                  {t('productModal.kicker')}
                 </p>
                 <h3 style={{ fontSize: '18px', fontWeight: 800, margin: 0, color: 'var(--ink)' }}>
-                  Add farm produce for pickup
+                  {t('productModal.heading')}
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={() => setIsProductModalOpen(false)}
+                aria-label={t('farmModal.close')}
                 style={{ padding: '4px', color: 'var(--muted)' }}
               >
                 <X size={18} />
@@ -1927,7 +1978,7 @@ export default function DashboardPage() {
             <form onSubmit={handleCreateProduct}>
               {farms.length > 1 && (
                 <label style={{ display: 'block', fontSize: '11.5px', color: 'var(--muted)', marginBottom: '10px' }}>
-                  Pickup farm
+                  {t('productModal.pickupFarm')}
                   <select
                     value={productFarmId}
                     onChange={(e) => setProductFarmId(e.target.value)}
@@ -1943,56 +1994,56 @@ export default function DashboardPage() {
               )}
 
               <label style={{ display: 'block', fontSize: '11.5px', color: 'var(--muted)', marginBottom: '10px' }}>
-                Product name *
+                {t('productModal.nameLabel')}
                 <input
                   required
                   type="text"
                   value={productName}
                   onChange={(e) => setProductName(e.target.value)}
-                  placeholder="e.g. Pure cold-pressed coconut oil"
+                  placeholder={t('productModal.namePlaceholder')}
                   style={{ width: '100%', border: '1px solid var(--line)', padding: '8px', fontSize: '12.5px', marginTop: '3px' }}
                 />
               </label>
 
               <label style={{ display: 'block', fontSize: '11.5px', color: 'var(--muted)', marginBottom: '10px' }}>
-                Detail / description
+                {t('productModal.detailLabel')}
                 <input
                   type="text"
                   value={productDetail}
                   onChange={(e) => setProductDetail(e.target.value)}
-                  placeholder="e.g. Wood-pressed from estate coconuts"
+                  placeholder={t('productModal.detailPlaceholder')}
                   style={{ width: '100%', border: '1px solid var(--line)', padding: '8px', fontSize: '12.5px', marginTop: '3px' }}
                 />
               </label>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
                 <label style={{ fontSize: '11.5px', color: 'var(--muted)' }}>
-                  Unit *
+                  {t('productModal.unitLabel')}
                   <input
                     required
                     type="text"
                     value={productUnit}
                     onChange={(e) => setProductUnit(e.target.value)}
-                    placeholder="e.g. 500 ml, 1 kg"
+                    placeholder={t('productModal.unitPlaceholder')}
                     style={{ width: '100%', border: '1px solid var(--line)', padding: '8px', fontSize: '12.5px', marginTop: '3px' }}
                   />
                 </label>
 
                 <label style={{ fontSize: '11.5px', color: 'var(--muted)' }}>
-                  Price (paise) *
+                  {t('productModal.priceLabel')}
                   <input
                     required
                     type="number"
                     value={productPricePaise}
                     onChange={(e) => setProductPricePaise(Number(e.target.value))}
-                    placeholder="25000 = ₹250"
+                    placeholder={t('productModal.pricePlaceholder')}
                     style={{ width: '100%', border: '1px solid var(--line)', padding: '8px', fontSize: '12.5px', marginTop: '3px' }}
                   />
                 </label>
               </div>
 
               <label style={{ display: 'block', fontSize: '11.5px', color: 'var(--muted)', marginBottom: '16px' }}>
-                Available stock quantity *
+                {t('productModal.stockLabel')}
                 <input
                   required
                   type="number"
@@ -2009,7 +2060,7 @@ export default function DashboardPage() {
                 className="primary-btn"
                 style={{ width: '100%', padding: '10px', fontSize: '12.5px' }}
               >
-                {productSubmitting ? 'Saving product...' : 'Add to farm pantry'}
+                {productSubmitting ? t('productModal.saving') : t('productModal.submit')}
               </button>
             </form>
           </div>

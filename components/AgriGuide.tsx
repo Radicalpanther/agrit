@@ -2,23 +2,12 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
-import { MessageSquare, X, Send, CornerDownLeft, Sparkles } from 'lucide-react'
+import { MessageSquare, X, Send } from 'lucide-react'
+import { useLocale, useTranslations } from 'next-intl'
 
 interface Message {
   role: 'user' | 'assistant'
   content: string
-}
-
-const SUGGESTED_PROMPTS = [
-  'Weekend stay under ₹2,500',
-  'What is in season this month?',
-  'Farm rules and check-in',
-]
-
-const WELCOME_MESSAGE: Message = {
-  role: 'assistant',
-  content:
-    'Hello. I am AgriGuide, your rural farm stay and seasonal harvest assistant. Ask about farm stays, harvest dates, prices, or check-in rules across India.',
 }
 
 /**
@@ -67,12 +56,32 @@ function FormattedMessage({ text }: { text: string }) {
 }
 
 export function AgriGuide() {
+  const locale = useLocale()
+  const t = useTranslations('agriGuide')
   const [isOpen, setIsOpen] = useState(false)
-  const [messages, setMessages] = useState<Message[]>([WELCOME_MESSAGE])
+  const [messages, setMessages] = useState<Message[]>([
+    { role: 'assistant', content: t('welcome') },
+  ])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
+
+  // Update welcome message if language switches while no conversation has occurred
+  useEffect(() => {
+    setMessages((prev) => {
+      if (prev.length === 1 && prev[0].role === 'assistant') {
+        return [{ role: 'assistant', content: t('welcome') }]
+      }
+      return prev
+    })
+  }, [locale, t])
+
+  const suggestedPrompts = [
+    t('suggestedPrompts.prompt1'),
+    t('suggestedPrompts.prompt2'),
+    t('suggestedPrompts.prompt3'),
+  ]
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -98,7 +107,7 @@ export function AgriGuide() {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: newMessages }),
+        body: JSON.stringify({ messages: newMessages, locale }),
       })
 
       if (!response.ok) {
@@ -146,7 +155,7 @@ export function AgriGuide() {
         ...prev,
         {
           role: 'assistant',
-          content: 'Unable to connect to AgriGuide service. Please try again shortly.',
+          content: t('connectionError'),
         },
       ])
     } finally {
@@ -166,8 +175,8 @@ export function AgriGuide() {
         type="button"
         className="agriguide-launcher"
         onClick={() => setIsOpen(!isOpen)}
-        aria-label={isOpen ? 'Close AgriGuide' : 'Open AgriGuide Assistant'}
-        title="AgriGuide rural assistant"
+        aria-label={isOpen ? t('closeAriaLabel') : t('openAriaLabel')}
+        title={t('launcherTitle')}
       >
         {isOpen ? (
           <X size={20} strokeWidth={2} />
@@ -178,20 +187,20 @@ export function AgriGuide() {
 
       {/* Chat Panel */}
       {isOpen && (
-        <div className="agriguide-panel" role="dialog" aria-label="AgriGuide Assistant">
+        <div className="agriguide-panel" role="dialog" aria-label={t('openAriaLabel')}>
           {/* Header */}
           <div className="agriguide-header">
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span className="agriguide-title">AgriGuide</span>
+                <span className="agriguide-title">{t('title')}</span>
               </div>
-              <p className="agriguide-subtitle">Rural farm stays and harvest advisor</p>
+              <p className="agriguide-subtitle">{t('subtitle')}</p>
             </div>
             <button
               type="button"
               className="agriguide-close-btn"
               onClick={() => setIsOpen(false)}
-              aria-label="Close AgriGuide"
+              aria-label={t('closeAriaLabel')}
             >
               <X size={16} />
             </button>
@@ -226,9 +235,9 @@ export function AgriGuide() {
           {/* Suggested Prompts (shown when conversation is new) */}
           {messages.length <= 2 && (
             <div className="agriguide-prompts">
-              <span className="prompts-label">Suggested:</span>
+              <span className="prompts-label">{t('suggestedLabel')}</span>
               <div className="prompts-list">
-                {SUGGESTED_PROMPTS.map((prompt, pIdx) => (
+                {suggestedPrompts.map((prompt, pIdx) => (
                   <button
                     key={pIdx}
                     type="button"
@@ -250,7 +259,7 @@ export function AgriGuide() {
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask about farm stays, harvest seasons..."
+              placeholder={t('inputPlaceholder')}
               disabled={isLoading}
               className="agriguide-input"
             />
@@ -258,7 +267,7 @@ export function AgriGuide() {
               type="submit"
               disabled={isLoading || !input.trim()}
               className="agriguide-send-btn"
-              aria-label="Send message"
+              aria-label={t('sendAriaLabel')}
             >
               <Send size={15} />
             </button>
