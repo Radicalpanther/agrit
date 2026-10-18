@@ -1,3 +1,6 @@
+'use client'
+
+import { useState } from 'react'
 import Link from 'next/link'
 import { ArrowRight, Heart, MapPin, Star } from 'lucide-react'
 import type { Farm } from '@/lib/mock-data'
@@ -11,6 +14,8 @@ export interface FarmCardProps {
 }
 
 export function FarmCard({ farm, tagOverride }: FarmCardProps) {
+  const [isSaved, setIsSaved] = useState(false)
+
   return (
     <article className="farm-card">
       <div className="farm-image">
@@ -21,10 +26,12 @@ export function FarmCard({ farm, tagOverride }: FarmCardProps) {
           aria-label={`Save ${farm.name}`}
           type="button"
           onClick={(e) => {
+            e.preventDefault()
             e.stopPropagation()
+            setIsSaved((prev) => !prev)
           }}
         >
-          <Heart size={17} />
+          <Heart size={17} fill={isSaved ? 'currentColor' : 'none'} />
         </button>
       </div>
       <div className="farm-body">
