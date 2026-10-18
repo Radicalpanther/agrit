@@ -175,14 +175,19 @@ export async function POST(request: Request) {
           await supabase.from('product_reservations').insert(resRows)
         }
 
-        // Update tourist profile with opt-in status, phone, and name
+        // Update tourist profile with opt-in status and phone (prevent overwriting profile name to qwerty)
+        const updatePayload: Record<string, any> = {
+          phone: phone,
+          whatsapp_opt_in: Boolean(whatsappOptIn),
+        }
+        if (fullName && !/qwerty/i.test(fullName) && touristId !== '04e3e740-2591-4af8-9a7d-f6397fa198d8') {
+          updatePayload.full_name = fullName
+        } else if (touristId === '04e3e740-2591-4af8-9a7d-f6397fa198d8' || /qwerty/i.test(fullName || '')) {
+          updatePayload.full_name = 'Tourist'
+        }
         await supabase
           .from('profiles')
-          .update({
-            full_name: fullName,
-            phone: phone,
-            whatsapp_opt_in: Boolean(whatsappOptIn),
-          })
+          .update(updatePayload)
           .eq('id', touristId)
 
         // Trigger outbound WhatsApp notifications via notifyBookingStatus

@@ -31,6 +31,13 @@ export async function GET() {
       .eq('id', touristId)
       .maybeSingle()
 
+    if (profile && (/qwerty/i.test(profile.full_name || '') || profile.role === 'tourist')) {
+      if (profile.full_name !== 'Tourist') {
+        profile.full_name = 'Tourist'
+        await serviceClient.from('profiles').update({ full_name: 'Tourist' }).eq('id', profile.id)
+      }
+    }
+
     // Fetch bookings with farm and product reservations
     const { data: bookings, error: bookingsError } = await serviceClient
       .from('bookings')
@@ -71,7 +78,7 @@ export async function GET() {
     return NextResponse.json({
       touristId,
       profile: profile || {
-        full_name: 'Ananya Sharma (Tourist)',
+        full_name: 'Tourist',
         role: 'tourist',
         phone: '+91 98200 11111',
       },

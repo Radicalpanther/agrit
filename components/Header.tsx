@@ -53,6 +53,10 @@ export function Header() {
         displayName = 'Rajesh Patil'
       }
 
+      if (/qwerty/i.test(displayName) || userRole === 'tourist' || currentUser.email === 'tourist@agritrails.dev') {
+        displayName = 'Tourist'
+      }
+
       setRole(userRole)
       setUserName(displayName)
     }
