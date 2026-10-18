@@ -704,10 +704,10 @@ export const PRODUCE_ITEMS: Produce[] = [
   },
   {
     id: 'prod-4',
-    name: 'Pure Mongra Saffron',
+    name: 'Pure Mongra Saffron GI-tagged',
     detail: '2 g · Pampore, Kashmir',
     pricePaise: 95000,
-    image: 'https://images.unsplash.com/photo-1548013146-72479768bada?auto=format&fit=crop&w=600&q=85',
+    image: 'https://m.media-amazon.com/images/I/71ApPoHWHBL.jpg',
   },
   {
     id: 'prod-5',

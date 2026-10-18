@@ -197,22 +197,41 @@ export async function fetchServerProductsWithFarm(limit = 20): Promise<ProductWi
       .limit(limit)
 
     if (error || !data || data.length === 0) {
-      return PRODUCE_ITEMS.slice(0, limit).map((p, idx) => ({
-        id: p.id,
-        name: p.name,
-        detail: p.detail,
-        unit: '1 pack',
-        pricePaise: p.pricePaise,
-        stock: 30,
-        inSeasonMonths: [],
-        image: p.image || '',
-        farm: {
-          id: `farm-${idx + 1}`,
-          name: FARMS[idx % FARMS.length].name,
-          slug: FARMS[idx % FARMS.length].slug,
-          place: FARMS[idx % FARMS.length].place,
-        },
-      }))
+      return PRODUCE_ITEMS.slice(0, limit).map((p, idx) => {
+        let farm = FARMS[idx % FARMS.length]
+        if (p.name.includes('Saffron') || p.name.includes('Mongra')) {
+          const matched = FARMS.find((f) => f.slug === 'pampore-saffron-haven')
+          if (matched) farm = matched
+        } else if (p.name.includes('Alphonso') || p.name.includes('jaggery')) {
+          const matched = FARMS.find((f) => f.slug === 'kokan-roots-farmstay')
+          if (matched) farm = matched
+        } else if (p.name.includes('Tea') || p.name.includes('chai')) {
+          const matched = FARMS.find((f) => f.slug === 'brahmaputra-tea-estate')
+          if (matched) farm = matched
+        } else if (p.name.includes('Coffee') || p.name.includes('Arabica')) {
+          const matched = FARMS.find((f) => f.slug === 'coorg-cloud-coffee-estate')
+          if (matched) farm = matched
+        } else if (p.name.includes('Apple')) {
+          const matched = FARMS.find((f) => f.slug === 'himachal-apple-highlands')
+          if (matched) farm = matched
+        }
+        return {
+          id: p.id,
+          name: p.name,
+          detail: p.detail,
+          unit: '1 pack',
+          pricePaise: p.pricePaise,
+          stock: 30,
+          inSeasonMonths: [],
+          image: p.image || '',
+          farm: {
+            id: farm.id,
+            name: farm.name,
+            slug: farm.slug,
+            place: farm.place,
+          },
+        }
+      })
     }
 
     return data.map((item: any) => ({
@@ -232,22 +251,41 @@ export async function fetchServerProductsWithFarm(limit = 20): Promise<ProductWi
       },
     }))
   } catch {
-    return PRODUCE_ITEMS.slice(0, limit).map((p, idx) => ({
-      id: p.id,
-      name: p.name,
-      detail: p.detail,
-      unit: '1 pack',
-      pricePaise: p.pricePaise,
-      stock: 30,
-      inSeasonMonths: [],
-      image: p.image || '',
-      farm: {
-        id: `farm-${idx + 1}`,
-        name: FARMS[idx % FARMS.length].name,
-        slug: FARMS[idx % FARMS.length].slug,
-        place: FARMS[idx % FARMS.length].place,
-      },
-    }))
+    return PRODUCE_ITEMS.slice(0, limit).map((p, idx) => {
+      let farm = FARMS[idx % FARMS.length]
+      if (p.name.includes('Saffron') || p.name.includes('Mongra')) {
+        const matched = FARMS.find((f) => f.slug === 'pampore-saffron-haven')
+        if (matched) farm = matched
+      } else if (p.name.includes('Alphonso') || p.name.includes('jaggery')) {
+        const matched = FARMS.find((f) => f.slug === 'kokan-roots-farmstay')
+        if (matched) farm = matched
+      } else if (p.name.includes('Tea') || p.name.includes('chai')) {
+        const matched = FARMS.find((f) => f.slug === 'brahmaputra-tea-estate')
+        if (matched) farm = matched
+      } else if (p.name.includes('Coffee') || p.name.includes('Arabica')) {
+        const matched = FARMS.find((f) => f.slug === 'coorg-cloud-coffee-estate')
+        if (matched) farm = matched
+      } else if (p.name.includes('Apple')) {
+        const matched = FARMS.find((f) => f.slug === 'himachal-apple-highlands')
+        if (matched) farm = matched
+      }
+      return {
+        id: p.id,
+        name: p.name,
+        detail: p.detail,
+        unit: '1 pack',
+        pricePaise: p.pricePaise,
+        stock: 30,
+        inSeasonMonths: [],
+        image: p.image || '',
+        farm: {
+          id: farm.id,
+          name: farm.name,
+          slug: farm.slug,
+          place: farm.place,
+        },
+      }
+    })
   }
 }
 

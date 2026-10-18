@@ -7,7 +7,7 @@ import { formatRupees } from '@/lib/money'
 export function getProductCategory(name: string): string {
   const lower = name.toLowerCase()
   if (/mango|apple|fruit/.test(lower)) return 'Fruit'
-  if (/saffron|pepper|spice|cardamom/.test(lower)) return 'Spice'
+  if (/saffron|mongra|pepper|spice|cardamom/.test(lower)) return 'Spice'
   if (/ghee|milk|paneer|curd/.test(lower)) return 'Dairy'
   if (/tea|coffee/.test(lower)) return 'Tea'
   if (/rice|jowar|flour|wheat/.test(lower)) return 'Grain'
@@ -20,14 +20,14 @@ export function getProduceImage(name: string, customImage?: string | null): stri
     return customImage
   }
   const lower = name.toLowerCase()
+  if (lower.includes('saffron') || lower.includes('mongra')) {
+    return 'https://m.media-amazon.com/images/I/71ApPoHWHBL.jpg'
+  }
   if (lower.includes('kesar')) {
     return 'https://images.unsplash.com/photo-1591073113125-e46713c829ed?auto=format&fit=crop&w=800&q=85'
   }
   if (lower.includes('mango') || lower.includes('alphonso')) {
     return 'https://images.unsplash.com/photo-1601493700631-2b16ec4b4716?auto=format&fit=crop&w=800&q=85'
-  }
-  if (lower.includes('saffron')) {
-    return 'https://images.unsplash.com/photo-1548013146-72479768bada?auto=format&fit=crop&w=800&q=85'
   }
   if (lower.includes('apple')) {
     return 'https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?auto=format&fit=crop&w=800&q=85'
