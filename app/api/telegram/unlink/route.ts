@@ -31,8 +31,30 @@ export async function POST(request: Request) {
       .maybeSingle()
 
     if (profile?.telegram_chat_id) {
-      const { deleteMyCommands } = await import('@/lib/telegram')
+      const { deleteMyCommands, sendTelegramMessage } = await import('@/lib/telegram')
+      await sendTelegramMessage(
+        profile.telegram_chat_id,
+        'Your AgriTrails farmer account has been disconnected. You will no longer receive booking alerts on Telegram.',
+      ).catch(() => {})
       await deleteMyCommands({ type: 'chat', chat_id: profile.telegram_chat_id }).catch(() => {})
+
+      try {
+        await serviceClient
+          .from('notifications')
+          .insert({
+            to_phone: null,
+            template: 'telegram_farmer_disconnected',
+            payload: {
+              channel: 'telegram',
+              recipient: 'farmer',
+              chatId: profile.telegram_chat_id,
+              preview_text: 'Your AgriTrails farmer account has been disconnected. You will no longer receive booking alerts on Telegram.',
+            },
+            status: 'sent',
+          })
+      } catch {
+        // Notification logging error is safe to ignore
+      }
     }
 
     await serviceClient

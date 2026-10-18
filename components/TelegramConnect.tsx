@@ -74,10 +74,21 @@ export function TelegramConnect({
     }
   }, [])
 
-  // Connect: generate one-time token and redirect in same tab
+  // Connect: generate one-time token and open in new tab
+  const [disconnectedNotice, setDisconnectedNotice] = useState<string | null>(null)
+
   const handleConnect = async () => {
     setConnectError(null)
+    setDisconnectedNotice(null)
     setIsConnecting(true)
+
+    // Open a blank tab synchronously within user click event to prevent popup blocker
+    let newTab: Window | null = null
+    try {
+      newTab = window.open('about:blank', '_blank')
+    } catch {
+      // Ignored
+    }
 
     try {
       const res = await fetch('/api/telegram/link', {
@@ -88,20 +99,28 @@ export function TelegramConnect({
       const data = await res.json()
 
       if (!res.ok || !data.linkUrl) {
+        if (newTab) newTab.close()
         setConnectError(data.error || 'Failed to create link')
         setIsConnecting(false)
         return
       }
 
-      // Redirect in the same tab to https://t.me/<bot_username>?start=<token>
-      window.location.href = data.linkUrl
+      // Navigate new tab to Telegram link
+      if (newTab) {
+        newTab.opener = null
+        newTab.location.href = data.linkUrl
+      } else {
+        window.open(data.linkUrl, '_blank', 'noopener,noreferrer')
+      }
+      setIsConnecting(false)
     } catch {
+      if (newTab) newTab.close()
       setConnectError('Network error connecting to Telegram')
       setIsConnecting(false)
     }
   }
 
-  // Disconnect: call unlink endpoint and return to Connect button
+  // Disconnect: call unlink endpoint, notify farmer, and return to Connect button
   const handleDisconnect = async () => {
     setDisconnectError(null)
     setIsDisconnecting(true)
@@ -123,6 +142,7 @@ export function TelegramConnect({
       setIsLinked(false)
       setShowConfirm(false)
       setIsDisconnecting(false)
+      setDisconnectedNotice('Telegram disconnected. Notification sent.')
       if (onStatusChange) onStatusChange(false)
     } catch {
       setDisconnectError('Network error disconnecting')
@@ -348,6 +368,41 @@ export function TelegramConnect({
               <span style={{ fontSize: '11px', color: '#dc2626', fontWeight: 600 }}>
                 {connectError}
               </span>
+            )}
+
+            {disconnectedNotice && (
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '3px 8px',
+                  fontSize: '11px',
+                  color: '#b91c1c',
+                  background: '#fef2f2',
+                  border: '1px solid #fecaca',
+                  borderRadius: '3px',
+                  fontWeight: 600,
+                }}
+              >
+                <span>{disconnectedNotice}</span>
+                <button
+                  type="button"
+                  onClick={() => setDisconnectedNotice(null)}
+                  aria-label="Dismiss notice"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#b91c1c',
+                    cursor: 'pointer',
+                    padding: 0,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                  }}
+                >
+                  <X size={12} />
+                </button>
+              </div>
             )}
           </div>
         )}
