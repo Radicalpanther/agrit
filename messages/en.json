@@ -604,7 +604,15 @@
     "disconnect": "Disconnect Telegram",
     "connect": "Connect Telegram",
     "waiting": "Waiting for bot...",
-    "openManually": "Open Telegram manually"
+    "openManually": "Open Telegram manually",
+    "openTelegram": "Open Telegram",
+    "openDesktop": "Open in Telegram Desktop",
+    "copyLink": "Copy link",
+    "copied": "Copied!",
+    "expiresIn": "Link expires in 10 minutes. Click Start in Telegram to finish linking.",
+    "waitingForStart": "Waiting for you to tap Start in Telegram...",
+    "retry": "Retry",
+    "close": "Close"
   },
   "locationPicker": {
     "pinnedCoordinates": "Pinned coordinates: {coords}",
