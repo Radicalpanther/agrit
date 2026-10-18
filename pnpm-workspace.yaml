@@ -3,3 +3,9 @@ pmOnFail: ignore
 minimumReleaseAgeExclude:
   - '@next/*'
   - next
+
+strictDepBuilds: false
+
+allowBuilds:
+  core-js: true
+  sharp: true
