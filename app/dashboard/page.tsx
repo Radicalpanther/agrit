@@ -117,6 +117,7 @@ export default function DashboardPage() {
   const [productStock, setProductStock] = useState(20)
   const [productSubmitting, setProductSubmitting] = useState(false)
   const [productError, setProductError] = useState<string | null>(null)
+  const [showAllProducts, setShowAllProducts] = useState(false)
 
   // View mode switcher: 'farmer' or 'tourist'
   const [viewMode, setViewMode] = useState<'farmer' | 'tourist'>('farmer')
@@ -569,6 +570,9 @@ export default function DashboardPage() {
   const farms = data?.farms || []
   const bookings = data?.bookings || []
   const products = data?.products || []
+  const INITIAL_PRODUCT_LIMIT = 6
+  const displayedProducts = showAllProducts ? products : products.slice(0, INITIAL_PRODUCT_LIMIT)
+  const hasMoreProducts = products.length > INITIAL_PRODUCT_LIMIT
   const reservations = data?.reservations || []
   const availableCrops = data?.availableCrops || []
   const stats = data?.stats || {
@@ -1064,16 +1068,30 @@ export default function DashboardPage() {
       <div className="inventory-panel" style={{ marginTop: '24px' }}>
         <div className="panel-title">
           <div>
-            <p className="section-kicker">Reserve and collect at the farm</p>
+            <p className="section-kicker">
+              Reserve and collect at the farm{products.length > 0 ? ` (${products.length} items)` : ''}
+            </p>
             <h2>Pantry products &amp; inventory</h2>
           </div>
-          <button
-            className="outline-btn"
-            type="button"
-            onClick={() => setIsProductModalOpen(true)}
-          >
-            + Add product
-          </button>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            {hasMoreProducts && (
+              <button
+                className="outline-btn"
+                type="button"
+                onClick={() => setShowAllProducts((prev) => !prev)}
+                style={{ fontSize: '12px' }}
+              >
+                {showAllProducts ? 'Show less' : `View all (${products.length})`}
+              </button>
+            )}
+            <button
+              className="outline-btn"
+              type="button"
+              onClick={() => setIsProductModalOpen(true)}
+            >
+              + Add product
+            </button>
+          </div>
         </div>
 
         {products.length === 0 ? (
@@ -1081,63 +1099,92 @@ export default function DashboardPage() {
             No products listed yet. Click &quot;Add product&quot; to offer fresh harvests for guest pickup!
           </p>
         ) : (
-          <div className="inventory-grid">
-            {products.map((item) => {
-              const stockPct = Math.min(100, Math.round((item.stock / 50) * 100))
-              const isLow = item.stock <= 5
+          <>
+            <div className="inventory-grid">
+              {displayedProducts.map((item) => {
+                const stockPct = Math.min(100, Math.round((item.stock / 50) * 100))
+                const isLow = item.stock <= 5
 
-              return (
-                <div key={item.id} style={{ position: 'relative' }}>
-                  <span>{item.name}</span>
-                  <strong>
-                    {item.stock} <small>{item.unit}</small>
-                  </strong>
-                  <div className="progress">
-                    <i style={{ width: `${stockPct}%` }} />
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
-                    <em className={isLow ? 'low' : ''}>
-                      {isLow ? 'Low stock' : 'In stock'} · {formatRupees(item.price_paise)}
-                    </em>
-                    <div style={{ display: 'flex', gap: '3px' }}>
-                      <button
-                        type="button"
-                        onClick={() => handleStockUpdate(item.id, item.stock, -1)}
-                        style={{
-                          background: 'var(--mint)',
-                          color: 'var(--forest)',
-                          width: '20px',
-                          height: '20px',
-                          fontWeight: 800,
-                          fontSize: '12px',
-                          borderRadius: '2px',
-                          lineHeight: 1,
-                        }}
-                      >
-                        -
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleStockUpdate(item.id, item.stock, 1)}
-                        style={{
-                          background: 'var(--forest)',
-                          color: '#ffffff',
-                          width: '20px',
-                          height: '20px',
-                          fontWeight: 800,
-                          fontSize: '12px',
-                          borderRadius: '2px',
-                          lineHeight: 1,
-                        }}
-                      >
-                        +
-                      </button>
+                return (
+                  <div key={item.id} style={{ position: 'relative' }}>
+                    <span>{item.name}</span>
+                    <strong>
+                      {item.stock} <small>{item.unit}</small>
+                    </strong>
+                    <div className="progress">
+                      <i style={{ width: `${stockPct}%` }} />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+                      <em className={isLow ? 'low' : ''}>
+                        {isLow ? 'Low stock' : 'In stock'} · {formatRupees(item.price_paise)}
+                      </em>
+                      <div style={{ display: 'flex', gap: '3px' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleStockUpdate(item.id, item.stock, -1)}
+                          style={{
+                            background: 'var(--mint)',
+                            color: 'var(--forest)',
+                            width: '20px',
+                            height: '20px',
+                            fontWeight: 800,
+                            fontSize: '12px',
+                            borderRadius: '2px',
+                            lineHeight: 1,
+                          }}
+                        >
+                          -
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleStockUpdate(item.id, item.stock, 1)}
+                          style={{
+                            background: 'var(--forest)',
+                            color: '#ffffff',
+                            width: '20px',
+                            height: '20px',
+                            fontWeight: 800,
+                            fontSize: '12px',
+                            borderRadius: '2px',
+                            lineHeight: 1,
+                          }}
+                        >
+                          +
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )
-            })}
-          </div>
+                )
+              })}
+            </div>
+
+            {hasMoreProducts && (
+              <div
+                style={{
+                  textAlign: 'center',
+                  marginTop: '18px',
+                  paddingTop: '16px',
+                  borderTop: '1px solid var(--line)',
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setShowAllProducts((prev) => !prev)}
+                  className="outline-btn"
+                  style={{
+                    fontSize: '12px',
+                    padding: '8px 20px',
+                    cursor: 'pointer',
+                    background: '#ffffff',
+                  }}
+                >
+                  {showAllProducts
+                    ? 'Show less'
+                    : `View all (${products.length} products)`}
+                </button>
+              </div>
+            )}
+          </>
         )}
 
         {/* Product Pickup Reservations */}
