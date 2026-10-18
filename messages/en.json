@@ -377,7 +377,19 @@
     "callHost": "Call host ({phone})",
     "call112": "Call 112 (Emergency)",
     "shareLocationSms": "Share location by SMS",
-    "smsLocationBody": "Hello, I am traveling to {farmName} (AgriTrails booking {bookingId}). Destination GPS: {lat}, {lng}. Current location: {origin}."
+    "smsLocationBody": "Hello, I am traveling to {farmName} (AgriTrails booking {bookingId}). Destination GPS: {lat}, {lng}. Current location: {origin}.",
+    "openDestinationPin": "Open destination pin",
+    "arrivalSchedule": "Arrival & reporting schedule",
+    "gateReportBy": "Report at farm gate by {time}",
+    "checkInCheckOut": "Check-in: {checkIn} · Check-out: {checkOut}",
+    "lastSafeArrival": "Last safe arrival (before dark): {time}",
+    "hostContactHours": "Host contact hours: {hours}",
+    "planToLeave": "Plan to leave by {time} (estimated)",
+    "routeMilestones": "Major landmarks on the way",
+    "lastServices": "Last services before farm",
+    "activitiesTitle": "On-farm activities & experiences",
+    "emergencyProtocol": "Emergency assistance & host contact",
+    "offlineTips": "Offline tips & preparation"
   },
   "auth": {
     "backToHome": "Back to home",

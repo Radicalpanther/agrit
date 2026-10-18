@@ -83,6 +83,8 @@ export async function POST(request: Request) {
       host_phone: parsed.data.hostPhone,
       landmark_note: parsed.data.landmarkNote || '',
       directions_steps: parsed.data.directionsSteps,
+      landmarks: parsed.data.landmarks || [],
+      nearby_services: parsed.data.nearbyServices || {},
       image_url: parsed.data.imageUrl,
       images: parsed.data.images || [],
       lat: parsed.data.lat,
@@ -100,9 +102,17 @@ export async function POST(request: Request) {
       .select('*')
       .single()
 
-    if (insertError && (insertError.message?.includes('published') || insertError.message?.includes('images'))) {
+    if (
+      insertError &&
+      (insertError.message?.includes('published') ||
+        insertError.message?.includes('images') ||
+        insertError.message?.includes('landmarks') ||
+        insertError.message?.includes('nearby_services'))
+    ) {
       if (insertError.message?.includes('published')) delete farmPayload.published
       if (insertError.message?.includes('images')) delete farmPayload.images
+      if (insertError.message?.includes('landmarks')) delete farmPayload.landmarks
+      if (insertError.message?.includes('nearby_services')) delete farmPayload.nearby_services
       const retry = await serviceClient
         .from('farms')
         .insert(farmPayload)

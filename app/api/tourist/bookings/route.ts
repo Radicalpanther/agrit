@@ -56,9 +56,17 @@ export async function GET() {
           host_phone,
           directions_steps,
           landmark_note,
+          landmarks,
+          nearby_services,
           verified,
           organic_pct,
-          allows_day_visit
+          allows_day_visit,
+          day_visit_start,
+          day_visit_end,
+          activities (*),
+          farm_crops (
+            crop:crops (*)
+          )
         ),
         reservations:product_reservations (
           id,

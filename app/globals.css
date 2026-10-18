@@ -509,6 +509,10 @@ button { border:0; cursor:pointer; color:inherit; background:none; }
    Print Stylesheet for Travel Safety Card
    ========================================================================== */
 @media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
   body * {
     visibility: hidden;
   }
@@ -523,49 +527,62 @@ button { border:0; cursor:pointer; color:inherit; background:none; }
     width: 100% !important;
     max-width: 100% !important;
     margin: 0 !important;
-    padding: 20px !important;
+    padding: 0 !important;
     border: none !important;
     box-shadow: none !important;
     background: #ffffff !important;
-    color: #000000 !important;
+    color: #111111 !important;
+  }
+  .print\:hidden,
+  [class*="print:hidden"],
+  .card-actions-strip,
+  .map-view-switcher,
+  .copy-coords-btn,
+  .pwa-map-controls,
+  .trip-map-source-bar,
+  .trip-map-actions-row button,
+  .site-header,
+  .footer,
+  .back-link,
+  .mobile-toggle,
+  .leaflet-control-container,
+  .agriguide-launcher {
+    display: none !important;
+  }
+  .print-break-inside-avoid,
+  .arrival-times-box,
+  .emergency-table-container,
+  .landmarks-milestones-box {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
   }
   .print-header {
     display: block !important;
-    margin-bottom: 16px;
-    border-bottom: 2px solid #000000;
+    margin-bottom: 14px;
+    border-bottom: 2px solid #143223;
     padding-bottom: 8px;
   }
   .print-header h1 {
     font-size: 20px;
     margin: 0;
-    letter-spacing: 0.5px;
+    color: #143223;
   }
   .print-header p {
     font-size: 10px;
     margin: 2px 0 0;
     color: #555555;
   }
-  .card-actions-strip,
-  .map-view-switcher,
-  .copy-coords-btn,
-  .pwa-map-controls,
-  .site-header,
-  .footer,
-  .back-link,
-  .mobile-toggle {
-    display: none !important;
-  }
   .gps-coordinate-box {
-    background: #f5f5f5 !important;
-    border: 1px solid #cccccc !important;
+    background: #f7f9f6 !important;
+    border: 1px solid #d2ded0 !important;
   }
   .gps-display-large {
-    font-size: 22px !important;
-    color: #000000 !important;
+    font-size: 20px !important;
+    color: #143223 !important;
   }
   .safety-section {
-    border: 1px solid #cccccc !important;
-    background: #fafafa !important;
+    border: 1px solid #d2ded0 !important;
+    background: #fafbfa !important;
   }
   .safety-links-grid {
     grid-template-columns: repeat(3, 1fr) !important;

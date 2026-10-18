@@ -146,6 +146,17 @@ export default function DashboardPage() {
     'Take state highway towards village exit',
     'Follow hand-painted farm stay signboard at the crossroad',
   ])
+  const [landmarks, setLandmarks] = useState<
+    Array<{ name: string; type: string; note: string; distance_km_to_farm: number | '' }>
+  >([])
+  const [nearbyServices, setNearbyServices] = useState<{
+    fuel?: { name?: string; distance_km?: number | ''; phone?: string }
+    atm?: { name?: string; distance_km?: number | '' }
+    pharmacy?: { name?: string; distance_km?: number | ''; phone?: string }
+    grocery?: { name?: string; distance_km?: number | '' }
+    hospital?: { name?: string; distance_km?: number | ''; phone?: string }
+    police?: { name?: string; distance_km?: number | ''; phone?: string }
+  }>({})
   const [selectedCropIds, setSelectedCropIds] = useState<string[]>([])
   const [imageUrl, setImageUrl] = useState(
     'https://i.ibb.co/CsKRHJv0/images.jpg',
@@ -314,6 +325,8 @@ export default function DashboardPage() {
       'Take state highway towards village exit',
       'Follow hand-painted farm stay signboard at the crossroad',
     ])
+    setLandmarks([])
+    setNearbyServices({})
     setSelectedCropIds([])
     setImageUrl('https://i.ibb.co/CsKRHJv0/images.jpg')
     setGalleryImages(['https://i.ibb.co/CsKRHJv0/images.jpg'])
@@ -350,6 +363,14 @@ export default function DashboardPage() {
         ? farm.directions_steps
         : ['Take main road to the farm entrance gate'],
     )
+    setLandmarks(
+      Array.isArray(farm.landmarks)
+        ? farm.landmarks
+        : Array.isArray(farm.raw?.landmarks)
+        ? farm.raw.landmarks
+        : [],
+    )
+    setNearbyServices(farm.nearby_services || farm.nearbyServices || farm.raw?.nearby_services || {})
     const existingCropIds = farm.crops
       ? farm.crops.map((fc: any) => fc.crop?.id || fc.crop_id).filter(Boolean)
       : []
@@ -449,6 +470,49 @@ export default function DashboardPage() {
       .map((s) => s.trim())
       .filter((s) => s.length > 0)
 
+    const cleanLandmarks = landmarks
+      .filter((l) => l.name && l.name.trim().length > 0)
+      .map((l) => ({
+        name: l.name.trim(),
+        type: l.type || 'town',
+        note: l.note?.trim() || '',
+        distance_km_to_farm:
+          l.distance_km_to_farm === '' || l.distance_km_to_farm === null || l.distance_km_to_farm === undefined
+            ? null
+            : Number(l.distance_km_to_farm),
+      }))
+
+    const cleanNearbyServices = {
+      fuel: nearbyServices.fuel?.name ? {
+        name: nearbyServices.fuel.name.trim(),
+        distance_km: Number(nearbyServices.fuel.distance_km) || 0,
+        phone: nearbyServices.fuel.phone?.trim() || '',
+      } : undefined,
+      atm: nearbyServices.atm?.name ? {
+        name: nearbyServices.atm.name.trim(),
+        distance_km: Number(nearbyServices.atm.distance_km) || 0,
+      } : undefined,
+      pharmacy: nearbyServices.pharmacy?.name ? {
+        name: nearbyServices.pharmacy.name.trim(),
+        distance_km: Number(nearbyServices.pharmacy.distance_km) || 0,
+        phone: nearbyServices.pharmacy.phone?.trim() || '',
+      } : undefined,
+      grocery: nearbyServices.grocery?.name ? {
+        name: nearbyServices.grocery.name.trim(),
+        distance_km: Number(nearbyServices.grocery.distance_km) || 0,
+      } : undefined,
+      hospital: nearbyServices.hospital?.name ? {
+        name: nearbyServices.hospital.name.trim(),
+        distance_km: Number(nearbyServices.hospital.distance_km) || 0,
+        phone: nearbyServices.hospital.phone?.trim() || '',
+      } : undefined,
+      police: nearbyServices.police?.name ? {
+        name: nearbyServices.police.name.trim(),
+        distance_km: Number(nearbyServices.police.distance_km) || 0,
+        phone: nearbyServices.police.phone?.trim() || '',
+      } : undefined,
+    }
+
     const effectiveImageUrl = imageUrl.trim().includes('ibb.co/R4TRDhPH')
       ? 'https://i.ibb.co/CsKRHJv0/images.jpg'
       : (imageUrl.trim() || galleryImages[0] || 'https://i.ibb.co/CsKRHJv0/images.jpg')
@@ -473,6 +537,8 @@ export default function DashboardPage() {
       hostPhone: hostPhone.trim(),
       landmarkNote: landmarkNote.trim(),
       directionsSteps: cleanSteps,
+      landmarks: cleanLandmarks,
+      nearbyServices: cleanNearbyServices,
       cropIds: selectedCropIds,
       imageUrl: effectiveImageUrl,
       images: cleanGallery,
@@ -910,9 +976,12 @@ export default function DashboardPage() {
                           key={`trip-map-${booking.id}`}
                           farm={farm}
                           bookingId={booking.id}
+                          guestName={booking.guest_name || touristData?.profile?.full_name || 'Guest Traveller'}
                           checkInDate={checkInDate}
                           visitType={booking.visit_type}
                           guests={booking.guests}
+                          bookingStatus={booking.status}
+                          reservations={reservations}
                           onInteraction={handleMapInteraction}
                         />
                       </div>
@@ -1920,6 +1989,354 @@ export default function DashboardPage() {
                     )}
                   </div>
                 ))}
+              </div>
+
+              {/* Landmarks on the Route (Repeatable rows) */}
+              <div style={{ marginBottom: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink)' }}>
+                    Landmarks on the Route
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setLandmarks([
+                        ...landmarks,
+                        { name: '', type: 'town', note: '', distance_km_to_farm: '' },
+                      ])
+                    }
+                    style={{
+                      fontSize: '11px',
+                      color: 'var(--forest)',
+                      fontWeight: 700,
+                      background: 'var(--mint)',
+                      padding: '3px 8px',
+                      borderRadius: '2px',
+                    }}
+                  >
+                    + Add Landmark
+                  </button>
+                </div>
+
+                {landmarks.length === 0 && (
+                  <p style={{ fontSize: '11px', color: 'var(--muted)', margin: '0 0 6px' }}>
+                    No landmarks added. Add 4 to 8 milestones along the route (e.g. junctions, bridges, towns).
+                  </p>
+                )}
+
+                {landmarks.map((lm, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1.2fr 1fr 1.2fr 0.8fr auto',
+                      gap: '6px',
+                      marginBottom: '6px',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <input
+                      type="text"
+                      value={lm.name}
+                      onChange={(e) => {
+                        const copy = [...landmarks]
+                        copy[idx] = { ...copy[idx], name: e.target.value }
+                        setLandmarks(copy)
+                      }}
+                      placeholder="Name (e.g. River Bridge)"
+                      style={{ border: '1px solid var(--line)', padding: '6px 8px', fontSize: '11px' }}
+                    />
+                    <select
+                      value={lm.type}
+                      onChange={(e) => {
+                        const copy = [...landmarks]
+                        copy[idx] = { ...copy[idx], type: e.target.value }
+                        setLandmarks(copy)
+                      }}
+                      style={{ border: '1px solid var(--line)', padding: '6px 8px', fontSize: '11px', background: '#fff' }}
+                    >
+                      <option value="town">Town</option>
+                      <option value="highway_junction">Highway Junction</option>
+                      <option value="bridge">Bridge</option>
+                      <option value="toll_plaza">Toll Plaza</option>
+                      <option value="fuel_station">Fuel Station</option>
+                      <option value="temple">Temple</option>
+                      <option value="river">River</option>
+                      <option value="landmark">Landmark</option>
+                      <option value="gate">Farm Gate</option>
+                    </select>
+                    <input
+                      type="text"
+                      value={lm.note}
+                      onChange={(e) => {
+                        const copy = [...landmarks]
+                        copy[idx] = { ...copy[idx], note: e.target.value }
+                        setLandmarks(copy)
+                      }}
+                      placeholder="Note / guidance"
+                      style={{ border: '1px solid var(--line)', padding: '6px 8px', fontSize: '11px' }}
+                    />
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={lm.distance_km_to_farm}
+                      onChange={(e) => {
+                        const copy = [...landmarks]
+                        copy[idx] = {
+                          ...copy[idx],
+                          distance_km_to_farm: e.target.value === '' ? '' : parseFloat(e.target.value),
+                        }
+                        setLandmarks(copy)
+                      }}
+                      placeholder="Km to farm"
+                      style={{ border: '1px solid var(--line)', padding: '6px 8px', fontSize: '11px' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setLandmarks(landmarks.filter((_, i) => i !== idx))}
+                      style={{
+                        padding: '6px 8px',
+                        color: '#c0392b',
+                        background: '#fff',
+                        border: '1px solid var(--line)',
+                      }}
+                    >
+                      <X size={13} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Nearby Services */}
+              <div style={{ marginBottom: '18px', padding: '12px', background: '#f8faf6', border: '1px solid var(--line)' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: 'var(--forest)', marginBottom: '8px' }}>
+                  Last Essential & Emergency Services Before Farm
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '8px' }}>
+                  <div>
+                    <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--ink)' }}>Nearest Fuel Station</span>
+                    <input
+                      type="text"
+                      placeholder="Station name"
+                      value={nearbyServices.fuel?.name || ''}
+                      onChange={(e) =>
+                        setNearbyServices({
+                          ...nearbyServices,
+                          fuel: { ...nearbyServices.fuel, name: e.target.value },
+                        })
+                      }
+                      style={{ width: '100%', border: '1px solid var(--line)', padding: '5px 8px', fontSize: '11px', marginTop: '2px' }}
+                    />
+                    <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
+                      <input
+                        type="number"
+                        placeholder="Dist (km)"
+                        value={nearbyServices.fuel?.distance_km ?? ''}
+                        onChange={(e) =>
+                          setNearbyServices({
+                            ...nearbyServices,
+                            fuel: { ...nearbyServices.fuel, distance_km: e.target.value === '' ? '' : parseFloat(e.target.value) },
+                          })
+                        }
+                        style={{ width: '50%', border: '1px solid var(--line)', padding: '5px 8px', fontSize: '11px' }}
+                      />
+                      <input
+                        type="text"
+                        placeholder="Phone"
+                        value={nearbyServices.fuel?.phone || ''}
+                        onChange={(e) =>
+                          setNearbyServices({
+                            ...nearbyServices,
+                            fuel: { ...nearbyServices.fuel, phone: e.target.value },
+                          })
+                        }
+                        style={{ width: '50%', border: '1px solid var(--line)', padding: '5px 8px', fontSize: '11px' }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--ink)' }}>Nearest ATM / Bank</span>
+                    <input
+                      type="text"
+                      placeholder="ATM / Bank name"
+                      value={nearbyServices.atm?.name || ''}
+                      onChange={(e) =>
+                        setNearbyServices({
+                          ...nearbyServices,
+                          atm: { ...nearbyServices.atm, name: e.target.value },
+                        })
+                      }
+                      style={{ width: '100%', border: '1px solid var(--line)', padding: '5px 8px', fontSize: '11px', marginTop: '2px' }}
+                    />
+                    <input
+                      type="number"
+                      placeholder="Dist (km)"
+                      value={nearbyServices.atm?.distance_km ?? ''}
+                      onChange={(e) =>
+                        setNearbyServices({
+                          ...nearbyServices,
+                          atm: { ...nearbyServices.atm, distance_km: e.target.value === '' ? '' : parseFloat(e.target.value) },
+                        })
+                      }
+                      style={{ width: '100%', border: '1px solid var(--line)', padding: '5px 8px', fontSize: '11px', marginTop: '4px' }}
+                    />
+                  </div>
+
+                  <div>
+                    <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--ink)' }}>Nearest Pharmacy</span>
+                    <input
+                      type="text"
+                      placeholder="Medical store name"
+                      value={nearbyServices.pharmacy?.name || ''}
+                      onChange={(e) =>
+                        setNearbyServices({
+                          ...nearbyServices,
+                          pharmacy: { ...nearbyServices.pharmacy, name: e.target.value },
+                        })
+                      }
+                      style={{ width: '100%', border: '1px solid var(--line)', padding: '5px 8px', fontSize: '11px', marginTop: '2px' }}
+                    />
+                    <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
+                      <input
+                        type="number"
+                        placeholder="Dist (km)"
+                        value={nearbyServices.pharmacy?.distance_km ?? ''}
+                        onChange={(e) =>
+                          setNearbyServices({
+                            ...nearbyServices,
+                            pharmacy: { ...nearbyServices.pharmacy, distance_km: e.target.value === '' ? '' : parseFloat(e.target.value) },
+                          })
+                        }
+                        style={{ width: '50%', border: '1px solid var(--line)', padding: '5px 8px', fontSize: '11px' }}
+                      />
+                      <input
+                        type="text"
+                        placeholder="Phone"
+                        value={nearbyServices.pharmacy?.phone || ''}
+                        onChange={(e) =>
+                          setNearbyServices({
+                            ...nearbyServices,
+                            pharmacy: { ...nearbyServices.pharmacy, phone: e.target.value },
+                          })
+                        }
+                        style={{ width: '50%', border: '1px solid var(--line)', padding: '5px 8px', fontSize: '11px' }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--ink)' }}>Nearest Hospital</span>
+                    <input
+                      type="text"
+                      placeholder="Hospital name"
+                      value={nearbyServices.hospital?.name || ''}
+                      onChange={(e) =>
+                        setNearbyServices({
+                          ...nearbyServices,
+                          hospital: { ...nearbyServices.hospital, name: e.target.value },
+                        })
+                      }
+                      style={{ width: '100%', border: '1px solid var(--line)', padding: '5px 8px', fontSize: '11px', marginTop: '2px' }}
+                    />
+                    <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
+                      <input
+                        type="number"
+                        placeholder="Dist (km)"
+                        value={nearbyServices.hospital?.distance_km ?? ''}
+                        onChange={(e) =>
+                          setNearbyServices({
+                            ...nearbyServices,
+                            hospital: { ...nearbyServices.hospital, distance_km: e.target.value === '' ? '' : parseFloat(e.target.value) },
+                          })
+                        }
+                        style={{ width: '50%', border: '1px solid var(--line)', padding: '5px 8px', fontSize: '11px' }}
+                      />
+                      <input
+                        type="text"
+                        placeholder="Hospital phone"
+                        value={nearbyServices.hospital?.phone || ''}
+                        onChange={(e) =>
+                          setNearbyServices({
+                            ...nearbyServices,
+                            hospital: { ...nearbyServices.hospital, phone: e.target.value },
+                          })
+                        }
+                        style={{ width: '50%', border: '1px solid var(--line)', padding: '5px 8px', fontSize: '11px' }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--ink)' }}>Nearest Police Station</span>
+                    <input
+                      type="text"
+                      placeholder="Police station name"
+                      value={nearbyServices.police?.name || ''}
+                      onChange={(e) =>
+                        setNearbyServices({
+                          ...nearbyServices,
+                          police: { ...nearbyServices.police, name: e.target.value },
+                        })
+                      }
+                      style={{ width: '100%', border: '1px solid var(--line)', padding: '5px 8px', fontSize: '11px', marginTop: '2px' }}
+                    />
+                    <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
+                      <input
+                        type="number"
+                        placeholder="Dist (km)"
+                        value={nearbyServices.police?.distance_km ?? ''}
+                        onChange={(e) =>
+                          setNearbyServices({
+                            ...nearbyServices,
+                            police: { ...nearbyServices.police, distance_km: e.target.value === '' ? '' : parseFloat(e.target.value) },
+                          })
+                        }
+                        style={{ width: '50%', border: '1px solid var(--line)', padding: '5px 8px', fontSize: '11px' }}
+                      />
+                      <input
+                        type="text"
+                        placeholder="Police phone"
+                        value={nearbyServices.police?.phone || ''}
+                        onChange={(e) =>
+                          setNearbyServices({
+                            ...nearbyServices,
+                            police: { ...nearbyServices.police, phone: e.target.value },
+                          })
+                        }
+                        style={{ width: '50%', border: '1px solid var(--line)', padding: '5px 8px', fontSize: '11px' }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--ink)' }}>Nearest Grocery / Store</span>
+                    <input
+                      type="text"
+                      placeholder="Store name"
+                      value={nearbyServices.grocery?.name || ''}
+                      onChange={(e) =>
+                        setNearbyServices({
+                          ...nearbyServices,
+                          grocery: { ...nearbyServices.grocery, name: e.target.value },
+                        })
+                      }
+                      style={{ width: '100%', border: '1px solid var(--line)', padding: '5px 8px', fontSize: '11px', marginTop: '2px' }}
+                    />
+                    <input
+                      type="number"
+                      placeholder="Dist (km)"
+                      value={nearbyServices.grocery?.distance_km ?? ''}
+                      onChange={(e) =>
+                        setNearbyServices({
+                          ...nearbyServices,
+                          grocery: { ...nearbyServices.grocery, distance_km: e.target.value === '' ? '' : parseFloat(e.target.value) },
+                        })
+                      }
+                      style={{ width: '100%', border: '1px solid var(--line)', padding: '5px 8px', fontSize: '11px', marginTop: '4px' }}
+                    />
+                  </div>
+                </div>
               </div>
 
               {/* Seasonal Crops Picker */}

@@ -978,30 +978,63 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
           )}
 
           {/* Travel & Route Map */}
-          <TripMap
-            farm={{
-              name: farm.name,
-              slug: farm.slug,
-              place: farm.place,
-              region: farm.region,
-              lat: Number(farm.lat) || Number((raw as any).lat) || 17.0016,
-              lng: Number(farm.lng) || Number((raw as any).lng) || 73.312,
-              host_name: raw.host_name || farm.hostName || 'Rajesh Patil',
-              host_phone: raw.host_phone || farm.hostPhone || '+919800000002',
-              directions_steps: (raw.directions_steps && raw.directions_steps.length > 0)
-                ? raw.directions_steps
-                : farm.directionsSteps || [
-                    'Take NH66 towards Ratnagiri',
-                    'Turn at Mirya phata',
-                    'Follow the board at the mango grove',
-                  ],
-              landmark_note: raw.landmark_note || farm.landmarkNote,
-            }}
-            bookingId={bookingId}
-            checkInDate={checkInDate}
-            visitType={visitType}
-            guests={guests}
-          />
+          {(() => {
+            const reservations = Object.entries(productQuantities)
+              .filter(([, qty]) => qty > 0)
+              .map(([prodId, qty]) => {
+                const prod = produce.find((p) => p.id === prodId)
+                return {
+                  id: prodId,
+                  qty,
+                  status: 'reserved',
+                  product: prod
+                    ? { name: prod.name, unit: prod.unit, price_paise: prod.pricePaise }
+                    : undefined,
+                }
+              })
+
+            return (
+              <TripMap
+                farm={{
+                  name: farm.name,
+                  slug: farm.slug,
+                  place: farm.place,
+                  region: farm.region,
+                  lat: Number(farm.lat) || Number((raw as any).lat) || 17.0016,
+                  lng: Number(farm.lng) || Number((raw as any).lng) || 73.312,
+                  host_name: raw.host_name || farm.hostName || 'Rajesh Patil',
+                  host_phone: raw.host_phone || farm.hostPhone || '+919800000002',
+                  directions_steps: (raw.directions_steps && raw.directions_steps.length > 0)
+                    ? raw.directions_steps
+                    : farm.directionsSteps || [
+                        'Take NH66 towards Ratnagiri',
+                        'Turn at Mirya phata',
+                        'Follow the board at the mango grove',
+                      ],
+                  landmark_note: raw.landmark_note || farm.landmarkNote,
+                  landmarks: (raw as any).landmarks || farm.landmarks || [],
+                  nearby_services: (raw as any).nearby_services || farm.nearbyServices,
+                  allows_day_visit: raw.allows_day_visit ?? farm.allowsDayVisit,
+                  day_visit_start: raw.day_visit_start || farm.dayVisitStart,
+                  day_visit_end: raw.day_visit_end || farm.dayVisitEnd,
+                  check_in_time: raw.check_in_time || farm.checkInTime,
+                  check_out_time: raw.check_out_time || farm.checkOutTime,
+                  last_safe_arrival: raw.last_safe_arrival || farm.lastSafeArrival,
+                  host_contact_hours: raw.host_contact_hours || farm.hostContactHours,
+                  rules: (raw as any).rules || farm.rules || [],
+                  activities: (raw as any).activities || farm.activities || [],
+                  crops: (raw as any).farm_crops || farm.crops || [],
+                }}
+                bookingId={bookingId}
+                guestName={fullName}
+                checkInDate={checkInDate}
+                visitType={visitType}
+                guests={guests}
+                bookingStatus={bookingStatus}
+                reservations={reservations}
+              />
+            )
+          })()}
 
           <div className="mt-6 flex gap-3 flex-wrap w-full">
             <Link

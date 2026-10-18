@@ -39,6 +39,21 @@ export function mapDbFarmToFarm(row: any): Farm {
     hostName: row.host_name || 'Rajesh Patil',
     hostPhone: row.host_phone || '+919800000002',
     images: Array.isArray(row.images) ? row.images : (row.image_url ? [row.image_url] : []),
+    lat: row.lat !== null && row.lat !== undefined ? Number(row.lat) : undefined,
+    lng: row.lng !== null && row.lng !== undefined ? Number(row.lng) : undefined,
+    directions_steps: Array.isArray(row.directions_steps) ? row.directions_steps : [],
+    directionsSteps: Array.isArray(row.directions_steps) ? row.directions_steps : [],
+    landmark_note: row.landmark_note || null,
+    landmarkNote: row.landmark_note || null,
+    landmarks: Array.isArray(row.landmarks) ? row.landmarks : [],
+    nearby_services: row.nearby_services || {},
+    nearbyServices: row.nearby_services || {},
+    allows_day_visit: Boolean(row.allows_day_visit),
+    allowsDayVisit: Boolean(row.allows_day_visit),
+    day_visit_start: row.day_visit_start || null,
+    dayVisitStart: row.day_visit_start || null,
+    day_visit_end: row.day_visit_end || null,
+    dayVisitEnd: row.day_visit_end || null,
   }
 }
 

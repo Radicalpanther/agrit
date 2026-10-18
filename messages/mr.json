@@ -377,7 +377,19 @@
     "callHost": "यजमानांना कॉल करा ({phone})",
     "call112": "११२ ला कॉल करा (आपत्कालीन)",
     "shareLocationSms": "SMS द्वारे स्थान शेअर करा",
-    "smsLocationBody": "नमस्कार, मी {farmName} येथे येत आहे (AgriTrails बुकिंग {bookingId})। गंतव्य GPS: {lat}, {lng}। सुरुवातीचे ठिकाण: {origin}।"
+    "smsLocationBody": "नमस्कार, मी {farmName} येथे येत आहे (AgriTrails बुकिंग {bookingId})। गंतव्य GPS: {lat}, {lng}। सुरुवातीचे ठिकाण: {origin}।",
+    "openDestinationPin": "गंतव्य पिन उघडा",
+    "arrivalSchedule": "आगमन आणि रिपोर्टिंग वेळ",
+    "gateReportBy": "शेत गेटवर {time} पर्यंत पोहोचा",
+    "checkInCheckOut": "चेक-इन: {checkIn} · चेक-आउट: {checkOut}",
+    "lastSafeArrival": "शेवटचे सुरक्षित आगमन (अंधार पडण्यापूर्वी): {time}",
+    "hostContactHours": "होस्ट संपर्क वेळ: {hours}",
+    "planToLeave": "{time} पर्यंत निघण्याचे नियोजन करा (अंदाजे)",
+    "routeMilestones": "मार्गावरील प्रमुख खुणा",
+    "lastServices": "शेतापूर्वीच्या शेवटच्या सुविधा",
+    "activitiesTitle": "शेतातील उपक्रम आणि अनुभव",
+    "emergencyProtocol": "आपत्कालीन मदत आणि संपर्क",
+    "offlineTips": "ऑफलाइन टिप्स आणि पूर्वतयारी"
   },
   "auth": {
     "backToHome": "मुख्यपृष्ठावर परत जा",

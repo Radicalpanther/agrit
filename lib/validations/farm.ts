@@ -21,6 +21,17 @@ export const farmListingSchema = z.object({
   images: z.array(z.string().trim()).default([]),
   lat: z.coerce.number().min(-90).max(90).default(18.5204),
   lng: z.coerce.number().min(-180).max(180).default(73.8567),
+  landmarks: z
+    .array(
+      z.object({
+        name: z.string().trim().min(1, 'Landmark name is required'),
+        type: z.string().trim().default('town'),
+        note: z.string().trim().optional().default(''),
+        distance_km_to_farm: z.coerce.number().optional().nullable(),
+      }),
+    )
+    .default([]),
+  nearbyServices: z.record(z.string(), z.any()).default({}),
   published: z.boolean().default(true),
 })
 

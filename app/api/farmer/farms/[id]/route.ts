@@ -70,6 +70,8 @@ export async function PUT(
       host_phone: parsed.data.hostPhone,
       landmark_note: parsed.data.landmarkNote || '',
       directions_steps: parsed.data.directionsSteps,
+      landmarks: parsed.data.landmarks || [],
+      nearby_services: parsed.data.nearbyServices || {},
       image_url: parsed.data.imageUrl,
       images: parsed.data.images || [],
       lat: parsed.data.lat,
@@ -85,9 +87,17 @@ export async function PUT(
       .select('*')
       .single()
 
-    if (updateError && (updateError.message?.includes('published') || updateError.message?.includes('images'))) {
+    if (
+      updateError &&
+      (updateError.message?.includes('published') ||
+        updateError.message?.includes('images') ||
+        updateError.message?.includes('landmarks') ||
+        updateError.message?.includes('nearby_services'))
+    ) {
       if (updateError.message?.includes('published')) delete updatePayload.published
       if (updateError.message?.includes('images')) delete updatePayload.images
+      if (updateError.message?.includes('landmarks')) delete updatePayload.landmarks
+      if (updateError.message?.includes('nearby_services')) delete updatePayload.nearby_services
       const retry = await serviceClient
         .from('farms')
         .update(updatePayload)
