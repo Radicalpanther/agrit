@@ -583,7 +583,7 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
 
             {/* Telegram Updates Block */}
             <div style={{ margin: '16px 0 20px' }}>
-              <TelegramConnect onStatusChange={(linked) => setIsTelegramLinked(linked)} />
+              <TelegramConnect role="tourist" onStatusChange={(linked) => setIsTelegramLinked(linked)} />
             </div>
 
             {/* Reserve products to collect at the farm */}

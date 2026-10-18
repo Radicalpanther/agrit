@@ -8,6 +8,7 @@ export interface TelegramConnectProps {
   subtitle?: string
   compact?: boolean
   showDisconnect?: boolean
+  role?: 'farmer' | 'tourist'
   onStatusChange?: (isLinked: boolean) => void
 }
 
@@ -16,6 +17,7 @@ export function TelegramConnect({
   subtitle = 'Receive instant reservation status, arrival directions, and host messages directly in Telegram.',
   compact = false,
   showDisconnect = false,
+  role = 'tourist',
   onStatusChange,
 }: TelegramConnectProps) {
   const [isLinked, setIsLinked] = useState<boolean>(false)
@@ -29,7 +31,8 @@ export function TelegramConnect({
 
   const checkStatus = async (): Promise<boolean> => {
     try {
-      const res = await fetch('/api/telegram/status', { cache: 'no-store' })
+      const url = role ? `/api/telegram/status?role=${role}` : '/api/telegram/status'
+      const res = await fetch(url, { cache: 'no-store' })
       if (!res.ok) return false
       const data = await res.json()
       const linked = Boolean(data.linked)
@@ -50,7 +53,7 @@ export function TelegramConnect({
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current)
       if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current)
     }
-  }, [])
+  }, [role])
 
   const startPolling = () => {
     setIsPolling(true)
@@ -82,7 +85,11 @@ export function TelegramConnect({
     const popup = typeof window !== 'undefined' ? window.open('about:blank', '_blank') : null
 
     try {
-      const res = await fetch('/api/telegram/link', { method: 'POST' })
+      const res = await fetch('/api/telegram/link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role }),
+      })
       const data = await res.json()
 
       if (!res.ok || !data.linkUrl) {
@@ -106,7 +113,11 @@ export function TelegramConnect({
 
   const handleDisconnect = async () => {
     try {
-      const res = await fetch('/api/telegram/unlink', { method: 'POST' })
+      const res = await fetch('/api/telegram/unlink', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role }),
+      })
       if (res.ok) {
         setIsLinked(false)
         if (onStatusChange) onStatusChange(false)

@@ -1,8 +1,9 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, NextRequest } from 'next/server'
 import { createClient as createServerClient, createServiceClient } from '@/lib/supabase/server'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const requestedRole = request.nextUrl.searchParams.get('role') || 'tourist'
     const supabase = await createServerClient()
     const {
       data: { user },
@@ -12,12 +13,23 @@ export async function GET() {
 
     let userId = user?.id
     if (!userId) {
-      const { data: demoProfile } = await serviceClient
-        .from('profiles')
-        .select('id')
-        .limit(1)
-        .maybeSingle()
-      userId = demoProfile?.id || '93db1b1a-046c-40a3-a078-829e11b2a42d'
+      if (requestedRole === 'farmer') {
+        const { data: demoFarmer } = await serviceClient
+          .from('profiles')
+          .select('id')
+          .eq('role', 'farmer')
+          .limit(1)
+          .maybeSingle()
+        userId = demoFarmer?.id || '93db1b1a-046c-40a3-a078-829e11b2a42d'
+      } else {
+        const { data: demoTourist } = await serviceClient
+          .from('profiles')
+          .select('id')
+          .eq('role', 'tourist')
+          .limit(1)
+          .maybeSingle()
+        userId = demoTourist?.id || '04e3e740-2591-4af8-9a7d-f6397fa198d8'
+      }
     }
 
     const { data: profile } = await serviceClient

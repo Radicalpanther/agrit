@@ -615,7 +615,7 @@ export default function DashboardPage() {
               </p>
             </div>
             <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-              <TelegramConnect showDisconnect />
+              <TelegramConnect showDisconnect role="tourist" />
               <Link className="primary-btn" href="/explore" style={{ textDecoration: 'none' }}>
                 Explore more stays
               </Link>
@@ -788,7 +788,7 @@ export default function DashboardPage() {
               </p>
             </div>
             <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-              <TelegramConnect compact showDisconnect />
+              <TelegramConnect compact showDisconnect role="farmer" />
               <button
                 className="primary-btn"
                 type="button"
