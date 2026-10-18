@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, memo } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import {
@@ -48,6 +48,7 @@ export interface TripMapProps {
   checkInDate?: string
   visitType?: string
   guests?: number
+  onInteraction?: () => void
 }
 
 interface SourceLocation {
@@ -71,13 +72,16 @@ const PRESET_CITIES: SourceLocation[] = [
   { name: 'Nashik', lat: 19.9975, lng: 73.7898 },
 ]
 
-export function TripMap({
-  farm,
-  bookingId,
-  checkInDate,
-  visitType,
-  guests,
-}: TripMapProps) {
+export const TripMap = memo(
+  function TripMap({
+    farm,
+    bookingId,
+    checkInDate,
+    visitType,
+    guests,
+    onInteraction,
+  }: TripMapProps) {
+
   const t = useTranslations('travelCard')
   const destLat = Number(farm.lat) || Number(farm.raw?.lat) || 17.0016
   const destLng = Number(farm.lng) || Number(farm.raw?.lng) || 73.312
@@ -141,6 +145,7 @@ export function TripMap({
 
   // Helper to persist chosen source
   const handleSaveSource = (newSource: SourceLocation | null) => {
+    onInteraction?.()
     setSource(newSource)
     setGeocodeError(null)
     try {
@@ -208,15 +213,21 @@ export function TripMap({
     })
     ro.observe(mapContainerRef.current)
 
+    const handleMapUserAction = () => {
+      onInteraction?.()
+    }
+    map.on('movestart zoomstart dragstart', handleMapUserAction)
+
     return () => {
       clearTimeout(t1)
       clearTimeout(t2)
       window.removeEventListener('resize', handleResize)
       ro.disconnect()
+      map.off('movestart zoomstart dragstart', handleMapUserAction)
       map.remove()
       mapRef.current = null
     }
-  }, [destLat, destLng, farm.name])
+  }, [destLat, destLng, farm.name, onInteraction])
 
   // 3. Update route and source marker when source changes
   useEffect(() => {
@@ -340,6 +351,7 @@ export function TripMap({
 
   // Handle "Use my location"
   const handleUseLocation = () => {
+    onInteraction?.()
     if (!navigator.geolocation) {
       setGeocodeError('Geolocation is not supported by your browser')
       return
@@ -366,6 +378,7 @@ export function TripMap({
   // Handle Nominatim search for "Other place"
   const handleOtherSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    onInteraction?.()
     const query = otherInput.trim()
     if (!query || isGeocoding) return
 
@@ -550,7 +563,11 @@ export function TripMap({
     : `https://www.google.com/maps/dir/?api=1&destination=${destLat},${destLng}`
 
   return (
-    <div className="trip-map-container">
+    <div
+      className="trip-map-container"
+      onPointerDown={onInteraction}
+      onFocusCapture={onInteraction}
+    >
       {/* Top Source Selection Bar */}
       <div className="trip-map-source-bar">
         <span
@@ -881,4 +898,22 @@ export function TripMap({
       </div>
     </div>
   )
-}
+}, (prev, next) => {
+  return (
+    prev.bookingId === next.bookingId &&
+    prev.checkInDate === next.checkInDate &&
+    prev.visitType === next.visitType &&
+    prev.guests === next.guests &&
+    prev.farm?.id === next.farm?.id &&
+    prev.farm?.name === next.farm?.name &&
+    prev.farm?.slug === next.farm?.slug &&
+    Number(prev.farm?.lat) === Number(next.farm?.lat) &&
+    Number(prev.farm?.lng) === Number(next.farm?.lng) &&
+    (prev.farm?.host_name || prev.farm?.hostName) ===
+      (next.farm?.host_name || next.farm?.hostName) &&
+    (prev.farm?.host_phone || prev.farm?.hostPhone) ===
+      (next.farm?.host_phone || next.farm?.hostPhone) &&
+    prev.farm?.landmark_note === next.farm?.landmark_note
+  )
+})
+

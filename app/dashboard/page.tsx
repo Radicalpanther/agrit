@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import {
   ArrowRight,
@@ -23,6 +23,8 @@ import {
   Compass,
   Upload,
   Image as ImageIcon,
+  RefreshCw,
+  RotateCw,
 } from 'lucide-react'
 import { formatRupees } from '@/lib/money'
 import { TelegramConnect } from '@/components/TelegramConnect'
@@ -171,25 +173,63 @@ export default function DashboardPage() {
   const [viewMode, setViewMode] = useState<'farmer' | 'tourist'>('farmer')
   const [touristData, setTouristData] = useState<{ profile: any; bookings: any[] } | null>(null)
   const [touristLoading, setTouristLoading] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [touristError, setTouristError] = useState<string | null>(null)
   const [expandedBookingId, setExpandedBookingId] = useState<string | null>(null)
 
-  const loadTouristData = async () => {
-    setTouristLoading(true)
-    try {
-      const res = await fetch('/api/tourist/bookings')
-      const json = await res.json()
-      if (res.ok) {
-        setTouristData(json)
-        if (json.bookings?.length > 0 && !expandedBookingId) {
-          setExpandedBookingId(json.bookings[0].id)
-        }
-      }
-    } catch (e) {
-      console.error('Error fetching tourist bookings', e)
-    } finally {
-      setTouristLoading(false)
+  const touristAbortControllerRef = useRef<AbortController | null>(null)
+  const touristDataRef = useRef(touristData)
+  touristDataRef.current = touristData
+  const lastMapInteractionRef = useRef<number>(0)
+
+  const handleMapInteraction = useCallback(() => {
+    lastMapInteractionRef.current = Date.now()
+  }, [])
+
+  const loadTouristData = useCallback(async (isManualTrigger = false) => {
+    if (touristAbortControllerRef.current) {
+      touristAbortControllerRef.current.abort()
     }
-  }
+    const controller = new AbortController()
+    touristAbortControllerRef.current = controller
+
+    // Full page loading state only when no cached data is present
+    if (!touristDataRef.current) {
+      setTouristLoading(true)
+    } else if (isManualTrigger) {
+      setIsRefreshing(true)
+    }
+
+    try {
+      const res = await fetch('/api/tourist/bookings', {
+        signal: controller.signal,
+      })
+      if (!res.ok) {
+        throw new Error(`Failed to load tourist bookings (${res.status})`)
+      }
+      const json = await res.json()
+      setTouristData(json)
+      setTouristError(null)
+      if (json.bookings?.length > 0) {
+        setExpandedBookingId((prev) => prev || json.bookings[0].id)
+      }
+    } catch (e: unknown) {
+      const err = e as { name?: string; message?: string }
+      if (err?.name === 'AbortError') {
+        return
+      }
+      console.error('Error fetching tourist bookings', e)
+      if (!touristDataRef.current) {
+        setTouristError(err?.message || 'Failed to load bookings')
+      }
+    } finally {
+      if (touristAbortControllerRef.current === controller) {
+        touristAbortControllerRef.current = null
+        setTouristLoading(false)
+        setIsRefreshing(false)
+      }
+    }
+  }, [])
 
   const loadDashboardData = async () => {
     try {
@@ -200,7 +240,7 @@ export default function DashboardPage() {
           // Current user is a tourist viewing dashboard
           setViewMode('tourist')
           setError(null)
-          await loadTouristData()
+          await loadTouristData(false)
           return
         }
         setError(json.error || 'Failed to load dashboard')
@@ -219,7 +259,7 @@ export default function DashboardPage() {
       }
       if (json.profile?.role === 'tourist') {
         setViewMode('tourist')
-        await loadTouristData()
+        await loadTouristData(false)
       } else {
         setViewMode('farmer')
       }
@@ -230,6 +270,15 @@ export default function DashboardPage() {
     }
   }
 
+  // Cleanup abort controller on unmount
+  useEffect(() => {
+    return () => {
+      if (touristAbortControllerRef.current) {
+        touristAbortControllerRef.current.abort()
+      }
+    }
+  }, [])
+
   useEffect(() => {
     const isTouristParam =
       typeof window !== 'undefined' &&
@@ -237,20 +286,11 @@ export default function DashboardPage() {
 
     if (isTouristParam) {
       setViewMode('tourist')
-      loadTouristData().finally(() => setLoading(false))
+      loadTouristData(false).finally(() => setLoading(false))
     } else {
       loadDashboardData()
     }
-  }, [])
-
-  useEffect(() => {
-    if (viewMode === 'tourist') {
-      const interval = setInterval(() => {
-        loadTouristData()
-      }, 20000)
-      return () => clearInterval(interval)
-    }
-  }, [viewMode])
+  }, [loadTouristData])
 
   // Open Create Listing modal
   const openCreateListing = () => {
@@ -659,16 +699,70 @@ export default function DashboardPage() {
               <h1>{t('tourist.heading')}</h1>
               <p>{t('tourist.subhead')}</p>
             </div>
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="outline-btn"
+                onClick={() => loadTouristData(true)}
+                disabled={isRefreshing || touristLoading}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '9px 14px',
+                  fontSize: '12px',
+                  cursor: isRefreshing || touristLoading ? 'not-allowed' : 'pointer',
+                  background: '#ffffff',
+                }}
+                title={t('tourist.refresh')}
+              >
+                <RefreshCw size={13} className={isRefreshing ? 'animate-spin' : ''} />
+                <span>{isRefreshing ? t('tourist.refreshing') : t('tourist.refresh')}</span>
+              </button>
+              <button
+                type="button"
+                className="outline-btn"
+                onClick={() => window.location.reload()}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '9px 14px',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  background: '#ffffff',
+                  color: 'var(--muted)',
+                }}
+                title={t('tourist.hardReload')}
+              >
+                <RotateCw size={13} />
+                <span>{t('tourist.hardReload')}</span>
+              </button>
               <Link className="primary-btn" href="/explore" style={{ textDecoration: 'none' }}>
                 {t('tourist.exploreMore')}
               </Link>
             </div>
           </div>
 
-          {touristLoading ? (
+          {touristLoading && !touristData ? (
             <div style={{ textAlign: 'center', padding: '60px 20px', background: '#fff', border: '1px solid var(--line)' }}>
               <p className="muted">{t('tourist.loadingBookings')}</p>
+            </div>
+          ) : touristError && !touristData ? (
+            <div style={{ textAlign: 'center', padding: '60px 20px', background: '#fff', border: '1px solid var(--line)' }}>
+              <p className="section-kicker" style={{ color: '#b33939' }}>{t('portalError')}</p>
+              <h2>{t('unableToLoad')}</h2>
+              <p className="muted" style={{ maxWidth: '420px', margin: '10px auto 24px', lineHeight: 1.6 }}>
+                {touristError}
+              </p>
+              <button
+                type="button"
+                onClick={() => loadTouristData(false)}
+                className="outline-btn"
+                style={{ padding: '10px 20px', fontSize: '12px' }}
+              >
+                {t('retryConnection')}
+              </button>
             </div>
           ) : !touristData?.bookings || touristData.bookings.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '60px 20px', background: '#fff', border: '1px solid var(--line)' }}>
@@ -777,6 +871,7 @@ export default function DashboardPage() {
                     {/* Collapsible Travel map section per booking */}
                     <details
                       className="tourist-travel-map-collapsible"
+                      onToggle={handleMapInteraction}
                       style={{
                         marginTop: '16px',
                         border: '1px solid var(--line)',
@@ -812,11 +907,13 @@ export default function DashboardPage() {
                       </summary>
                       <div style={{ padding: '14px' }}>
                         <TripMap
+                          key={`trip-map-${booking.id}`}
                           farm={farm}
                           bookingId={booking.id}
                           checkInDate={checkInDate}
                           visitType={booking.visit_type}
                           guests={booking.guests}
+                          onInteraction={handleMapInteraction}
                         />
                       </div>
                     </details>

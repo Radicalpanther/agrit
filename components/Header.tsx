@@ -22,7 +22,14 @@ export function Header() {
   useEffect(() => {
     const supabase = createClient()
 
+    let currentUserId: string | null = null
+
     const resolveUser = async (currentUser: SupabaseUser | null) => {
+      const newUserId = currentUser?.id ?? null
+      if (newUserId === currentUserId && currentUser !== null) {
+        return
+      }
+      currentUserId = newUserId
       setUser(currentUser)
       if (!currentUser) {
         setUserName(null)
@@ -72,7 +79,8 @@ export function Header() {
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'INITIAL_SESSION') return
       resolveUser(session?.user ?? null)
     })
 
