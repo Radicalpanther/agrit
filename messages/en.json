@@ -268,6 +268,7 @@
     }
   },
   "booking": {
+    "farmerBookingBlocked": "You are currently signed in with a farmer account. Farmers cannot book stays. Please switch to a tourist account to make a reservation.",
     "backToFarm": "← Back to farm stays",
     "reserveStay": "Reserve your stay",
     "makeItAVisit": "Make it a visit.",
@@ -417,7 +418,7 @@
     "creatingAccount": "Creating account...",
     "quickDemoTitle": "Quick Demo Sign-In",
     "demoFarmer": "Farmer (Rajesh Patil)",
-    "demoTourist": "Tourist (Ananya Roy)",
+    "demoTourist": "Tourist Login",
     "communityNote": "Host accounts and guest reservations are secured under rural community guidelines.",
     "registrationEmailNote": "Registration complete. If email confirmation is enabled for your project, please check your inbox before logging in.",
     "unexpectedError": "An unexpected error occurred. Please try again.",
@@ -501,13 +502,13 @@
     },
     "tourist": {
       "portalKicker": "Tourist portal",
-      "heading": "My Rural Stays & Travel Safety Cards",
-      "subhead": "Offline directions, host contact details, and emergency travel cards for your farm reservations.",
+      "heading": "My Rural Stays",
+      "subhead": "Directions, host contact details, and route maps for your farm reservations.",
       "exploreMore": "Explore more stays",
       "refresh": "Refresh",
       "refreshing": "Refreshing...",
       "hardReload": "Hard reload",
-      "loadingBookings": "Loading your bookings and travel safety cards...",
+      "loadingBookings": "Loading your bookings...",
       "emptyHeading": "No active bookings found.",
       "emptySubhead": "Discover rural escapes and traditional farm stays across India.",
       "browseStays": "Browse stays",

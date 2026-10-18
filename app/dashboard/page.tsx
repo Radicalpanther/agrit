@@ -23,8 +23,6 @@ import {
   Compass,
   Upload,
   Image as ImageIcon,
-  RefreshCw,
-  RotateCw,
 } from 'lucide-react'
 import { formatRupees } from '@/lib/money'
 import { TelegramConnect } from '@/components/TelegramConnect'
@@ -184,7 +182,6 @@ export default function DashboardPage() {
   const [viewMode, setViewMode] = useState<'farmer' | 'tourist'>('farmer')
   const [touristData, setTouristData] = useState<{ profile: any; bookings: any[] } | null>(null)
   const [touristLoading, setTouristLoading] = useState(false)
-  const [isRefreshing, setIsRefreshing] = useState(false)
   const [touristError, setTouristError] = useState<string | null>(null)
   const [expandedBookingId, setExpandedBookingId] = useState<string | null>(null)
 
@@ -197,7 +194,7 @@ export default function DashboardPage() {
     lastMapInteractionRef.current = Date.now()
   }, [])
 
-  const loadTouristData = useCallback(async (isManualTrigger = false) => {
+  const loadTouristData = useCallback(async (_isManualTrigger?: boolean) => {
     if (touristAbortControllerRef.current) {
       touristAbortControllerRef.current.abort()
     }
@@ -207,8 +204,6 @@ export default function DashboardPage() {
     // Full page loading state only when no cached data is present
     if (!touristDataRef.current) {
       setTouristLoading(true)
-    } else if (isManualTrigger) {
-      setIsRefreshing(true)
     }
 
     try {
@@ -237,7 +232,6 @@ export default function DashboardPage() {
       if (touristAbortControllerRef.current === controller) {
         touristAbortControllerRef.current = null
         setTouristLoading(false)
-        setIsRefreshing(false)
       }
     }
   }, [])
@@ -766,44 +760,6 @@ export default function DashboardPage() {
               <p>{t('tourist.subhead')}</p>
             </div>
             <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                className="outline-btn"
-                onClick={() => loadTouristData(true)}
-                disabled={isRefreshing || touristLoading}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '9px 14px',
-                  fontSize: '12px',
-                  cursor: isRefreshing || touristLoading ? 'not-allowed' : 'pointer',
-                  background: '#ffffff',
-                }}
-                title={t('tourist.refresh')}
-              >
-                <RefreshCw size={13} className={isRefreshing ? 'animate-spin' : ''} />
-                <span>{isRefreshing ? t('tourist.refreshing') : t('tourist.refresh')}</span>
-              </button>
-              <button
-                type="button"
-                className="outline-btn"
-                onClick={() => window.location.reload()}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '9px 14px',
-                  fontSize: '12px',
-                  cursor: 'pointer',
-                  background: '#ffffff',
-                  color: 'var(--muted)',
-                }}
-                title={t('tourist.hardReload')}
-              >
-                <RotateCw size={13} />
-                <span>{t('tourist.hardReload')}</span>
-              </button>
               <Link className="primary-btn" href="/explore" style={{ textDecoration: 'none' }}>
                 {t('tourist.exploreMore')}
               </Link>

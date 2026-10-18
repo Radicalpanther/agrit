@@ -114,6 +114,22 @@ export async function POST(request: Request) {
       data: { user },
     } = await supabase.auth.getUser()
 
+    if (user) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .maybeSingle()
+
+      const userRole = profile?.role || user.user_metadata?.role
+      if (userRole === 'farmer' || user.id === '93db1b1a-046c-40a3-a078-829e11b2a42d') {
+        return NextResponse.json(
+          { error: 'Farmers cannot book farm stays when logged in as a farmer. Please switch to a tourist account.' },
+          { status: 403 },
+        )
+      }
+    }
+
     let touristId = user?.id
 
     // Fallback tourist ID lookup by email if not currently signed in
@@ -208,6 +224,7 @@ export async function POST(request: Request) {
           .from('profiles')
           .update(updatePayload)
           .eq('id', touristId)
+          .eq('role', 'tourist')
 
         // Trigger outbound WhatsApp/Telegram notifications via notifyBookingStatus
         const dispatches = await notifyBookingStatus(

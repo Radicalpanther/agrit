@@ -7,30 +7,16 @@ import {
   MapPin,
   Navigation,
   Compass,
-  Phone,
-  PhoneCall,
   ExternalLink,
   Download,
-  Copy,
-  Check,
   Search,
   LocateFixed,
   AlertCircle,
   Clock,
   Route as RouteIcon,
-  Printer,
-  Calendar,
-  Shield,
-  Activity,
-  ShoppingBag,
 } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { haversineDistanceKm } from '@/lib/geo'
-import {
-  formatDms,
-  calculateEstimatedDeparture,
-  mergeRouteMilestones,
-} from '@/lib/geo-utils'
 import { downloadTravelSafetyCardPdf } from '@/lib/travel-card-pdf'
 
 export interface TripMapProps {
@@ -158,7 +144,6 @@ export const TripMap = memo(
     const [geocodeError, setGeocodeError] = useState<string | null>(null)
     const [routeInfo, setRouteInfo] = useState<ExtendedRouteSummary | null>(null)
     const [isRouting, setIsRouting] = useState(false)
-    const [copied, setCopied] = useState(false)
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
 
     const mapContainerRef = useRef<HTMLDivElement | null>(null)
@@ -172,10 +157,6 @@ export const TripMap = memo(
       : `https://www.google.com/maps/dir/?api=1&destination=${destLat},${destLng}&travelmode=driving`
 
     const destinationPinUrl = `https://www.google.com/maps/search/?api=1&query=${destLat},${destLng}`
-
-    // Coordinates formatting
-    const dms = formatDms(destLat, destLng)
-    const bookingRefShort = bookingId ? bookingId.slice(0, 8).toUpperCase() : 'CONFIRMED'
 
     // 1. Restore saved source from localStorage on mount
     useEffect(() => {
@@ -447,15 +428,6 @@ export const TripMap = memo(
       }
     }
 
-    // Copy GPS Coordinates
-    const handleCopyCoords = () => {
-      const text = `${destLat.toFixed(6)}, ${destLng.toFixed(6)}`
-      navigator.clipboard.writeText(text).then(() => {
-        setCopied(true)
-        setTimeout(() => setCopied(false), 2000)
-      })
-    }
-
     // Download Redesigned 2-Page A4 PDF
     const handleDownloadPdf = async () => {
       setIsGeneratingPdf(true)
@@ -479,29 +451,9 @@ export const TripMap = memo(
       }
     }
 
-    // Computed values for schedule box
-    const dayStart = farm.day_visit_start || farm.dayVisitStart || '09:00'
-    const dayEnd = farm.day_visit_end || farm.dayVisitEnd || '17:00'
-    const checkInTime = farm.check_in_time || '12:00 PM'
-    const checkOutTime = farm.check_out_time || '10:00 AM'
-    const lastSafeArrival = farm.last_safe_arrival || '06:00 PM (before dark)'
-    const hostHours = farm.host_contact_hours || '07:00 AM - 09:00 PM'
-
-    const targetArrival = visitType === 'day' ? dayStart : '13:00'
-    const driveSecs =
-      routeInfo?.durationSeconds ||
-      (routeInfo?.distanceKm ? Math.round((Number(routeInfo.distanceKm) / 45) * 3600) : 0)
-    const departureSuggestion = calculateEstimatedDeparture(targetArrival, driveSecs)
-
-    const milestones = mergeRouteMilestones(
-      routeInfo?.steps || [],
-      landmarks,
-      Number(routeInfo?.distanceKm) || 0,
-    )
-
     return (
       <div
-        className="trip-map-container travel-safety-card"
+        className="trip-map-container"
         onPointerDown={onInteraction}
         onFocusCapture={onInteraction}
       >
@@ -711,7 +663,7 @@ export const TripMap = memo(
         {/* ================================================================= */}
         {/* ACTION BUTTONS (Interactive On-Screen) */}
         {/* ================================================================= */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 p-3 bg-white border-t border-[var(--line)] w-full box-border print:hidden">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-3 bg-white border-t border-[var(--line)] w-full box-border">
           <a
             href={googleMapsUrl}
             target="_blank"
@@ -742,412 +694,11 @@ export const TripMap = memo(
             <Download size={13} />
             {isGeneratingPdf ? t('generatingPdf') : t('downloadPdf')}
           </button>
-
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="trip-map-source-btn min-h-[44px] px-3.5 py-2.5 w-full justify-center"
-          >
-            <Printer size={13} />
-            {t('printCard')}
-          </button>
-        </div>
-
-        {/* ================================================================= */}
-        {/* TRAVEL SAFETY CARD BODY & PRINT VIEW */}
-        {/* ================================================================= */}
-        <div className="travel-safety-card-content p-3.5 sm:p-5 bg-[#fafbf9] border-t border-[var(--line)] w-full box-border">
-          {/* Print-only Header Band */}
-          <div className="hidden print:block mb-4 p-3 bg-[#1e3a2b] text-white">
-            <h1 className="text-base font-bold m-0 tracking-wide text-white">
-              AGRITRAILS · TRAVEL SAFETY CARD & ROUTE MAP
-            </h1>
-            <p className="text-[10px] m-0 text-[#d7ebde]">
-              OFFLINE RURAL ACCESS AND EMERGENCY INFORMATION - KEEP SAVED
-            </p>
-          </div>
-
-          {/* Farm & Booking Summary (Print & Screen) */}
-          <div className="bg-white p-3.5 rounded-sm border border-[var(--line)] mb-3.5">
-            <div className="flex justify-between items-start flex-wrap gap-2">
-              <div>
-                <h3 className="text-base sm:text-lg font-bold text-[var(--forest)] m-0">
-                  {farm.name}
-                </h3>
-                <p className="text-xs text-[var(--muted)] m-0">
-                  {farm.place} · {farm.region}
-                </p>
-              </div>
-              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 bg-[#e8f2e6] text-[#1e5537] rounded-xs">
-                Verified by AgriTrails
-              </span>
-            </div>
-
-            <div className="mt-2.5 pt-2.5 border-t border-[#edf2ec] grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-              <div>
-                <span className="text-[10px] font-bold text-[var(--muted)] uppercase block">
-                  Booking Ref
-                </span>
-                <span className="font-mono font-bold text-[var(--ink)]">{bookingRefShort}</span>
-              </div>
-              <div>
-                <span className="text-[10px] font-bold text-[var(--muted)] uppercase block">
-                  Guest
-                </span>
-                <span className="font-semibold text-[var(--ink)]">
-                  {guestName || 'Registered Guest'}
-                </span>
-              </div>
-              <div>
-                <span className="text-[10px] font-bold text-[var(--muted)] uppercase block">
-                  Date & Visit
-                </span>
-                <span className="font-semibold text-[var(--ink)]">
-                  {checkInDate || 'Scheduled'} · {visitType === 'day' ? 'Day Visit' : 'Overnight'}
-                </span>
-              </div>
-              <div>
-                <span className="text-[10px] font-bold text-[var(--muted)] uppercase block">
-                  Guests & Status
-                </span>
-                <span className="font-semibold text-[var(--ink)]">
-                  {guests || 2} Guests · {(bookingStatus || 'Confirmed').toUpperCase()}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* 1. ARRIVAL & REPORTING SCHEDULE (Prominent Box) */}
-          <div className="arrival-schedule-box bg-[#fbfcf9] border border-[var(--forest)] p-3.5 rounded-sm mb-3.5">
-            <div className="flex items-center gap-1.5 text-xs font-bold text-[var(--forest)] uppercase tracking-wider mb-2">
-              <Calendar size={13} />
-              <span>{t('arrivalSchedule')}</span>
-            </div>
-
-            <div className="text-xs text-[var(--ink)] font-semibold leading-relaxed">
-              {visitType === 'day' ? (
-                <div>
-                  <span>
-                    {t('gateReportBy', { time: dayStart })} · Visit Hours: {dayStart} to {dayEnd}
-                  </span>
-                  <div className="text-[11px] font-normal text-[var(--muted)] mt-0.5">
-                    {t('lastSafeArrival', { time: lastSafeArrival })}
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  <span>
-                    {t('checkInCheckOut', { checkIn: checkInTime, checkOut: checkOutTime })}
-                  </span>
-                  <div className="text-[11px] font-normal text-[var(--muted)] mt-0.5">
-                    {t('lastSafeArrival', { time: lastSafeArrival })}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {departureSuggestion && (
-              <div className="mt-2 text-xs font-medium text-[var(--forest)] bg-[#f0f6ee] p-2 rounded-xs border border-[#d6e5d2]">
-                <strong>Suggestion:</strong> {t('planToLeave', { time: departureSuggestion })}. (Computed from estimated drive time + 30 min buffer).
-              </div>
-            )}
-          </div>
-
-          {/* 2. GPS COORDINATES & NAVIGATION */}
-          <div className="gps-coordinate-box w-full m-0 mb-3.5 p-3.5 bg-white border border-[var(--line)] rounded-sm box-border">
-            <div className="flex justify-between items-center flex-wrap gap-2 mb-2">
-              <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[var(--forest)]">
-                <MapPin size={13} /> {t('destinationGps')}
-              </span>
-              <button
-                type="button"
-                className="copy-coords-btn min-h-[38px] px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer bg-white border border-[var(--line)] hover:border-[var(--forest)] hover:text-[var(--forest)] transition-colors print:hidden"
-                onClick={handleCopyCoords}
-              >
-                {copied ? <Check size={13} color="var(--forest)" /> : <Copy size={13} />}
-                {copied ? t('copied') : t('copyCoordinates')}
-              </button>
-            </div>
-
-            <div className="gps-display-large font-mono text-lg sm:text-2xl font-extrabold text-[var(--ink)] break-all [overflow-wrap:anywhere] flex items-center gap-2 flex-wrap my-1">
-              <span>{destLat.toFixed(6)}° N</span>
-              <span className="text-[var(--leaf)]">,</span>
-              <span>{destLng.toFixed(6)}° E</span>
-            </div>
-
-            <div className="text-xs text-[var(--muted)] mt-1 flex flex-wrap gap-x-4 gap-y-1">
-              <span>DMS: {dms.text}</span>
-            </div>
-
-            {/* Direct Navigation Links with Printed URLs Beneath */}
-            <div className="mt-3 pt-3 border-t border-[#edf2ec] space-y-2.5">
-              <div>
-                <a
-                  href={googleMapsUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#143223] text-white rounded text-xs font-bold no-underline hover:bg-[#1e4834]"
-                >
-                  <ExternalLink size={12} /> {t('openGoogleMaps')}
-                </a>
-                <span className="block text-[11px] text-[#666666] font-mono mt-1 break-all [overflow-wrap:anywhere]">
-                  {googleMapsUrl}
-                </span>
-              </div>
-
-              <div>
-                <a
-                  href={destinationPinUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#f0f5ee] border border-[#c0d6be] text-[#143223] rounded text-xs font-bold no-underline hover:bg-[#e4ece1]"
-                >
-                  <MapPin size={12} /> {t('openDestinationPin')}
-                </a>
-                <span className="block text-[11px] text-[#666666] font-mono mt-1 break-all [overflow-wrap:anywhere]">
-                  {destinationPinUrl}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* PAGE BREAK FOR PRINT */}
-          <div className="hidden print:block print-page-break my-4 border-b-2 border-dashed border-gray-300" style={{ pageBreakAfter: 'always', breakAfter: 'page' }} />
-
-          {/* 3. LANDMARKS & ROUTE MILESTONES */}
-          {milestones.length > 0 && (
-            <div className="landmarks-milestones-box bg-white p-3.5 border border-[var(--line)] rounded-sm mb-3.5">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--forest)] m-0 mb-2.5 flex items-center gap-1.5">
-                <Navigation size={13} /> {t('routeMilestones')}
-              </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                {milestones.map((ms, idx) => (
-                  <div
-                    key={idx}
-                    className="flex justify-between items-center p-2 bg-[#f9faf7] border border-[#e8ece5] rounded-xs"
-                  >
-                    <span className="font-semibold text-[var(--ink)]">
-                      {idx + 1}. {ms.name}
-                    </span>
-                    <span className="text-[11px] text-[var(--muted)] ml-2 shrink-0">
-                      {ms.distance_km_to_farm !== undefined
-                        ? `${ms.distance_km_to_farm} km to farm`
-                        : `${ms.distance_from_origin_km || 0} km`}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* 4. NUMBERED DIRECTIONS & KEY VISUAL LANDMARK */}
-          {directionsSteps.length > 0 && (
-            <div className="bg-white p-3.5 border border-[var(--line)] rounded-sm mb-3.5">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--ink)] m-0 mb-2 flex items-center gap-1.5">
-                <Navigation size={13} color="var(--forest)" /> {t('landmarkDirections')}
-              </h4>
-              <ol className="m-0 pl-4 text-xs text-[#53685d] leading-relaxed">
-                {directionsSteps.map((step, idx) => (
-                  <li key={idx} className="mb-1">
-                    {step}
-                  </li>
-                ))}
-              </ol>
-
-              {landmarkNote && (
-                <div className="mt-2.5 p-2 bg-[#fbf9f4] border border-[#e0c48e] rounded-xs text-xs text-[var(--ink)] flex items-center gap-2">
-                  <AlertCircle size={14} color="#b8860b" style={{ flexShrink: 0 }} />
-                  <span>
-                    <strong>{t('keyVisualLandmark')}</strong> {landmarkNote}
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* 5. LAST ESSENTIAL SERVICES BEFORE FARM */}
-          <div className="bg-white p-3.5 border border-[var(--line)] rounded-sm mb-3.5">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--forest)] m-0 mb-2">
-              {t('lastServices')}
-            </h4>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-              <div className="p-2 bg-[#f9faf7] border border-[#e8ece5] rounded-xs">
-                <span className="font-bold block text-[10px] text-[var(--muted)] uppercase">
-                  Nearest Fuel
-                </span>
-                <span className="font-medium text-[var(--ink)] block">
-                  {nearbyServices.fuel?.name || 'Village petrol pump'}
-                </span>
-                <span className="text-[11px] text-[var(--muted)]">
-                  {nearbyServices.fuel?.distance_km ? `${nearbyServices.fuel.distance_km} km` : '3 km'}
-                </span>
-              </div>
-              <div className="p-2 bg-[#f9faf7] border border-[#e8ece5] rounded-xs">
-                <span className="font-bold block text-[10px] text-[var(--muted)] uppercase">
-                  Nearest ATM
-                </span>
-                <span className="font-medium text-[var(--ink)] block">
-                  {nearbyServices.atm?.name || 'Bank ATM'}
-                </span>
-                <span className="text-[11px] text-[var(--muted)]">
-                  {nearbyServices.atm?.distance_km ? `${nearbyServices.atm.distance_km} km` : '2 km'}
-                </span>
-              </div>
-              <div className="p-2 bg-[#f9faf7] border border-[#e8ece5] rounded-xs">
-                <span className="font-bold block text-[10px] text-[var(--muted)] uppercase">
-                  Nearest Pharmacy
-                </span>
-                <span className="font-medium text-[var(--ink)] block">
-                  {nearbyServices.pharmacy?.name || 'Community pharmacy'}
-                </span>
-                <span className="text-[11px] text-[var(--muted)]">
-                  {nearbyServices.pharmacy?.distance_km ? `${nearbyServices.pharmacy.distance_km} km` : '3 km'}
-                </span>
-              </div>
-              <div className="p-2 bg-[#f9faf7] border border-[#e8ece5] rounded-xs">
-                <span className="font-bold block text-[10px] text-[var(--muted)] uppercase">
-                  Grocery Store
-                </span>
-                <span className="font-medium text-[var(--ink)] block">
-                  {nearbyServices.grocery?.name || 'Local provision store'}
-                </span>
-                <span className="text-[11px] text-[var(--muted)]">
-                  {nearbyServices.grocery?.distance_km ? `${nearbyServices.grocery.distance_km} km` : '1 km'}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* 6. ACTIVITIES & EXPERIENCES */}
-          {Array.isArray(farm.activities) && farm.activities.length > 0 && (
-            <div className="bg-white p-3.5 border border-[var(--line)] rounded-sm mb-3.5">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--forest)] m-0 mb-2 flex items-center gap-1.5">
-                <Activity size={13} /> {t('activitiesTitle')}
-              </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                {farm.activities.slice(0, 4).map((act: any, idx: number) => (
-                  <div
-                    key={idx}
-                    className="p-2 bg-[#f9faf7] border border-[#e8ece5] rounded-xs flex justify-between items-center"
-                  >
-                    <span className="font-medium text-[var(--ink)]">{act.name}</span>
-                    <span className="text-[11px] text-[var(--muted)]">
-                      {act.duration_min ? `${act.duration_min}m` : '45m'} · Included
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Reserved Farm Products Pickup Basket */}
-          {Array.isArray(reservations) && reservations.length > 0 && (
-            <div className="bg-[#f4f8f2] border border-[#c5ddbf] p-3 rounded-sm mb-3.5 text-xs text-[var(--forest)]">
-              <div className="flex items-center gap-1.5 font-bold uppercase tracking-wide mb-1">
-                <ShoppingBag size={13} />
-                <span>Reserved Farm Products for Pickup</span>
-              </div>
-              <div className="space-y-1">
-                {reservations.map((r, i) => (
-                  <div key={i} className="flex justify-between">
-                    <span>{r.product?.name || 'Produce'}</span>
-                    <span className="font-bold">Qty: {r.qty}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* 7. EMERGENCY PROTOCOL & HOST CONTACT */}
-          <div className="emergency-protocol-box bg-[#fff9f9] border border-[#f0c3c3] p-3.5 rounded-sm mb-3.5">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-[#b52b2b] m-0 mb-2 flex items-center gap-1.5">
-              <Shield size={13} /> {t('emergencyProtocol')}
-            </h4>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs mb-3">
-              <div className="p-2 bg-white border border-[#f5d5d5] rounded-xs">
-                <span className="text-[10px] uppercase font-bold text-[#b52b2b] block">National Emergency</span>
-                <span className="font-mono font-bold text-sm text-[var(--ink)]">112</span>
-              </div>
-              <div className="p-2 bg-white border border-[#f5d5d5] rounded-xs">
-                <span className="text-[10px] uppercase font-bold text-[#b52b2b] block">Ambulance</span>
-                <span className="font-mono font-bold text-sm text-[var(--ink)]">108</span>
-              </div>
-              <div className="p-2 bg-white border border-[#f5d5d5] rounded-xs">
-                <span className="text-[10px] uppercase font-bold text-[#b52b2b] block">
-                  {nearbyServices.hospital?.name || 'Nearest Hospital'}
-                </span>
-                <span className="font-mono font-bold text-sm text-[var(--ink)]">
-                  {nearbyServices.hospital?.phone || '108'}
-                </span>
-              </div>
-              <div className="p-2 bg-white border border-[#f5d5d5] rounded-xs">
-                <span className="text-[10px] uppercase font-bold text-[#b52b2b] block">
-                  {nearbyServices.police?.name || 'Nearest Police'}
-                </span>
-                <span className="font-mono font-bold text-sm text-[var(--ink)]">
-                  {nearbyServices.police?.phone || '100'}
-                </span>
-              </div>
-            </div>
-
-            {/* Quick Action Dial Buttons */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <a
-                href={`tel:${hostPhone}`}
-                className="trip-map-source-btn min-h-[44px] px-3.5 py-2.5 w-full justify-center"
-                style={{
-                  background: 'var(--mint)',
-                  color: 'var(--forest)',
-                  border: '1px solid var(--forest)',
-                  textDecoration: 'none',
-                  fontWeight: 700,
-                }}
-              >
-                <Phone size={14} /> {t('callHost', { phone: hostPhone })}
-              </a>
-              <a
-                href="tel:112"
-                className="trip-map-source-btn min-h-[44px] px-3.5 py-2.5 w-full justify-center"
-                style={{
-                  background: '#fdf2f2',
-                  color: '#c53030',
-                  border: '1px solid #c53030',
-                  textDecoration: 'none',
-                  fontWeight: 700,
-                }}
-              >
-                <Phone size={14} /> {t('call112')}
-              </a>
-              <a
-                href={`sms:?body=${encodeURIComponent(
-                  t('smsLocationBody', {
-                    farmName: farm.name,
-                    bookingId: bookingId || 'N/A',
-                    lat: destLat.toFixed(4),
-                    lng: destLng.toFixed(4),
-                    origin: source ? source.name : 'Current location',
-                  }),
-                )}`}
-                className="trip-map-source-btn min-h-[44px] px-3.5 py-2.5 w-full justify-center"
-                style={{
-                  textDecoration: 'none',
-                  fontWeight: 700,
-                }}
-              >
-                <PhoneCall size={14} /> {t('shareLocationSms')}
-              </a>
-            </div>
-
-            <p className="text-[11px] text-[var(--muted)] m-0 mt-2">
-              Cellular voice and SMS work even when mobile data drops along remote roads.
-            </p>
-          </div>
         </div>
       </div>
     )
   },
-  (prev, next) => {
+(prev, next) => {
     return (
       prev.bookingId === next.bookingId &&
       prev.guestName === next.guestName &&

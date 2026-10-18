@@ -16,6 +16,7 @@ import {
   Copy,
   Check,
   Loader2,
+  AlertCircle,
 } from 'lucide-react'
 import { useTranslations, useLocale } from 'next-intl'
 import type { Farm, Produce } from '@/lib/mock-data'
@@ -23,6 +24,7 @@ import { formatRupees } from '@/lib/money'
 import { calculateBookingPrice } from '@/lib/pricing'
 import { EcoScore } from '@/components/EcoScore'
 import { VerifiedBadge } from '@/components/VerifiedBadge'
+import { createClient } from '@/lib/supabase/client'
 import { FarmImage } from '@/components/FarmImage'
 import dynamic from 'next/dynamic'
 
@@ -106,6 +108,7 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
   const [bookingId, setBookingId] = useState<string>('')
   const [bookingStatus, setBookingStatus] = useState<'pending' | 'confirmed' | 'declined'>('pending')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null)
   const [notificationPreview, setNotificationPreview] = useState<{
     template: string
     toPhone: string
@@ -113,6 +116,24 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
     previewText: string
   } | null>(null)
   const [copiedRef, setCopiedRef] = useState(false)
+
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (user) {
+        try {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', user.id)
+            .maybeSingle()
+          setCurrentUserRole(profile?.role || user.user_metadata?.role || null)
+        } catch {
+          setCurrentUserRole(user.user_metadata?.role || null)
+        }
+      }
+    })
+  }, [])
 
   const handleCopyRef = () => {
     if (!bookingId) return
@@ -190,6 +211,11 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setErrorMsg(null)
+
+    if (currentUserRole === 'farmer') {
+      setErrorMsg(t('farmerBookingBlocked'))
+      return
+    }
 
     if (!phone || phone.trim().length < 8) {
       setErrorMsg(t('errors.invalidPhone'))
@@ -824,14 +850,35 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
               />
             </div>
 
-            <button
-              className="primary-btn submit-btn"
-              type="submit"
-              disabled={loading}
-            >
-              {loading ? t('submitting') : t('requestToBook')}{' '}
-              <ArrowRight size={17} />
-            </button>
+            {currentUserRole === 'farmer' ? (
+              <div
+                style={{
+                  background: '#fff3cd',
+                  color: '#856404',
+                  border: '1px solid #ffeeba',
+                  padding: '12px 14px',
+                  borderRadius: '2px',
+                  fontSize: '12px',
+                  lineHeight: 1.5,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  marginTop: '12px',
+                }}
+              >
+                <AlertCircle size={16} className="shrink-0 text-amber-700" />
+                <span>{t('farmerBookingBlocked')}</span>
+              </div>
+            ) : (
+              <button
+                className="primary-btn submit-btn"
+                type="submit"
+                disabled={loading}
+              >
+                {loading ? t('submitting') : t('requestToBook')}{' '}
+                <ArrowRight size={17} />
+              </button>
+            )}
 
             <p className="form-note">
               {t('formNote')}
