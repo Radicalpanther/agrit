@@ -32,7 +32,7 @@ export async function POST(request: Request) {
 
     if (profile?.telegram_chat_id) {
       const { deleteMyCommands } = await import('@/lib/telegram')
-      await deleteMyCommands({ type: 'chat', chat_id: profile.telegram_chat_id })
+      await deleteMyCommands({ type: 'chat', chat_id: profile.telegram_chat_id }).catch(() => {})
     }
 
     await serviceClient
@@ -40,7 +40,6 @@ export async function POST(request: Request) {
       .update({
         telegram_chat_id: null,
         telegram_linked_at: null,
-        telegram_account_name: null,
       })
       .eq('id', userId)
 

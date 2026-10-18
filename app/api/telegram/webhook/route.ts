@@ -295,12 +295,11 @@ export async function POST(request: Request) {
           ? `@${msg.from.username}`
           : msg.from?.first_name || 'Host'
 
-        // Save telegram_chat_id and telegram_account_name on farmer profile
+        // Save telegram_chat_id on farmer profile
         await serviceClient
           .from('profiles')
           .update({
             telegram_chat_id: chatId,
-            telegram_account_name: accountName,
             telegram_linked_at: new Date().toISOString(),
           })
           .eq('id', targetProfile.id)
@@ -346,7 +345,6 @@ export async function POST(request: Request) {
           .from('profiles')
           .update({
             telegram_chat_id: null,
-            telegram_account_name: null,
             telegram_linked_at: null,
           })
           .eq('id', userProfile.id)

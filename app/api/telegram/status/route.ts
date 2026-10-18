@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
 
     const { data: profile } = await serviceClient
       .from('profiles')
-      .select('telegram_chat_id, telegram_linked_at, telegram_account_name')
+      .select('telegram_chat_id, telegram_linked_at')
       .eq('id', userId)
       .maybeSingle()
 
@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       linked: isLinked,
       telegramChatId: profile?.telegram_chat_id || null,
-      accountName: profile?.telegram_account_name || null,
+      accountName: (profile as any)?.telegram_account_name || null,
       linkedAt: profile?.telegram_linked_at || null,
     })
   } catch (err: any) {
