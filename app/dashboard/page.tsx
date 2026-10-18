@@ -26,6 +26,7 @@ import {
 } from 'lucide-react'
 import { formatRupees } from '@/lib/money'
 import { LocationPicker } from '@/components/LocationPicker'
+import { TelegramConnect } from '@/components/TelegramConnect'
 import dynamic from 'next/dynamic'
 
 const TripMap = dynamic(
@@ -194,6 +195,15 @@ export default function DashboardPage() {
       loadDashboardData()
     }
   }, [])
+
+  useEffect(() => {
+    if (viewMode === 'tourist') {
+      const interval = setInterval(() => {
+        loadTouristData()
+      }, 20000)
+      return () => clearInterval(interval)
+    }
+  }, [viewMode])
 
   // Open Create Listing modal
   const openCreateListing = () => {
@@ -604,9 +614,12 @@ export default function DashboardPage() {
                 Offline directions, host contact details, and emergency travel cards for your farm reservations.
               </p>
             </div>
-            <Link className="primary-btn" href="/explore" style={{ textDecoration: 'none' }}>
-              Explore more stays
-            </Link>
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <TelegramConnect showDisconnect />
+              <Link className="primary-btn" href="/explore" style={{ textDecoration: 'none' }}>
+                Explore more stays
+              </Link>
+            </div>
           </div>
 
           {touristLoading ? (
@@ -767,21 +780,24 @@ export default function DashboardPage() {
         <>
           {/* Head */}
           <div className="dashboard-head">
-        <div>
-          <p className="section-kicker">Farmer portal</p>
-          <h1>Good morning, {farmerName}.</h1>
-          <p>
-            Real-time management for your farm stays, bookings, and harvest pantry.
-          </p>
-        </div>
-        <button
-          className="primary-btn"
-          type="button"
-          onClick={openCreateListing}
-        >
-          <span>+</span> Add a new listing
-        </button>
-      </div>
+            <div>
+              <p className="section-kicker">Farmer portal</p>
+              <h1>Good morning, {farmerName}.</h1>
+              <p>
+                Real-time management for your farm stays, bookings, and harvest pantry.
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <TelegramConnect compact showDisconnect />
+              <button
+                className="primary-btn"
+                type="button"
+                onClick={openCreateListing}
+              >
+                <span>+</span> Add a new listing
+              </button>
+            </div>
+          </div>
 
       {/* Overview Stats */}
       <div className="dashboard-stats">
@@ -1463,9 +1479,8 @@ export default function DashboardPage() {
                   />
                 </label>
                 <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                  Host phone *
+                  Host phone (optional)
                   <input
-                    required
                     type="tel"
                     value={hostPhone}
                     onChange={(e) => setHostPhone(e.target.value)}

@@ -89,7 +89,49 @@ This script sets up:
 
 ---
 
-## Outbound WhatsApp Cloud API & Template Messages
+## Telegram Notifications & In-Telegram Booking Approval
+
+AgriTrails integrates directly with the Telegram Bot API using plain `fetch` (no external SDKs, zero emojis, plain-text messages) to deliver instant booking alerts to farmers and tourists, featuring one-tap inline Accept and Decline buttons for hosts.
+
+### Environment Configuration
+
+Add the following variables to `.env.local`:
+```bash
+# Telegram Bot Token from @BotFather
+TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrSTUvwxYZ
+
+# Webhook secret token verified in X-Telegram-Bot-Api-Secret-Token
+TELEGRAM_WEBHOOK_SECRET=your-secure-webhook-secret
+
+# Bot username without @
+NEXT_PUBLIC_TELEGRAM_BOT_USERNAME=AgriTrailsBot
+
+# Public base URL
+NEXT_PUBLIC_SITE_URL=https://your-domain.com
+
+# Notification channel: 'telegram', 'whatsapp', or 'mock'
+NOTIFY_CHANNEL=telegram
+```
+
+### One-Time Webhook Setup
+
+Register your production webhook URL and secret with Telegram:
+```bash
+curl -F "url=https://your-domain.com/api/telegram/webhook" \
+     -F "secret_token=YOUR_WEBHOOK_SECRET" \
+     https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook
+```
+
+### Mock Mode
+If `TELEGRAM_BOT_TOKEN` is omitted or `NOTIFY_CHANNEL=mock`:
+- Calls to Telegram are skipped automatically.
+- All notifications are recorded in the `notifications` table with status `'mock'`.
+- The message preview appears directly in the UI Message Preview panel.
+- Booking flows and status changes never fail due to notification dispatch.
+
+---
+
+## Outbound WhatsApp Cloud API & Template Messages (Legacy)
 
 Outbound WhatsApp notifications use Meta's official WhatsApp Business Cloud API (`lib/whatsapp.ts`, `lib/notify.ts`).
 

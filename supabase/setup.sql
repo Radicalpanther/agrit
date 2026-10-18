@@ -60,6 +60,8 @@ create table profiles (
   full_name       text,
   phone           text,
   whatsapp_opt_in boolean not null default false,
+  telegram_chat_id bigint,
+  telegram_linked_at timestamptz,
   updated_at      timestamptz not null default now()
 );
 
@@ -150,8 +152,19 @@ create table bookings (
   discount_pct numeric(5,2) not null default 0,
   total_paise  integer not null check (total_paise > 0),
   status       booking_status not null default 'pending',
+  telegram_message_id bigint,
+  telegram_chat_id    bigint,
   created_at   timestamptz not null default now()
 );
+
+-- Telegram one-time link tokens
+create table if not exists telegram_link_tokens (
+  token      text primary key,
+  user_id    uuid references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  used       boolean not null default false
+);
+alter table telegram_link_tokens enable row level security;
 
 -- Produce reservations for farm pickup
 create table product_reservations (

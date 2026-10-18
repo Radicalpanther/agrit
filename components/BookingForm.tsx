@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import Link from 'next/link'
 import {
   ArrowRight,
@@ -20,6 +20,7 @@ import { calculateBookingPrice } from '@/lib/pricing'
 import { EcoScore } from '@/components/EcoScore'
 import { VerifiedBadge } from '@/components/VerifiedBadge'
 import { FarmImage } from '@/components/FarmImage'
+import { TelegramConnect } from '@/components/TelegramConnect'
 import dynamic from 'next/dynamic'
 
 const TripMap = dynamic(
@@ -96,6 +97,8 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
   const [loading, setLoading] = useState(false)
   const [sent, setSent] = useState(false)
   const [bookingId, setBookingId] = useState<string>('')
+  const [bookingStatus, setBookingStatus] = useState<'pending' | 'confirmed' | 'declined'>('pending')
+  const [isTelegramLinked, setIsTelegramLinked] = useState<boolean>(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [notificationPreview, setNotificationPreview] = useState<{
     template: string
@@ -103,6 +106,28 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
     status: 'sent' | 'failed' | 'mock'
     previewText: string
   } | null>(null)
+
+  // Poll status every 20 seconds while on the confirmation view
+  useEffect(() => {
+    if (!sent || !bookingId) return
+
+    const pollStatus = async () => {
+      try {
+        const res = await fetch(`/api/bookings/${bookingId}`, { cache: 'no-store' })
+        if (res.ok) {
+          const data = await res.json()
+          if (data.booking?.status) {
+            setBookingStatus(data.booking.status)
+          }
+        }
+      } catch {
+        // Fail-safe: ignore polling errors
+      }
+    }
+
+    const interval = setInterval(pollStatus, 20000)
+    return () => clearInterval(interval)
+  }, [sent, bookingId])
 
   const toggleAddOn = (id: string) => {
     setSelectedAddOns((prev) => {
@@ -179,6 +204,7 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
           email,
           phone,
           whatsappOptIn,
+          telegramOptIn: isTelegramLinked,
           checkInDate,
           arrivalTime: visitType === 'day' ? arrivalTime : undefined,
           nights: visitType === 'overnight' ? nights : 1,
@@ -197,6 +223,7 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
 
       const bookedId = data.id || 'BK-CONFIRMED'
       setBookingId(bookedId)
+      setBookingStatus(data.booking?.status || 'pending')
       if (data.notification) {
         setNotificationPreview(data.notification)
       } else {
@@ -292,11 +319,44 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
                   textTransform: 'uppercase',
                   color: 'var(--forest)',
                   letterSpacing: '1px',
-                  margin: '0 0 12px',
+                  margin: '0 0 10px',
                 }}
               >
                 Booking Reference: {bookingId}
               </p>
+
+              {/* Live status badge with 20-second polling */}
+              <div style={{ margin: '0 0 16px' }}>
+                <span
+                  style={{
+                    display: 'inline-block',
+                    padding: '5px 12px',
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.8px',
+                    background:
+                      bookingStatus === 'confirmed'
+                        ? '#e4f0e1'
+                        : bookingStatus === 'declined'
+                        ? '#f8d7da'
+                        : '#fff1dd',
+                    color:
+                      bookingStatus === 'confirmed'
+                        ? 'var(--forest)'
+                        : bookingStatus === 'declined'
+                        ? '#842029'
+                        : '#a86f27',
+                    border: '1px solid var(--line)',
+                  }}
+                >
+                  Status: {bookingStatus.charAt(0).toUpperCase() + bookingStatus.slice(1)}
+                </span>
+                <span style={{ display: 'block', fontSize: '10.5px', color: 'var(--muted)', marginTop: '4px' }}>
+                  Auto-refreshing live status (updates within 20s)
+                </span>
+              </div>
+
               <p
                 style={{
                   lineHeight: 1.6,
@@ -306,8 +366,9 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
                 }}
               >
                 Your request for a {visitType === 'day' ? 'Day visit' : 'Overnight stay'} ({guests} guest{guests > 1 ? 's' : ''}) has been submitted to your host at {farm.name}.
-                Your host will review availability and contact you directly at {phone}
-                {whatsappOptIn ? ' and via WhatsApp' : ''} within 24 hours with arrival instructions. No payment is required today.
+                {phone ? ` Your host will contact you directly at ${phone}.` : ''}
+                {isTelegramLinked ? ' Updates and arrival instructions are delivered directly to your connected Telegram.' : ''}
+                {' '}No payment is required today.
               </p>
             </div>
           </div>
@@ -456,9 +517,8 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
               </label>
 
               <label>
-                Mobile number
+                Mobile number (optional)
                 <input
-                  required
                   type="tel"
                   placeholder="+91 98765 43210"
                   value={phone}
@@ -521,26 +581,10 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
               </label>
             </div>
 
-            {/* WhatsApp Updates Opt-in */}
-            <label
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-                fontSize: '12px',
-                color: 'var(--ink)',
-                margin: '16px 0 20px',
-                cursor: 'pointer',
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={whatsappOptIn}
-                onChange={(e) => setWhatsappOptIn(e.target.checked)}
-                style={{ accentColor: 'var(--forest)', width: '16px', height: '16px' }}
-              />
-              Receive reservation status and host arrival directions on WhatsApp
-            </label>
+            {/* Telegram Updates Block */}
+            <div style={{ margin: '16px 0 20px' }}>
+              <TelegramConnect onStatusChange={(linked) => setIsTelegramLinked(linked)} />
+            </div>
 
             {/* Reserve products to collect at the farm */}
             {produce.length > 0 && (
@@ -843,7 +887,7 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
             style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}
           />
 
-          {/* WhatsApp Message Preview Panel */}
+          {/* Notification Message Preview Panel */}
           {notificationPreview && (
             <div
               className="message-preview-panel"
@@ -893,12 +937,12 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
                 >
                   {notificationPreview.status === 'mock'
                     ? 'Mock mode'
-                    : 'Sent via WhatsApp'}
+                    : 'Sent via Telegram'}
                 </span>
               </div>
 
               <p style={{ fontSize: '12px', color: 'var(--muted)', margin: '0 0 10px', wordBreak: 'break-word' }}>
-                To: <strong>{notificationPreview.toPhone}</strong> · Template: <code>{notificationPreview.template}</code>
+                Channel: <strong>{notificationPreview.status === 'mock' ? 'Mock (No Telegram Token configured)' : 'Telegram'}</strong> · Event: <code>{notificationPreview.template || 'booking_created'}</code>
               </p>
 
               <div
@@ -917,7 +961,7 @@ export function BookingForm({ farm, produce }: BookingFormProps) {
               </div>
 
               <p style={{ fontSize: '11px', color: 'var(--muted)', margin: '10px 0 0' }}>
-                Outbound WhatsApp Cloud API template dispatch logged to notifications table.
+                Outbound notification logged to notifications table.
               </p>
             </div>
           )}

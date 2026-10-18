@@ -13,7 +13,7 @@ export const farmListingSchema = z.object({
   maxGuests: z.coerce.number().int().min(1, 'Max guests must be at least 1'),
   tags: z.array(z.string().trim()).default([]),
   hostName: z.string().trim().min(2, 'Host name is required'),
-  hostPhone: z.string().trim().min(8, 'Host phone is required'),
+  hostPhone: z.string().trim().optional().default(''),
   landmarkNote: z.string().trim().optional().default(''),
   directionsSteps: z.array(z.string().trim()).default([]),
   cropIds: z.array(z.string().uuid()).default([]),
