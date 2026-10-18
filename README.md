@@ -89,9 +89,9 @@ This script sets up:
 
 ---
 
-## Telegram Notifications & In-Telegram Booking Approval
+## Telegram Notifications & Host Alerts (Farmer-Only)
 
-AgriTrails integrates directly with the Telegram Bot API using plain `fetch` (no external SDKs, zero emojis, plain-text messages) to deliver instant booking alerts to farmers and tourists, featuring one-tap inline Accept and Decline buttons for hosts.
+AgriTrails integrates directly with the Telegram Bot API using plain `fetch` (no external SDKs, zero emojis, plain-text messages) to deliver instant booking alerts to farm hosts, featuring one-tap inline Accept and Decline buttons. Telegram is restricted strictly to farm hosts.
 
 ### Environment Configuration
 
@@ -113,36 +113,40 @@ NEXT_PUBLIC_SITE_URL=https://your-domain.com
 NOTIFY_CHANNEL=telegram
 ```
 
-### One-Time Webhook Setup
+### Automated Bot Setup (/api/telegram/setup & Admin Script)
 
-Register your production webhook URL and secret with Telegram:
+To register the webhook (with `allowed_updates: ["message", "callback_query"]` and secret token), set default bot commands, and configure the chat menu button to "commands":
+
+**Option 1: Using the Admin Endpoint**
+Send a `POST` or `GET` request to:
 ```bash
-curl -F "url=https://your-domain.com/api/telegram/webhook" \
-     -F "secret_token=YOUR_WEBHOOK_SECRET" \
-     https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook
+curl -X POST https://your-domain.com/api/telegram/setup?secret=your-secure-webhook-secret
 ```
 
-### Mock Mode
-If `TELEGRAM_BOT_TOKEN` is omitted or `NOTIFY_CHANNEL=mock`:
-- Calls to Telegram are skipped automatically.
-- All notifications are recorded in the `notifications` table with status `'mock'`.
-- The message preview appears directly in the UI Message Preview panel.
-- Booking flows and status changes never fail due to notification dispatch.
+**Option 2: Running the Admin Setup Script**
+```bash
+node scripts/setup-telegram.mjs
+```
 
-### Telegram Bot Commands
+### Secure Host Linking
 
-The bot provides real-time interactive commands in private chats tailored to the user's role:
+Hosts connect their Telegram account via the Farmer Dashboard:
+1. Click **Connect Telegram** in the dashboard.
+2. A single-use, 10-minute expiring secure token is generated in `telegram_link_tokens`.
+3. The host is redirected to `https://t.me/<bot>?start=<token>`.
+4. The webhook verifies the token, links the host's `telegram_chat_id`, captures their `@username`, registers host-scoped commands, and marks the token used.
+5. Tourists attempting to link are politely informed that Telegram alerts are available for farm hosts only.
+
+### Telegram Host Commands
 
 | Command | Role | Description |
 |---|---|---|
-| `/bookings` or `/booking` | Tourist | Lists next 5 upcoming stays (or recent if none in future) with farm name, check-in date, arrival time, guests, status, and direct link. |
-| `/bookings` or `/booking` | Farmer | Lists next 5 upcoming bookings for their farms with tourist name, guest phone, date, guests, and status. |
-| `/pending` | Farmer | Resends up to 5 pending booking requests with interactive Accept and Decline buttons. |
-| `/today` | Farmer | Lists today's confirmed arrivals (Asia/Kolkata date) with guest names, phone numbers, arrival times, and reserved produce. |
-| `/msg <phone> <text>` | All | Sends a direct Telegram message to a guest or host using their registered phone number. |
-| `/stop` | All | Disconnects Telegram from your AgriTrails account. |
-| `/help` | All | Displays the role-specific command reference (also sent automatically upon `/start` linking). |
-| Direct Phone Linking | All | Send your registered 10-digit phone number or share contact directly to the bot to link your account. |
+| `/today` | Host | Summary of today's check-ins and active guests across farms. |
+| `/pending` | Host | Lists requests awaiting host action with interactive Accept and Decline buttons. |
+| `/bookings` | Host | Lists the last 10 bookings across host farms with guest name, dates, guests, total, and status. |
+| `/farms` | Host | Lists host's registered farms and active status. |
+| `/stop` | Host | Unlinks Telegram account and resets chat commands. |
+| `/help` | Host | Displays host command reference. |
 
 ---
 

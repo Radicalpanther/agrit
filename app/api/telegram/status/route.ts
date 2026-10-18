@@ -3,7 +3,7 @@ import { createClient as createServerClient, createServiceClient } from '@/lib/s
 
 export async function GET(request: NextRequest) {
   try {
-    const requestedRole = request.nextUrl.searchParams.get('role') || 'tourist'
+    const requestedRole = request.nextUrl.searchParams.get('role') || 'farmer'
     const supabase = await createServerClient()
     const {
       data: { user },
@@ -13,28 +13,18 @@ export async function GET(request: NextRequest) {
 
     let userId = user?.id
     if (!userId) {
-      if (requestedRole === 'farmer') {
-        const { data: demoFarmer } = await serviceClient
-          .from('profiles')
-          .select('id')
-          .eq('role', 'farmer')
-          .limit(1)
-          .maybeSingle()
-        userId = demoFarmer?.id || '93db1b1a-046c-40a3-a078-829e11b2a42d'
-      } else {
-        const { data: demoTourist } = await serviceClient
-          .from('profiles')
-          .select('id')
-          .eq('role', 'tourist')
-          .limit(1)
-          .maybeSingle()
-        userId = demoTourist?.id || '04e3e740-2591-4af8-9a7d-f6397fa198d8'
-      }
+      const { data: demoFarmer } = await serviceClient
+        .from('profiles')
+        .select('id')
+        .eq('role', 'farmer')
+        .limit(1)
+        .maybeSingle()
+      userId = demoFarmer?.id || '93db1b1a-046c-40a3-a078-829e11b2a42d'
     }
 
     const { data: profile } = await serviceClient
       .from('profiles')
-      .select('telegram_chat_id, telegram_linked_at')
+      .select('telegram_chat_id, telegram_linked_at, telegram_account_name')
       .eq('id', userId)
       .maybeSingle()
 
@@ -43,6 +33,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       linked: isLinked,
       telegramChatId: profile?.telegram_chat_id || null,
+      accountName: profile?.telegram_account_name || null,
       linkedAt: profile?.telegram_linked_at || null,
     })
   } catch (err: any) {

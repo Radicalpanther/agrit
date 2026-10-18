@@ -166,6 +166,8 @@ export async function POST(request: Request) {
       const bookingPayload: Record<string, any> = {
         farm_id: raw.id,
         tourist_id: touristId,
+        guest_name: fullName || 'Tourist',
+        guest_phone: phone || null,
         visit_type: visitType,
         check_in: checkInDate,
         nights: pricing.nights,
@@ -183,8 +185,12 @@ export async function POST(request: Request) {
         .select('id')
         .single()
 
-      if (bookingErr && (bookingErr.message?.includes('locale') || bookingErr.code === '42703')) {
-        delete bookingPayload.locale
+      if (bookingErr && (bookingErr.message?.includes('guest_name') || bookingErr.message?.includes('locale') || bookingErr.code === '42703')) {
+        if (bookingErr.message?.includes('locale')) delete bookingPayload.locale
+        if (bookingErr.message?.includes('guest_name')) {
+          delete bookingPayload.guest_name
+          delete bookingPayload.guest_phone
+        }
         const retry = await supabase
           .from('bookings')
           .insert(bookingPayload)

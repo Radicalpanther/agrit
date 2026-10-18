@@ -23,6 +23,8 @@ import {
   Compass,
   Upload,
   Image as ImageIcon,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react'
 import { formatRupees } from '@/lib/money'
 import { TelegramConnect } from '@/components/TelegramConnect'
@@ -177,6 +179,8 @@ export default function DashboardPage() {
   const [productSubmitting, setProductSubmitting] = useState(false)
   const [productError, setProductError] = useState<string | null>(null)
   const [showAllProducts, setShowAllProducts] = useState(false)
+  const [showAllFarms, setShowAllFarms] = useState(false)
+  const [showAllBookings, setShowAllBookings] = useState(false)
 
   // View mode switcher: 'farmer' or 'tourist'
   const [viewMode, setViewMode] = useState<'farmer' | 'tourist'>('farmer')
@@ -733,7 +737,15 @@ export default function DashboardPage() {
   const rawFarmerName = data?.profile?.full_name?.trim() || ''
   const farmerName = (!rawFarmerName || /jbehd/i.test(rawFarmerName)) ? 'Rajesh Patil' : rawFarmerName
   const farms = data?.farms || []
+  const INITIAL_FARM_LIMIT = 4
+  const displayedFarms = showAllFarms ? farms : farms.slice(0, INITIAL_FARM_LIMIT)
+  const hasMoreFarms = farms.length > INITIAL_FARM_LIMIT
+
   const bookings = data?.bookings || []
+  const INITIAL_BOOKING_LIMIT = 4
+  const displayedBookings = showAllBookings ? bookings : bookings.slice(0, INITIAL_BOOKING_LIMIT)
+  const hasMoreBookings = bookings.length > INITIAL_BOOKING_LIMIT
+
   const products = data?.products || []
   const INITIAL_PRODUCT_LIMIT = 6
   const displayedProducts = showAllProducts ? products : products.slice(0, INITIAL_PRODUCT_LIMIT)
@@ -1006,7 +1018,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Main Grid: Listings + Bookings */}
-      <div className="dashboard-grid">
+      <div className="dashboard-grid items-start">
         {/* Panel 1: My Listings */}
         <div className="dashboard-panel">
           <div className="panel-title">
@@ -1028,83 +1040,100 @@ export default function DashboardPage() {
               {t('listings.empty')}
             </p>
           ) : (
-            farms.map((farm) => {
-              const isPub = farm.published !== false
-              return (
-                <div className="listing-row" key={farm.id}>
-                  <img
-                    src={farm.image_url}
-                    alt={farm.name}
-                    onError={(e) => {
-                      e.currentTarget.onerror = null
-                      e.currentTarget.src = '/placeholder.jpg'
-                    }}
-                  />
-                  <div>
-                    <h3 style={{ margin: '0 0 3px' }}>
-                      <Link
-                        href={`/farms/${farm.slug}`}
-                        style={{ color: 'inherit', textDecoration: 'none' }}
-                      >
-                        {farm.name}
-                      </Link>
-                    </h3>
-                    <p style={{ margin: '0 0 5px' }}>
-                      {farm.place} · {t('listings.guestsMax', { count: farm.max_guests })}
-                    </p>
-                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                      <span
-                        className="status-pill"
-                        style={{
-                          background: isPub ? '#e4f0e1' : '#f0f0f0',
-                          color: isPub ? 'var(--forest)' : 'var(--muted)',
-                        }}
-                      >
-                        {isPub ? t('listings.published') : t('listings.unpublished')}
-                      </span>
-                      {farm.allows_day_visit && (
-                        <span className="status-pill" style={{ background: '#e8f0fe', color: '#1a56db' }}>
-                          {t('listings.dayVisits')}
+            <>
+              {displayedFarms.map((farm) => {
+                const isPub = farm.published !== false
+                return (
+                  <div className="listing-row" key={farm.id}>
+                    <img
+                      src={farm.image_url}
+                      alt={farm.name}
+                      onError={(e) => {
+                        e.currentTarget.onerror = null
+                        e.currentTarget.src = '/placeholder.jpg'
+                      }}
+                    />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <h3 style={{ margin: '0 0 2px' }}>
+                        <Link
+                          href={`/farms/${farm.slug}`}
+                          style={{ color: 'inherit', textDecoration: 'none' }}
+                        >
+                          {farm.name}
+                        </Link>
+                      </h3>
+                      <p style={{ margin: '0 0 4px' }}>
+                        {farm.place} · {t('listings.guestsMax', { count: farm.max_guests })}
+                      </p>
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        <span
+                          className="status-pill"
+                          style={{
+                            background: isPub ? '#e4f0e1' : '#f0f0f0',
+                            color: isPub ? 'var(--forest)' : 'var(--muted)',
+                          }}
+                        >
+                          {isPub ? t('listings.published') : t('listings.unpublished')}
                         </span>
-                      )}
+                        {farm.allows_day_visit && (
+                          <span className="status-pill" style={{ background: '#e8f0fe', color: '#1a56db' }}>
+                            {t('listings.dayVisits')}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <strong>
+                      {formatRupees(farm.price_paise, locale)}
+                      <small>{t('listings.perGuest')}</small>
+                    </strong>
+                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                      <button
+                        className="icon-only"
+                        title={isPub ? t('listings.unpublishAction') : t('listings.publishAction')}
+                        onClick={() => handleTogglePublish(farm.id, isPub)}
+                        type="button"
+                        style={{ padding: '6px', cursor: 'pointer' }}
+                      >
+                        {isPub ? <Eye size={15} /> : <EyeOff size={15} />}
+                      </button>
+                      <button
+                        className="icon-only"
+                        title={t('listings.editAction')}
+                        onClick={() => openEditListing(farm)}
+                        type="button"
+                        style={{ padding: '6px', cursor: 'pointer' }}
+                      >
+                        <Edit3 size={15} />
+                      </button>
+                      <button
+                        className="icon-only"
+                        title={t('listings.deleteAction')}
+                        onClick={() => handleDeleteFarm(farm.id, farm.name)}
+                        type="button"
+                        style={{ padding: '6px', cursor: 'pointer', color: '#c0392b' }}
+                      >
+                        <Trash2 size={15} />
+                      </button>
                     </div>
                   </div>
-                  <strong>
-                    {formatRupees(farm.price_paise, locale)}
-                    <small>{t('listings.perGuest')}</small>
-                  </strong>
-                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                    <button
-                      className="icon-only"
-                      title={isPub ? t('listings.unpublishAction') : t('listings.publishAction')}
-                      onClick={() => handleTogglePublish(farm.id, isPub)}
-                      type="button"
-                      style={{ padding: '6px', cursor: 'pointer' }}
-                    >
-                      {isPub ? <Eye size={15} /> : <EyeOff size={15} />}
-                    </button>
-                    <button
-                      className="icon-only"
-                      title={t('listings.editAction')}
-                      onClick={() => openEditListing(farm)}
-                      type="button"
-                      style={{ padding: '6px', cursor: 'pointer' }}
-                    >
-                      <Edit3 size={15} />
-                    </button>
-                    <button
-                      className="icon-only"
-                      title={t('listings.deleteAction')}
-                      onClick={() => handleDeleteFarm(farm.id, farm.name)}
-                      type="button"
-                      style={{ padding: '6px', cursor: 'pointer', color: '#c0392b' }}
-                    >
-                      <Trash2 size={15} />
-                    </button>
-                  </div>
-                </div>
-              )
-            })
+                )
+              })}
+              {hasMoreFarms && (
+                <button
+                  type="button"
+                  className="dashboard-view-more-btn"
+                  onClick={() => setShowAllFarms((prev) => !prev)}
+                  aria-expanded={showAllFarms}
+                >
+                  <span>
+                    {showAllFarms
+                      ? t('listings.showLess')
+                      : t('listings.viewMore', { count: farms.length - INITIAL_FARM_LIMIT })}
+                  </span>
+                  {showAllFarms ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                </button>
+              )}
+            </>
           )}
         </div>
 
@@ -1125,80 +1154,101 @@ export default function DashboardPage() {
               {t('bookings.empty')}
             </p>
           ) : (
-            bookings.map((booking) => {
-              const dateObj = booking.check_in ? new Date(booking.check_in) : new Date()
-              const dayStr = dateObj.toLocaleDateString(locale, { day: 'numeric' })
-              const monthStr = dateObj
-                .toLocaleDateString(locale, { month: 'short' })
-                .toUpperCase()
+            <>
+              {displayedBookings.map((booking) => {
+                const dateObj = booking.check_in ? new Date(booking.check_in) : new Date()
+                const dayStr = dateObj.toLocaleDateString(locale, { day: 'numeric' })
+                const monthStr = dateObj
+                  .toLocaleDateString(locale, { month: 'short' })
+                  .toUpperCase()
 
-              const isPending = booking.status === 'pending'
-              const isConfirmed = booking.status === 'confirmed'
+                const isPending = booking.status === 'pending'
+                const isConfirmed = booking.status === 'confirmed'
 
-              return (
-                <div className="visitor-row" key={booking.id}>
-                  <span className="date-block">
-                    <b>{dayStr}</b>
-                    <small>{monthStr}</small>
-                  </span>
-                  <div>
-                    <h3>{booking.tourist?.full_name || 'Guest'}</h3>
-                    <p>
-                      {booking.farm?.name || 'Stay'} · {t('bookings.guestCount', { count: booking.guests })} ({booking.visit_type === 'day' ? t('bookings.dayVisit') : t('bookings.nightCount', { count: booking.nights })})
-                    </p>
-                    <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px' }}>
-                      {t('bookings.total', { total: formatRupees(booking.total_paise, locale) })}
-                      {booking.tourist?.phone && ` · ${booking.tourist.phone}`}
+                return (
+                  <div className="visitor-row" key={booking.id}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        <span className="date-badge">
+                          <b>{dayStr}</b> {monthStr}
+                        </span>
+                        <h3 style={{ margin: 0, fontSize: '12.5px', fontWeight: 600, color: 'var(--ink)' }}>
+                          {booking.tourist?.full_name || 'Guest'}
+                        </h3>
+                        <span style={{ color: 'var(--muted)', fontSize: '12px' }}>·</span>
+                        <span style={{ fontSize: '12px', color: 'var(--forest)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {booking.farm?.name || 'Stay'}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--muted)', marginTop: '3px' }}>
+                        <span>{t('bookings.total', { total: formatRupees(booking.total_paise, locale) })}</span>
+                        {booking.tourist?.phone && <span>· {booking.tourist.phone}</span>}
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px', flexShrink: 0 }}>
+                      <span
+                        className={`booking-status ${isPending ? 'pending' : ''}`}
+                        style={{
+                          background: isConfirmed ? '#e4f0e1' : isPending ? '#fff1dd' : '#f0f0f0',
+                          color: isConfirmed ? 'var(--forest)' : isPending ? '#a86f27' : 'var(--muted)',
+                        }}
+                      >
+                        {getStatusLabel(booking.status)}
+                      </span>
+
+                      {isPending && (
+                        <div style={{ display: 'flex', gap: '5px' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleBookingAction(booking.id, 'confirmed')}
+                            style={{
+                              padding: '3px 7px',
+                              background: 'var(--forest)',
+                              color: '#ffffff',
+                              fontSize: '10.5px',
+                              fontWeight: 700,
+                              borderRadius: '2px',
+                            }}
+                          >
+                            {t('bookings.confirm')}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleBookingAction(booking.id, 'declined')}
+                            style={{
+                              padding: '3px 7px',
+                              background: '#f8d7da',
+                              color: '#842029',
+                              fontSize: '10.5px',
+                              fontWeight: 700,
+                              borderRadius: '2px',
+                            }}
+                          >
+                            {t('bookings.decline')}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
-                    <span
-                      className={`booking-status ${isPending ? 'pending' : ''}`}
-                      style={{
-                        background: isConfirmed ? '#e4f0e1' : isPending ? '#fff1dd' : '#f0f0f0',
-                        color: isConfirmed ? 'var(--forest)' : isPending ? '#a86f27' : 'var(--muted)',
-                      }}
-                    >
-                      {getStatusLabel(booking.status)}
-                    </span>
-
-                    {isPending && (
-                      <div style={{ display: 'flex', gap: '5px' }}>
-                        <button
-                          type="button"
-                          onClick={() => handleBookingAction(booking.id, 'confirmed')}
-                          style={{
-                            padding: '3px 7px',
-                            background: 'var(--forest)',
-                            color: '#ffffff',
-                            fontSize: '10.5px',
-                            fontWeight: 700,
-                            borderRadius: '2px',
-                          }}
-                        >
-                          {t('bookings.confirm')}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleBookingAction(booking.id, 'declined')}
-                          style={{
-                            padding: '3px 7px',
-                            background: '#f8d7da',
-                            color: '#842029',
-                            fontSize: '10.5px',
-                            fontWeight: 700,
-                            borderRadius: '2px',
-                          }}
-                        >
-                          {t('bookings.decline')}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )
-            })
+                )
+              })}
+              {hasMoreBookings && (
+                <button
+                  type="button"
+                  className="dashboard-view-more-btn"
+                  onClick={() => setShowAllBookings((prev) => !prev)}
+                  aria-expanded={showAllBookings}
+                >
+                  <span>
+                    {showAllBookings
+                      ? t('bookings.showLess')
+                      : t('bookings.viewMore', { count: bookings.length - INITIAL_BOOKING_LIMIT })}
+                  </span>
+                  {showAllBookings ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>

@@ -461,7 +461,9 @@
       "publishAction": "लिस्टिंग प्रकाशित करें",
       "editAction": "स्टे संपादित करें",
       "deleteAction": "स्टे हटाएं",
-      "confirmDelete": "क्या आप वाकई \"{name}\" को हटाना चाहते हैं? इसे वापस नहीं लाया जा सकता।"
+      "confirmDelete": "क्या आप वाकई \"{name}\" को हटाना चाहते हैं? इसे वापस नहीं लाया जा सकता।",
+      "viewMore": "और देखें ({count})",
+      "showLess": "कम दिखाएं"
     },
     "bookings": {
       "kicker": "अगले स्टे ({count})",
@@ -473,7 +475,9 @@
       "dayVisit": "डे विजिट",
       "total": "कुल: {total}",
       "confirm": "पुष्टि करें",
-      "decline": "अस्वीकार करें"
+      "decline": "अस्वीकार करें",
+      "viewMore": "और देखें ({count})",
+      "showLess": "कम दिखाएं"
     },
     "inventory": {
       "kicker": "फार्म पर आरक्षित करें और प्राप्त करें ({count} वस्तुएं)",

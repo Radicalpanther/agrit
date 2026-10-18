@@ -5,7 +5,14 @@ import crypto from 'crypto'
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}))
-    const requestedRole = body?.role || 'tourist'
+    const requestedRole = body?.role || 'farmer'
+
+    if (requestedRole !== 'farmer') {
+      return NextResponse.json(
+        { error: 'Telegram alerts are available for farm hosts only. Use the AgriTrails website for your bookings.' },
+        { status: 403 },
+      )
+    }
 
     const supabase = await createServerClient()
     const {
@@ -17,34 +24,40 @@ export async function POST(request: Request) {
     let userId = user?.id
 
     if (!userId) {
-      if (requestedRole === 'farmer') {
-        const { data: demoFarmer } = await serviceClient
-          .from('profiles')
-          .select('id')
-          .eq('role', 'farmer')
-          .limit(1)
-          .maybeSingle()
-        userId = demoFarmer?.id || '93db1b1a-046c-40a3-a078-829e11b2a42d'
-      } else {
-        const { data: demoTourist } = await serviceClient
-          .from('profiles')
-          .select('id')
-          .eq('role', 'tourist')
-          .limit(1)
-          .maybeSingle()
-        userId = demoTourist?.id || '04e3e740-2591-4af8-9a7d-f6397fa198d8'
-      }
+      const { data: demoFarmer } = await serviceClient
+        .from('profiles')
+        .select('id')
+        .eq('role', 'farmer')
+        .limit(1)
+        .maybeSingle()
+      userId = demoFarmer?.id || '93db1b1a-046c-40a3-a078-829e11b2a42d'
+    }
+
+    // Verify user profile is indeed a farmer
+    const { data: userProfile } = await serviceClient
+      .from('profiles')
+      .select('role')
+      .eq('id', userId)
+      .maybeSingle()
+
+    if (userProfile && userProfile.role !== 'farmer') {
+      return NextResponse.json(
+        { error: 'Telegram alerts are available for farm hosts only. Use the AgriTrails website for your bookings.' },
+        { status: 403 },
+      )
     }
 
     // Generate random one-time token
     const token = crypto.randomUUID().replace(/-/g, '')
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString()
 
-    // Insert token record into telegram_link_tokens
+    // Insert token record into telegram_link_tokens with 10-min expiry
     const { error: insErr } = await serviceClient
       .from('telegram_link_tokens')
       .insert({
         token,
         user_id: userId,
+        expires_at: expiresAt,
         used: false,
       })
 

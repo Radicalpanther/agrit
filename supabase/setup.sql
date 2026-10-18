@@ -62,6 +62,7 @@ create table profiles (
   whatsapp_opt_in boolean not null default false,
   telegram_chat_id bigint,
   telegram_linked_at timestamptz,
+  telegram_account_name text,
   preferred_language text default 'en' check (preferred_language in ('en', 'hi', 'mr')),
   updated_at      timestamptz not null default now()
 );
@@ -155,6 +156,8 @@ create table bookings (
   discount_pct numeric(5,2) not null default 0,
   total_paise  integer not null check (total_paise > 0),
   status       booking_status not null default 'pending',
+  guest_name   text,
+  guest_phone  text,
   telegram_message_id bigint,
   telegram_chat_id    bigint,
   locale       text not null default 'en' check (locale in ('en', 'hi', 'mr')),
@@ -164,13 +167,15 @@ create table bookings (
 -- Telegram one-time link tokens
 create table if not exists telegram_link_tokens (
   token      text primary key,
-  user_id    uuid references auth.users(id) on delete cascade,
+  user_id    uuid references profiles(id) on delete cascade,
   created_at timestamptz not null default now(),
+  expires_at timestamptz not null default (now() + interval '10 minutes'),
   used       boolean not null default false
 );
 alter table telegram_link_tokens enable row level security;
 drop policy if exists "Allow token operations" on telegram_link_tokens;
-create policy "Allow token operations" on telegram_link_tokens for all using (true) with check (true);
+drop policy if exists "Service role only" on telegram_link_tokens;
+create policy "Service role only" on telegram_link_tokens for all using (false);
 
 -- Produce reservations for farm pickup
 create table product_reservations (
@@ -459,28 +464,27 @@ declare
   p3 uuid := uuid_generate_v4();
 
 begin
-  -- Resolve user IDs from auth.users by email
+  -- Resolve user IDs from auth.users by email, fallback to default seed UUIDs
   select id into v_farmer_id  from auth.users where email = 'farmer@agritrails.dev'  limit 1;
   select id into v_tourist_id from auth.users where email = 'tourist@agritrails.dev' limit 1;
 
-  -- Upsert profiles for farmer and tourist
-  if v_farmer_id is not null then
-    insert into profiles (id, role, full_name, phone, whatsapp_opt_in)
-    values (v_farmer_id, 'farmer', 'Rajesh Patil', '+919800000002', true)
-    on conflict (id) do update set
-      role = 'farmer',
-      full_name = 'Rajesh Patil',
-      phone = '+919800000002';
-  end if;
+  v_farmer_id  := coalesce(v_farmer_id, '93db1b1a-046c-40a3-a078-829e11b2a42d'::uuid);
+  v_tourist_id := coalesce(v_tourist_id, '04e3e740-2591-4af8-9a7d-f6397fa198d8'::uuid);
 
-  if v_tourist_id is not null then
-    insert into profiles (id, role, full_name, phone, whatsapp_opt_in)
-    values (v_tourist_id, 'tourist', 'Meera Kulkarni', '+919800000001', true)
-    on conflict (id) do update set
-      role = 'tourist',
-      full_name = 'Meera Kulkarni',
-      phone = '+919800000001';
-  end if;
+  -- Upsert profiles for farmer and tourist
+  insert into profiles (id, role, full_name, phone, whatsapp_opt_in)
+  values (v_farmer_id, 'farmer', 'Rajesh Patil', '+919800000002', true)
+  on conflict (id) do update set
+    role = 'farmer',
+    full_name = 'Rajesh Patil',
+    phone = '+919800000002';
+
+  insert into profiles (id, role, full_name, phone, whatsapp_opt_in)
+  values (v_tourist_id, 'tourist', 'Meera Kulkarni', '+919800000001', true)
+  on conflict (id) do update set
+    role = 'tourist',
+    full_name = 'Meera Kulkarni',
+    phone = '+919800000001';
 
   -- 7 Farms owned by farmer user
   insert into farms (
@@ -707,16 +711,15 @@ begin
     (uuid_generate_v4(), f7, 'Kinnow marmalade',         'Peel preserve cooked on bhatti', '300 g', 21000, 25, array[0,1,2]),
     (uuid_generate_v4(), f7, 'Stoneground wheat atta',   'Heirloom Sharbati grain', '5 kg',      38000, 20, array[3,4,5]);
 
-  -- Seed bookings and reviews if tourist user exists
-  if v_tourist_id is not null then
-    insert into bookings (id, farm_id, tourist_id, visit_type, check_in, nights, guests, base_paise, discount_pct, total_paise, status) values
-      (b1, f1, v_tourist_id, 'overnight', '2025-02-10', 2, 4, 570000, 0,  570000, 'confirmed'),
-      (b2, f2, v_tourist_id, 'overnight', '2025-04-15', 3, 4, 570000, 5,  541500, 'confirmed'),
-      (b3, f3, v_tourist_id, 'overnight', '2025-01-20', 1, 2, 165000, 0,  165000, 'confirmed'),
-      (b4, f4, v_tourist_id, 'day',       '2025-03-05', 1, 6, 240000, 10, 216000, 'confirmed'),
-      (b5, f5, v_tourist_id, 'overnight', '2025-02-28', 2, 4, 440000, 0,  440000, 'confirmed'),
-      (b6, f6, v_tourist_id, 'overnight', '2025-03-10', 3, 3, 525000, 0,  525000, 'confirmed'),
-      (b7, f7, v_tourist_id, 'overnight', '2025-04-08', 2, 6, 270000, 0,  270000, 'confirmed');
+  -- Seed bookings and reviews
+  insert into bookings (id, farm_id, tourist_id, guest_name, guest_phone, visit_type, check_in, nights, guests, base_paise, discount_pct, total_paise, status) values
+    (b1, f1, v_tourist_id, 'Meera Kulkarni', '+919800000001', 'overnight', (now() + interval '2 days')::date, 2, 4, 570000, 0,  570000, 'pending'),
+    (b2, f2, v_tourist_id, 'Rohan Deshmukh', '+919800000003', 'overnight', (now() + interval '5 days')::date, 3, 4, 570000, 5,  541500, 'confirmed'),
+    (b3, f3, v_tourist_id, 'Pooja Sharma',   '+919800000004', 'overnight', (now() + interval '1 day')::date,  1, 2, 165000, 0,  165000, 'pending'),
+    (b4, f4, v_tourist_id, 'Amit Verma',     '+919800000005', 'day',       (now())::date,                    1, 6, 240000, 10, 216000, 'confirmed'),
+    (b5, f5, v_tourist_id, 'Sneha Joshi',    '+919800000006', 'overnight', (now() + interval '8 days')::date, 2, 4, 440000, 0,  440000, 'confirmed'),
+    (b6, f6, v_tourist_id, 'Kiran Shinde',   '+919800000007', 'overnight', (now() + interval '12 days')::date,3, 3, 525000, 0,  525000, 'pending'),
+    (b7, f7, v_tourist_id, 'Vikram Mehta',   '+919800000008', 'overnight', (now() + interval '15 days')::date,2, 6, 270000, 0,  270000, 'confirmed');
 
     -- Product reservations
     insert into product_reservations (booking_id, product_id, tourist_id, qty, pickup_farm_id, status) values

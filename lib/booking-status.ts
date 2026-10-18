@@ -39,6 +39,8 @@ export async function updateBookingStatus(
       .from('bookings')
       .select(`
         id,
+        guest_name,
+        guest_phone,
         status,
         check_in,
         visit_type,
@@ -146,17 +148,20 @@ export async function updateBookingStatus(
 
     if (tgChatId && tgMessageId) {
       const timeNow = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
-      const statusText = newStatus === 'confirmed' ? 'Confirmed' : 'Declined'
+      const statusText = newStatus === 'confirmed' ? 'Confirmed by host' : 'Declined by host'
       let updatedText: string
 
       if (actor.originalMessageText) {
-        updatedText = `${actor.originalMessageText}\n\nStatus: ${statusText} at ${timeNow}`
+        // Strip any previous trailing Status lines if present to prevent multiple lines
+        const cleanBase = actor.originalMessageText.replace(/\n\nStatus:[\s\S]*$/, '')
+        updatedText = `${cleanBase}\n\nStatus: ${statusText} at ${timeNow}`
       } else {
         const tourist = (booking.tourist as any) || {}
+        const guestDisplayName = (booking as any).guest_name || tourist.full_name || 'Guest'
         updatedText = [
           `Booking request for ${farm.name || 'Farm Stay'}`,
           `Ref: ${booking.id}`,
-          `Guest: ${tourist.full_name || 'Guest'}`,
+          `Guest: ${guestDisplayName}`,
           `Status: ${statusText} at ${timeNow}`,
         ].join('\n')
       }

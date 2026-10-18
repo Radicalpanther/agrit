@@ -18,13 +18,19 @@ export function TelegramConnect({
   subtitle,
   compact = false,
   showDisconnect = false,
-  role = 'tourist',
+  role = 'farmer',
   onStatusChange,
 }: TelegramConnectProps) {
+  // Telegram is strictly for farm hosts only
+  if (role === 'tourist') {
+    return null
+  }
+
   const t = useTranslations('telegram')
   const effectiveTitle = title ?? t('title')
   const effectiveSubtitle = subtitle ?? t('subtitle')
   const [isLinked, setIsLinked] = useState<boolean>(false)
+  const [accountName, setAccountName] = useState<string | null>(null)
   const [loading, setLoading] = useState<boolean>(true)
   const [isPolling, setIsPolling] = useState<boolean>(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -35,12 +41,13 @@ export function TelegramConnect({
 
   const checkStatus = async (): Promise<boolean> => {
     try {
-      const url = role ? `/api/telegram/status?role=${role}` : '/api/telegram/status'
+      const url = '/api/telegram/status?role=farmer'
       const res = await fetch(url, { cache: 'no-store' })
       if (!res.ok) return false
       const data = await res.json()
       const linked = Boolean(data.linked)
       setIsLinked(linked)
+      setAccountName(data.accountName || null)
       if (onStatusChange) onStatusChange(linked)
       return linked
     } catch {
@@ -172,7 +179,7 @@ export function TelegramConnect({
             }}
           >
             <Check size={13} />
-            <span>{t('connected')}</span>
+            <span>{accountName ? `@${accountName.replace(/^@/, '')}` : t('connected')}</span>
             {showDisconnect && (
               <button
                 type="button"
@@ -299,7 +306,7 @@ export function TelegramConnect({
                 }}
               >
                 <Check size={13} />
-                <span>{t('connected')}</span>
+                <span>{accountName ? `${accountName.startsWith('@') ? accountName : '@' + accountName} (${t('connected')})` : t('connected')}</span>
               </span>
 
               {showDisconnect && (

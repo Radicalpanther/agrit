@@ -86,6 +86,8 @@ export interface NotificationDispatchRecord {
 
 export interface FarmerBookingMessagePayload {
   id: string
+  guest_name?: string
+  guest_phone?: string
   visit_type?: string
   nights?: number
   check_in?: string
@@ -109,15 +111,16 @@ export function buildFarmerBookingMessage(
     ? getNotificationText(locale, 'notifications.farmerNewBooking.discountApplied', { discountPct })
     : ''
   const farmName = booking.farm?.name || getNotificationText(locale, 'notifications.common.farmStay')
-  const guestName = booking.tourist?.full_name || getNotificationText(locale, 'notifications.common.guest')
+  const guestName = booking.guest_name || booking.tourist?.full_name || getNotificationText(locale, 'notifications.common.guest')
+  const guestPhone = booking.guest_phone || booking.tourist?.phone
 
   const lines = [
     getNotificationText(locale, 'notifications.farmerNewBooking.title', { farmName }),
     getNotificationText(locale, 'notifications.farmerNewBooking.reference', { bookingId: booking.id }),
     getNotificationText(locale, 'notifications.farmerNewBooking.guest', { guestName }),
   ]
-  if (booking.tourist?.phone) {
-    lines.push(getNotificationText(locale, 'notifications.farmerNewBooking.phone', { phone: booking.tourist.phone }))
+  if (guestPhone) {
+    lines.push(getNotificationText(locale, 'notifications.farmerNewBooking.phone', { phone: guestPhone }))
   }
   lines.push(
     getNotificationText(locale, 'notifications.farmerNewBooking.visitType', { visitType: visitTypeStr }),
@@ -137,8 +140,8 @@ export function buildFarmerBookingMessage(
   const replyMarkup = {
     inline_keyboard: [
       [
-        { text: getNotificationText(locale, 'notifications.farmerNewBooking.accept'), callback_data: `bk:${booking.id}:a` },
-        { text: getNotificationText(locale, 'notifications.farmerNewBooking.decline'), callback_data: `bk:${booking.id}:d` },
+        { text: getNotificationText(locale, 'notifications.farmerNewBooking.accept'), callback_data: `bk:accept:${booking.id}` },
+        { text: getNotificationText(locale, 'notifications.farmerNewBooking.decline'), callback_data: `bk:decline:${booking.id}` },
       ],
     ],
   }
@@ -172,7 +175,20 @@ export async function notifyBookingStatus(
     const { data: booking, error: bErr } = await serviceClient
       .from('bookings')
       .select(`
-        *,
+        id,
+        farm_id,
+        tourist_id,
+        guest_name,
+        guest_phone,
+        check_in,
+        visit_type,
+        nights,
+        guests,
+        total_paise,
+        discount_pct,
+        arrival_time,
+        status,
+        locale,
         farm:farms (
           id,
           name,
@@ -185,7 +201,6 @@ export async function notifyBookingStatus(
           id,
           full_name,
           phone,
-          telegram_chat_id,
           whatsapp_opt_in,
           preferred_language
         )
@@ -198,8 +213,10 @@ export async function notifyBookingStatus(
       return dispatched
     }
 
-    const farm = booking.farm || {}
-    const tourist = booking.tourist || {}
+    const farm = (booking.farm as any) || {}
+    const tourist = (booking.tourist as any) || {}
+    const guestName = booking.guest_name || tourist.full_name || 'Guest'
+    const guestPhone = booking.guest_phone || tourist.phone || null
 
     // Fetch farm owner (farmer) profile
     let farmerProfile: any = null
@@ -231,60 +248,19 @@ export async function notifyBookingStatus(
 
     const visitTypeStrFarmer = formatVisitType(booking.visit_type, booking.nights, farmerLocale)
     const visitTypeStrTourist = formatVisitType(booking.visit_type, booking.nights, touristLocale)
-    const formattedTotalTourist = formatRupees(booking.total_paise || 0, touristLocale)
 
     // ──────────────────────────────────────────────────────────────────────────
-    // TELEGRAM CHANNEL (ACTIVE DEFAULT)
+    // TELEGRAM CHANNEL (FARMER-ONLY ALERTS & ACTIONS)
     // ──────────────────────────────────────────────────────────────────────────
     if (channel === 'telegram' || channel === 'mock') {
-      // Resolve farmer Telegram chat ID (direct or via phone number)
-      let farmerChatId = farmerProfile?.telegram_chat_id
-      if (!farmerChatId) {
-        const fPhone = farmerProfile?.phone || farm.host_phone
-        if (fPhone) {
-          const last10 = fPhone.replace(/\D/g, '').slice(-10)
-          if (last10) {
-            const { data: mFarmer } = await serviceClient
-              .from('profiles')
-              .select('id, telegram_chat_id')
-              .ilike('phone', `%${last10}%`)
-              .not('telegram_chat_id', 'is', null)
-              .maybeSingle()
-            if (mFarmer?.telegram_chat_id) {
-              farmerChatId = mFarmer.telegram_chat_id
-              if (farmerProfile?.id) {
-                await serviceClient.from('profiles').update({ telegram_chat_id: farmerChatId }).eq('id', farmerProfile.id)
-              }
-            }
-          }
-        }
-      }
-
-      // Resolve tourist Telegram chat ID (direct or via phone number)
-      let touristChatId = tourist.telegram_chat_id
-      if (!touristChatId && tourist.phone) {
-        const last10 = tourist.phone.replace(/\D/g, '').slice(-10)
-        if (last10) {
-          const { data: mTourist } = await serviceClient
-            .from('profiles')
-            .select('id, telegram_chat_id')
-            .ilike('phone', `%${last10}%`)
-            .not('telegram_chat_id', 'is', null)
-            .maybeSingle()
-          if (mTourist?.telegram_chat_id) {
-            touristChatId = mTourist.telegram_chat_id
-            if (tourist.id) {
-              await serviceClient.from('profiles').update({ telegram_chat_id: touristChatId }).eq('id', tourist.id)
-            }
-          }
-        }
-      }
+      const farmerChatId = farmerProfile?.telegram_chat_id
 
       if (eventType === 'created') {
-        // Message to farmer with inline Accept/Decline approval buttons in farmer's language
         const { text: farmerText, replyMarkup: inlineKeyboard } = buildFarmerBookingMessage(
           {
             id: booking.id,
+            guest_name: guestName,
+            guest_phone: guestPhone || undefined,
             visit_type: booking.visit_type,
             nights: booking.nights,
             check_in: booking.check_in,
@@ -293,13 +269,13 @@ export async function notifyBookingStatus(
             total_paise: booking.total_paise,
             discount_pct: booking.discount_pct,
             farm: { name: farm.name },
-            tourist: { full_name: tourist.full_name, phone: tourist.phone },
+            tourist: { full_name: guestName, phone: guestPhone },
           },
           reservedProductsText,
           farmerLocale,
         )
 
-        // Send to farmer if chat ID is known (or log mock if not yet linked)
+        // Send to farmer if chat ID is known (or log mock if not linked)
         const targetFarmerChat = farmerChatId || (channel === 'mock' ? 'demo-farmer-chat' : null)
         if (targetFarmerChat) {
           const res = await sendTelegramMessage(targetFarmerChat, farmerText, {
@@ -345,398 +321,189 @@ export async function notifyBookingStatus(
             error: res.error || null,
           })
         }
-
-        // Message to tourist: Request received in tourist's language
-        const farmName = farm.name || getNotificationText(touristLocale, 'notifications.common.farmStay')
-        const touristLines = [
-          getNotificationText(touristLocale, 'notifications.touristBookingReceived.title', { farmName }),
-          getNotificationText(touristLocale, 'notifications.touristBookingReceived.reference', { bookingId: booking.id }),
-          getNotificationText(touristLocale, 'notifications.touristBookingReceived.date', {
-            checkIn: booking.check_in || getNotificationText(touristLocale, 'notifications.common.scheduled'),
-          }),
-          getNotificationText(touristLocale, 'notifications.touristBookingReceived.visitType', { visitType: visitTypeStrTourist }),
-          getNotificationText(touristLocale, 'notifications.touristBookingReceived.guests', { guests: booking.guests || 1 }),
-        ]
-        if (reservedProductsText) {
-          touristLines.push(getNotificationText(touristLocale, 'notifications.touristBookingReceived.reservedProducts', { reservedProducts: reservedProductsText }))
-        }
-        touristLines.push(
-          getNotificationText(touristLocale, 'notifications.touristBookingReceived.total', { total: formattedTotalTourist }),
-          getNotificationText(touristLocale, 'notifications.touristBookingReceived.note'),
-          getNotificationText(touristLocale, 'notifications.touristBookingReceived.viewBooking', { url: `${siteUrl}/dashboard?view=tourist` }),
-        )
-        const touristText = touristLines.join('\n')
-
-        const targetTouristChat = touristChatId || (channel === 'mock' ? 'demo-tourist-chat' : null)
-        if (targetTouristChat) {
-          const res = await sendTelegramMessage(targetTouristChat, touristText)
-
-          const { data: nRow } = await serviceClient
-            .from('notifications')
-            .insert({
-              booking_id: bookingId,
-              to_phone: tourist.phone || null,
-              template: 'telegram_tourist_booking_received',
-              payload: {
-                channel: 'telegram',
-                recipient: 'tourist',
-                chatId: targetTouristChat,
-                preview_text: touristText,
-                messageId: res.messageId || null,
-              },
-              status: res.status,
-              error: res.error || null,
-            })
-            .select('id')
-            .maybeSingle()
-
-          dispatched.push({
-            id: nRow?.id,
-            bookingId,
-            telegramChatId: targetTouristChat,
-            template: 'telegram_tourist_booking_received',
-            status: res.status,
-            previewText: touristText,
-            error: res.error || null,
-          })
-        }
-      } else if (eventType === 'confirmed') {
-        const farmName = farm.name || getNotificationText(touristLocale, 'notifications.common.farmStay')
-        const lines = [
-          getNotificationText(touristLocale, 'notifications.touristBookingConfirmed.title', { farmName }),
-          getNotificationText(touristLocale, 'notifications.touristBookingConfirmed.reference', { bookingId: booking.id }),
-          getNotificationText(touristLocale, 'notifications.touristBookingConfirmed.date', {
-            checkIn: booking.check_in || getNotificationText(touristLocale, 'notifications.common.scheduled'),
-          }),
-          getNotificationText(touristLocale, 'notifications.touristBookingConfirmed.host', {
-            hostName: farm.host_name || getNotificationText(touristLocale, 'notifications.common.yourHost'),
-          }),
-        ]
-        if (farm.host_phone) {
-          lines.push(getNotificationText(touristLocale, 'notifications.touristBookingConfirmed.hostPhone', { hostPhone: farm.host_phone }))
-        }
-        lines.push(
-          getNotificationText(touristLocale, 'notifications.touristBookingConfirmed.note'),
-          getNotificationText(touristLocale, 'notifications.touristBookingConfirmed.viewCard', { url: `${siteUrl}/dashboard?view=tourist` }),
-        )
-        const text = lines.join('\n')
-
-        const targetTouristChat = touristChatId || (channel === 'mock' ? 'demo-tourist-chat' : null)
-        if (targetTouristChat) {
-          const res = await sendTelegramMessage(targetTouristChat, text)
-
-          const { data: nRow } = await serviceClient
-            .from('notifications')
-            .insert({
-              booking_id: bookingId,
-              to_phone: tourist.phone || null,
-              template: 'telegram_tourist_booking_confirmed',
-              payload: {
-                channel: 'telegram',
-                recipient: 'tourist',
-                chatId: targetTouristChat,
-                preview_text: text,
-                messageId: res.messageId || null,
-              },
-              status: res.status,
-              error: res.error || null,
-            })
-            .select('id')
-            .maybeSingle()
-
-          dispatched.push({
-            id: nRow?.id,
-            bookingId,
-            telegramChatId: targetTouristChat,
-            template: 'telegram_tourist_booking_confirmed',
-            status: res.status,
-            previewText: text,
-            error: res.error || null,
-          })
-        }
-      } else if (eventType === 'declined') {
-        const farmName = farm.name || getNotificationText(touristLocale, 'notifications.common.farmStay')
-        const text = [
-          getNotificationText(touristLocale, 'notifications.touristBookingDeclined.title', { farmName }),
-          getNotificationText(touristLocale, 'notifications.touristBookingDeclined.reference', { bookingId: booking.id }),
-          getNotificationText(touristLocale, 'notifications.touristBookingDeclined.date', {
-            checkIn: booking.check_in || getNotificationText(touristLocale, 'notifications.common.scheduled'),
-          }),
-          getNotificationText(touristLocale, 'notifications.touristBookingDeclined.note'),
-          getNotificationText(touristLocale, 'notifications.touristBookingDeclined.explore', { url: `${siteUrl}/explore` }),
-        ].join('\n')
-
-        const targetTouristChat = touristChatId || (channel === 'mock' ? 'demo-tourist-chat' : null)
-        if (targetTouristChat) {
-          const res = await sendTelegramMessage(targetTouristChat, text)
-
-          const { data: nRow } = await serviceClient
-            .from('notifications')
-            .insert({
-              booking_id: bookingId,
-              to_phone: tourist.phone || null,
-              template: 'telegram_tourist_booking_declined',
-              payload: {
-                channel: 'telegram',
-                recipient: 'tourist',
-                chatId: targetTouristChat,
-                preview_text: text,
-                messageId: res.messageId || null,
-              },
-              status: res.status,
-              error: res.error || null,
-            })
-            .select('id')
-            .maybeSingle()
-
-          dispatched.push({
-            id: nRow?.id,
-            bookingId,
-            telegramChatId: targetTouristChat,
-            template: 'telegram_tourist_booking_declined',
-            status: res.status,
-            previewText: text,
-            error: res.error || null,
-          })
-        }
-      } else if (eventType === 'reminder') {
-        const farmName = farm.name || getNotificationText(touristLocale, 'notifications.common.farmStay')
-        const lines = [
-          getNotificationText(touristLocale, 'notifications.touristPreArrivalReminder.title', {
-            farmName,
-            checkIn: booking.check_in || '',
-          }),
-          getNotificationText(touristLocale, 'notifications.touristPreArrivalReminder.reference', { bookingId: booking.id }),
-        ]
-        if (farm.host_phone) {
-          lines.push(getNotificationText(touristLocale, 'notifications.touristPreArrivalReminder.hostContact', { hostPhone: farm.host_phone }))
-        }
-        lines.push(
-          getNotificationText(touristLocale, 'notifications.touristPreArrivalReminder.note'),
-          getNotificationText(touristLocale, 'notifications.touristPreArrivalReminder.viewCard', { url: `${siteUrl}/dashboard?view=tourist` }),
-        )
-        const text = lines.join('\n')
-
-        const targetTouristChat = touristChatId || (channel === 'mock' ? 'demo-tourist-chat' : null)
-        if (targetTouristChat) {
-          const res = await sendTelegramMessage(targetTouristChat, text)
-
-          const { data: nRow } = await serviceClient
-            .from('notifications')
-            .insert({
-              booking_id: bookingId,
-              to_phone: tourist.phone || null,
-              template: 'telegram_tourist_pre_arrival_reminder',
-              payload: {
-                channel: 'telegram',
-                recipient: 'tourist',
-                chatId: targetTouristChat,
-                preview_text: text,
-                messageId: res.messageId || null,
-              },
-              status: res.status,
-              error: res.error || null,
-            })
-            .select('id')
-            .maybeSingle()
-
-          dispatched.push({
-            id: nRow?.id,
-            bookingId,
-            telegramChatId: targetTouristChat,
-            template: 'telegram_tourist_pre_arrival_reminder',
-            status: res.status,
-            previewText: text,
-            error: res.error || null,
-          })
-        }
       }
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // WHATSAPP CHANNEL (PRESERVED BUT OFF BY DEFAULT UNLESS EXPLICITLY REQUESTED)
+    // TOURIST NOTIFICATIONS (WHATSAPP OR MOCK - TELEGRAM IS NEVER USED FOR TOURISTS)
     // ──────────────────────────────────────────────────────────────────────────
-    if (channel === 'whatsapp') {
-      const directionsUrl = `${siteUrl}/farms/${farm.slug || ''}`
-      const messagesToSend: Array<{
-        to: string
-        templateName: string
-        variables: (string | number)[]
-        recipientRole: 'farmer' | 'tourist'
-        previewText: string
-      }> = []
+    const directionsUrl = `${siteUrl}/farms/${farm.slug || ''}`
+    const messagesToSend: Array<{
+      to: string
+      templateName: string
+      variables: (string | number)[]
+      recipientRole: 'farmer' | 'tourist'
+      previewText: string
+    }> = []
 
-      if (eventType === 'created') {
-        const farmerPhone = farmerProfile?.phone || farm.host_phone
-        if (farmerPhone && farmerProfile?.whatsapp_opt_in !== false) {
-          const fPreview = getNotificationText(farmerLocale, 'notifications.whatsapp.farmerNewBooking', {
-            farmerName: farmerProfile?.full_name || farm.host_name || 'Farmer',
-            farmName: farm.name || 'Farm stay',
-            guestName: tourist.full_name || 'Guest',
-            visitType: visitTypeStrFarmer,
-            guests: booking.guests || 1,
-            checkIn: booking.check_in || 'Scheduled',
-            bookingId: booking.id,
-          })
-
-          messagesToSend.push({
-            to: farmerPhone,
-            templateName: 'farmer_new_booking',
-            variables: [
-              farmerProfile?.full_name || farm.host_name || 'Farmer',
-              tourist.full_name || 'Guest',
-              visitTypeStrFarmer,
-              booking.check_in || 'Scheduled',
-              booking.guests || 1,
-              farm.name || 'Farm stay',
-              booking.id,
-            ],
-            recipientRole: 'farmer',
-            previewText: fPreview,
-          })
-        }
-
-        if (tourist.phone && tourist.whatsapp_opt_in) {
-          const tPreview = getNotificationText(touristLocale, 'notifications.whatsapp.touristBookingReceived', {
-            guestName: tourist.full_name || 'Guest',
-            bookingId: booking.id,
-            farmName: farm.name || 'Farm stay',
-            visitType: visitTypeStrTourist,
-            checkIn: booking.check_in || 'Scheduled',
-          })
-
-          messagesToSend.push({
-            to: tourist.phone,
-            templateName: 'tourist_booking_received',
-            variables: [
-              tourist.full_name || 'Guest',
-              booking.id,
-              farm.name || 'Farm stay',
-              visitTypeStrTourist,
-              booking.check_in || 'Scheduled',
-            ],
-            recipientRole: 'tourist',
-            previewText: tPreview,
-          })
-        }
-      } else if (eventType === 'confirmed') {
-        if (tourist.phone && tourist.whatsapp_opt_in) {
-          const tPreview = getNotificationText(touristLocale, 'notifications.whatsapp.touristBookingConfirmed', {
-            guestName: tourist.full_name || 'Guest',
-            farmName: farm.name || 'Farm stay',
-            checkIn: booking.check_in || 'Scheduled',
-            hostName: farm.host_name || 'Your host',
-            hostPhone: farm.host_phone || 'Host contact',
-            directionsUrl,
-          })
-
-          messagesToSend.push({
-            to: tourist.phone,
-            templateName: 'tourist_booking_confirmed',
-            variables: [
-              tourist.full_name || 'Guest',
-              farm.name || 'Farm stay',
-              booking.check_in || 'Scheduled',
-              farm.host_name || 'Your host',
-              farm.host_phone || 'Host contact',
-              directionsUrl,
-            ],
-            recipientRole: 'tourist',
-            previewText: tPreview,
-          })
-        }
-      } else if (eventType === 'declined') {
-        if (tourist.phone && tourist.whatsapp_opt_in) {
-          const tPreview = getNotificationText(touristLocale, 'notifications.whatsapp.touristBookingDeclined', {
-            guestName: tourist.full_name || 'Guest',
-            farmName: farm.name || 'Farm stay',
-            checkIn: booking.check_in || 'Scheduled',
-          })
-
-          messagesToSend.push({
-            to: tourist.phone,
-            templateName: 'tourist_booking_declined',
-            variables: [
-              tourist.full_name || 'Guest',
-              farm.name || 'Farm stay',
-              booking.check_in || 'Scheduled',
-            ],
-            recipientRole: 'tourist',
-            previewText: tPreview,
-          })
-        }
-      } else if (eventType === 'reminder') {
-        if (tourist.phone && tourist.whatsapp_opt_in) {
-          const tPreview = getNotificationText(touristLocale, 'notifications.whatsapp.touristPreArrivalReminder', {
-            guestName: tourist.full_name || 'Guest',
-            farmName: farm.name || 'Farm stay',
-            checkIn: booking.check_in || 'Scheduled',
-            hostPhone: farm.host_phone || 'Host contact',
-            directionsUrl,
-          })
-
-          messagesToSend.push({
-            to: tourist.phone,
-            templateName: 'tourist_pre_arrival_reminder',
-            variables: [
-              tourist.full_name || 'Guest',
-              farm.name || 'Farm stay',
-              booking.check_in || 'Scheduled',
-              farm.host_phone || 'Host contact',
-              directionsUrl,
-            ],
-            recipientRole: 'tourist',
-            previewText: tPreview,
-          })
-        }
-      }
-
-      for (const msg of messagesToSend) {
-        const normalized = normalizeIndianPhoneNumber(msg.to)
-        if (!normalized) continue
-
-        const result: SendWhatsAppResult = await sendWhatsAppTemplate({
-          to: normalized,
-          templateName: msg.templateName,
-          variables: msg.variables,
-          previewTextOverride: msg.previewText,
+    // If channel is WhatsApp, also notify farmer via WhatsApp
+    if (channel === 'whatsapp' && eventType === 'created') {
+      const farmerPhone = farmerProfile?.phone || farm.host_phone
+      if (farmerPhone && farmerProfile?.whatsapp_opt_in !== false) {
+        const fPreview = getNotificationText(farmerLocale, 'notifications.whatsapp.farmerNewBooking', {
+          farmerName: farmerProfile?.full_name || farm.host_name || 'Farmer',
+          farmName: farm.name || 'Farm stay',
+          guestName: guestName,
+          visitType: visitTypeStrFarmer,
+          guests: booking.guests || 1,
+          checkIn: booking.check_in || 'Scheduled',
+          bookingId: booking.id,
         })
 
-        let finalPreview = result.previewText
-        if (reservedProductsText) {
-          finalPreview += `\nReserved products for pickup: ${reservedProductsText}`
-        }
+        messagesToSend.push({
+          to: farmerPhone,
+          templateName: 'farmer_new_booking',
+          variables: [
+            farmerProfile?.full_name || farm.host_name || 'Farmer',
+            guestName,
+            visitTypeStrFarmer,
+            booking.check_in || 'Scheduled',
+            booking.guests || 1,
+            farm.name || 'Farm stay',
+            booking.id,
+          ],
+          recipientRole: 'farmer',
+          previewText: fPreview,
+        })
+      }
+    }
 
-        const { data: notifRow } = await serviceClient
-          .from('notifications')
-          .insert({
-            booking_id: bookingId,
-            to_phone: result.toPhone,
-            template: result.template,
-            payload: {
-              variables: msg.variables,
-              preview_text: finalPreview,
-              channel: 'whatsapp',
-              recipientRole: msg.recipientRole,
-              messageId: result.messageId || null,
-            },
-            status: result.status,
-            error: result.error || null,
-          })
-          .select('id')
-          .maybeSingle()
+    // Always route tourist notifications through WhatsApp / Mock
+    const targetTouristPhone = guestPhone || tourist.phone || '+919800000001'
 
-        dispatched.push({
-          id: notifRow?.id,
-          bookingId,
-          toPhone: result.toPhone,
+    if (eventType === 'created') {
+      const tPreview = getNotificationText(touristLocale, 'notifications.whatsapp.touristBookingReceived', {
+        guestName: guestName,
+        bookingId: booking.id,
+        farmName: farm.name || 'Farm stay',
+        visitType: visitTypeStrTourist,
+        checkIn: booking.check_in || 'Scheduled',
+      })
+
+      messagesToSend.push({
+        to: targetTouristPhone,
+        templateName: 'tourist_booking_received',
+        variables: [
+          guestName,
+          booking.id,
+          farm.name || 'Farm stay',
+          visitTypeStrTourist,
+          booking.check_in || 'Scheduled',
+        ],
+        recipientRole: 'tourist',
+        previewText: tPreview,
+      })
+    } else if (eventType === 'confirmed') {
+      const tPreview = getNotificationText(touristLocale, 'notifications.whatsapp.touristBookingConfirmed', {
+        guestName: guestName,
+        farmName: farm.name || 'Farm stay',
+        checkIn: booking.check_in || 'Scheduled',
+        hostName: farm.host_name || 'Your host',
+        hostPhone: farm.host_phone || 'Host contact',
+        directionsUrl,
+      })
+
+      messagesToSend.push({
+        to: targetTouristPhone,
+        templateName: 'tourist_booking_confirmed',
+        variables: [
+          guestName,
+          farm.name || 'Farm stay',
+          booking.check_in || 'Scheduled',
+          farm.host_name || 'Your host',
+          farm.host_phone || 'Host contact',
+          directionsUrl,
+        ],
+        recipientRole: 'tourist',
+        previewText: tPreview,
+      })
+    } else if (eventType === 'declined') {
+      const tPreview = getNotificationText(touristLocale, 'notifications.whatsapp.touristBookingDeclined', {
+        guestName: guestName,
+        farmName: farm.name || 'Farm stay',
+        checkIn: booking.check_in || 'Scheduled',
+      })
+
+      messagesToSend.push({
+        to: targetTouristPhone,
+        templateName: 'tourist_booking_declined',
+        variables: [
+          guestName,
+          farm.name || 'Farm stay',
+          booking.check_in || 'Scheduled',
+        ],
+        recipientRole: 'tourist',
+        previewText: tPreview,
+      })
+    } else if (eventType === 'reminder') {
+      const tPreview = getNotificationText(touristLocale, 'notifications.whatsapp.touristPreArrivalReminder', {
+        guestName: guestName,
+        farmName: farm.name || 'Farm stay',
+        checkIn: booking.check_in || 'Scheduled',
+        hostPhone: farm.host_phone || 'Host contact',
+        directionsUrl,
+      })
+
+      messagesToSend.push({
+        to: targetTouristPhone,
+        templateName: 'tourist_pre_arrival_reminder',
+        variables: [
+          guestName,
+          farm.name || 'Farm stay',
+          booking.check_in || 'Scheduled',
+          farm.host_phone || 'Host contact',
+          directionsUrl,
+        ],
+        recipientRole: 'tourist',
+        previewText: tPreview,
+      })
+    }
+
+    for (const msg of messagesToSend) {
+      const normalized = normalizeIndianPhoneNumber(msg.to) || '+919800000001'
+
+      const result: SendWhatsAppResult = await sendWhatsAppTemplate({
+        to: normalized,
+        templateName: msg.templateName,
+        variables: msg.variables,
+        previewTextOverride: msg.previewText,
+      })
+
+      let finalPreview = result.previewText
+      if (reservedProductsText) {
+        finalPreview += `\nReserved products for pickup: ${reservedProductsText}`
+      }
+
+      const { data: notifRow } = await serviceClient
+        .from('notifications')
+        .insert({
+          booking_id: bookingId,
+          to_phone: result.toPhone || normalized,
           template: result.template,
+          payload: {
+            variables: msg.variables,
+            preview_text: finalPreview,
+            channel: 'whatsapp',
+            recipientRole: msg.recipientRole,
+            messageId: result.messageId || null,
+          },
           status: result.status,
-          previewText: finalPreview,
           error: result.error || null,
         })
-      }
+        .select('id')
+        .maybeSingle()
+
+      dispatched.push({
+        id: notifRow?.id,
+        bookingId,
+        toPhone: result.toPhone || normalized,
+        template: result.template,
+        status: result.status,
+        previewText: finalPreview,
+        error: result.error || null,
+      })
     }
+    return dispatched
   } catch (err: any) {
     console.error(`[Notification] Execution error for ${bookingId}:`, err)
   }

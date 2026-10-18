@@ -211,3 +211,163 @@ export async function answerCallbackQuery(
     return { success: false, error: err?.message }
   }
 }
+
+export interface TelegramBotCommand {
+  command: string
+  description: string
+}
+
+export interface TelegramBotCommandScope {
+  type: 'default' | 'all_private_chats' | 'all_group_chats' | 'all_chat_administrators' | 'chat'
+  chat_id?: string | number
+}
+
+/**
+ * Registers bot commands for a given scope (e.g. default or per-chat for linked hosts).
+ */
+export async function setMyCommands(
+  commands: TelegramBotCommand[],
+  scope?: TelegramBotCommandScope,
+): Promise<{ success: boolean; error?: string }> {
+  const channel = getNotificationChannel()
+  const token = process.env.TELEGRAM_BOT_TOKEN
+
+  if (channel === 'mock' || !token) {
+    console.info(`[Telegram Mock Mode] setMyCommands for scope ${JSON.stringify(scope || { type: 'default' })}:`, commands.map(c => `/${c.command}`).join(', '))
+    return { success: true }
+  }
+
+  try {
+    const url = `https://api.telegram.org/bot${token}/setMyCommands`
+    const body: Record<string, any> = { commands }
+    if (scope) body.scope = scope
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+
+    const data = await res.json()
+    if (!res.ok || !data.ok) {
+      return { success: false, error: data?.description }
+    }
+    return { success: true }
+  } catch (err: any) {
+    return { success: false, error: err?.message }
+  }
+}
+
+/**
+ * Deletes bot commands for a given scope (e.g. reset per-chat commands on /stop).
+ */
+export async function deleteMyCommands(
+  scope?: TelegramBotCommandScope,
+): Promise<{ success: boolean; error?: string }> {
+  const channel = getNotificationChannel()
+  const token = process.env.TELEGRAM_BOT_TOKEN
+
+  if (channel === 'mock' || !token) {
+    console.info(`[Telegram Mock Mode] deleteMyCommands for scope ${JSON.stringify(scope || { type: 'default' })}`)
+    return { success: true }
+  }
+
+  try {
+    const url = `https://api.telegram.org/bot${token}/deleteMyCommands`
+    const body: Record<string, any> = {}
+    if (scope) body.scope = scope
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+
+    const data = await res.json()
+    if (!res.ok || !data.ok) {
+      return { success: false, error: data?.description }
+    }
+    return { success: true }
+  } catch (err: any) {
+    return { success: false, error: err?.message }
+  }
+}
+
+/**
+ * Configures the Telegram chat menu button (e.g. { type: "commands" }).
+ */
+export async function setChatMenuButton(
+  menuButton: { type: string },
+  chatId?: string | number,
+): Promise<{ success: boolean; error?: string }> {
+  const channel = getNotificationChannel()
+  const token = process.env.TELEGRAM_BOT_TOKEN
+
+  if (channel === 'mock' || !token) {
+    console.info(`[Telegram Mock Mode] setChatMenuButton: ${JSON.stringify(menuButton)} for chat ${chatId || 'default'}`)
+    return { success: true }
+  }
+
+  try {
+    const url = `https://api.telegram.org/bot${token}/setChatMenuButton`
+    const body: Record<string, any> = { menu_button: menuButton }
+    if (chatId) body.chat_id = chatId
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+
+    const data = await res.json()
+    if (!res.ok || !data.ok) {
+      return { success: false, error: data?.description }
+    }
+    return { success: true }
+  } catch (err: any) {
+    return { success: false, error: err?.message }
+  }
+}
+
+/**
+ * Registers the Telegram webhook with secret token and allowed updates.
+ */
+export async function setWebhook(
+  webhookUrl: string,
+  secretToken?: string,
+  allowedUpdates: string[] = ['message', 'callback_query'],
+): Promise<{ success: boolean; description?: string; error?: string }> {
+  const channel = getNotificationChannel()
+  const token = process.env.TELEGRAM_BOT_TOKEN
+
+  if (channel === 'mock' || !token) {
+    console.info(`[Telegram Mock Mode] setWebhook to ${webhookUrl} with updates ${allowedUpdates.join(',')}`)
+    return { success: true, description: 'Webhook registered (mock mode)' }
+  }
+
+  try {
+    const url = `https://api.telegram.org/bot${token}/setWebhook`
+    const body: Record<string, any> = {
+      url: webhookUrl,
+      allowed_updates: allowedUpdates,
+    }
+    if (secretToken) {
+      body.secret_token = secretToken
+    }
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+
+    const data = await res.json()
+    if (!res.ok || !data.ok) {
+      return { success: false, error: data?.description || `HTTP ${res.status}` }
+    }
+    return { success: true, description: data.description }
+  } catch (err: any) {
+    return { success: false, error: err?.message }
+  }
+}
+

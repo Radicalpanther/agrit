@@ -461,7 +461,9 @@
       "publishAction": "Publish listing",
       "editAction": "Edit stay",
       "deleteAction": "Delete stay",
-      "confirmDelete": "Are you sure you want to delete \"{name}\"? This cannot be undone."
+      "confirmDelete": "Are you sure you want to delete \"{name}\"? This cannot be undone.",
+      "viewMore": "View more ({count})",
+      "showLess": "Show less"
     },
     "bookings": {
       "kicker": "Next up ({count})",
@@ -473,7 +475,9 @@
       "dayVisit": "Day visit",
       "total": "Total: {total}",
       "confirm": "Confirm",
-      "decline": "Decline"
+      "decline": "Decline",
+      "viewMore": "View more ({count})",
+      "showLess": "Show less"
     },
     "inventory": {
       "kicker": "Reserve and collect at the farm ({count} items)",
