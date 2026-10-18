@@ -278,6 +278,16 @@ export function TelegramConnect({
     </div>
   )
 
+  // Auto-dismiss floating disconnect notification after 5 seconds
+  useEffect(() => {
+    if (disconnectedNotice) {
+      const timer = setTimeout(() => {
+        setDisconnectedNotice(null)
+      }, 5000)
+      return () => clearTimeout(timer)
+    }
+  }, [disconnectedNotice])
+
   return (
     <>
       <div
@@ -285,7 +295,7 @@ export function TelegramConnect({
           display: 'inline-flex',
           alignItems: 'center',
           gap: '8px',
-          flexWrap: 'wrap',
+          flexShrink: 0,
         }}
       >
         {isLinked ? (
@@ -302,6 +312,7 @@ export function TelegramConnect({
               fontSize: '11.5px',
               borderRadius: '3px',
               lineHeight: 1,
+              whiteSpace: 'nowrap',
             }}
           >
             <Check size={14} style={{ color: 'var(--forest)', flexShrink: 0 }} />
@@ -330,7 +341,7 @@ export function TelegramConnect({
             </button>
           </div>
         ) : (
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
             <button
               type="button"
               onClick={handleConnect}
@@ -339,16 +350,17 @@ export function TelegramConnect({
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '6px',
-                padding: '6px 12px',
-                fontSize: '11.5px',
+                padding: '6px 14px',
+                fontSize: '12px',
                 fontWeight: 700,
                 color: 'var(--forest)',
                 background: 'var(--mint)',
                 border: '1px solid var(--line)',
                 cursor: isConnecting ? 'wait' : 'pointer',
-                fontFamily: 'Arial, sans-serif',
-                minHeight: '32px',
+                fontFamily: 'inherit',
+                minHeight: '36px',
                 borderRadius: '3px',
+                whiteSpace: 'nowrap',
               }}
             >
               {isConnecting ? (
@@ -365,50 +377,58 @@ export function TelegramConnect({
             </button>
 
             {connectError && (
-              <span style={{ fontSize: '11px', color: '#dc2626', fontWeight: 600 }}>
+              <span style={{ fontSize: '11px', color: '#dc2626', fontWeight: 600, whiteSpace: 'nowrap' }}>
                 {connectError}
               </span>
-            )}
-
-            {disconnectedNotice && (
-              <div
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '3px 8px',
-                  fontSize: '11px',
-                  color: '#b91c1c',
-                  background: '#fef2f2',
-                  border: '1px solid #fecaca',
-                  borderRadius: '3px',
-                  fontWeight: 600,
-                }}
-              >
-                <span>{disconnectedNotice}</span>
-                <button
-                  type="button"
-                  onClick={() => setDisconnectedNotice(null)}
-                  aria-label="Dismiss notice"
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: '#b91c1c',
-                    cursor: 'pointer',
-                    padding: 0,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                  }}
-                >
-                  <X size={12} />
-                </button>
-              </div>
             )}
           </div>
         )}
       </div>
 
       {confirmationModal}
+
+      {/* Floating toast notification — never breaks or shifts header layout */}
+      {disconnectedNotice && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            position: 'fixed',
+            bottom: '24px',
+            right: '24px',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            padding: '12px 18px',
+            fontSize: '12.5px',
+            fontWeight: 600,
+            color: '#ffffff',
+            background: '#1f2937',
+            border: '1px solid #374151',
+            borderRadius: '6px',
+            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.3)',
+          }}
+        >
+          <span>{disconnectedNotice}</span>
+          <button
+            type="button"
+            onClick={() => setDisconnectedNotice(null)}
+            aria-label="Dismiss notice"
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#9ca3af',
+              cursor: 'pointer',
+              padding: '2px',
+              display: 'flex',
+              alignItems: 'center',
+            }}
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
     </>
   )
 }

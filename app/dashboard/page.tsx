@@ -969,12 +969,13 @@ export default function DashboardPage() {
               <h1>{t('greeting', { name: farmerName })}</h1>
               <p>{t('subtitle')}</p>
             </div>
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexShrink: 0 }}>
               <TelegramConnect compact showDisconnect role="farmer" />
               <button
                 className="primary-btn"
                 type="button"
                 onClick={openCreateListing}
+                style={{ whiteSpace: 'nowrap' }}
               >
                 <span>+</span> {t('addNewListing')}
               </button>
