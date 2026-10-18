@@ -581,41 +581,113 @@ button { border:0; cursor:pointer; color:inherit; background:none; }
    ========================================================================== */
 .agriguide-launcher {
   position: fixed !important;
-  bottom: 24px !important;
-  right: 24px !important;
-  width: 46px !important;
-  height: 46px !important;
-  background: #ffffff !important;
-  border: 1.5px solid var(--forest) !important;
-  color: var(--forest) !important;
-  display: grid !important;
-  place-items: center !important;
-  border-radius: 4px !important;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.22) !important;
-  z-index: 99999 !important;
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px)) !important;
+  right: calc(24px + env(safe-area-inset-right, 0px)) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  padding: 12px 20px !important;
+  min-height: 48px !important;
+  background: var(--forest) !important;
+  border: 1px solid rgba(93, 144, 103, 0.45) !important;
+  color: #ffffff !important;
+  border-radius: 9999px !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  line-height: 1.2 !important;
+  white-space: nowrap !important;
+  box-shadow: 0 6px 18px rgba(20, 50, 35, 0.28) !important;
+  z-index: 900 !important;
   cursor: pointer !important;
-  transition: transform 0.15s, background 0.15s !important;
+  user-select: none !important;
+  outline: none !important;
+  text-decoration: none !important;
+  transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1),
+              background 180ms ease,
+              box-shadow 180ms ease,
+              border-color 180ms ease !important;
+  animation: agriBotPulse 1.4s ease-in-out 1.2s 1 normal forwards;
 }
 
 .agriguide-launcher:hover {
   transform: translateY(-2px) !important;
-  background: var(--mint) !important;
+  background: #2a614c !important;
+  box-shadow: 0 8px 22px rgba(20, 50, 35, 0.36) !important;
+  border-color: rgba(93, 144, 103, 0.65) !important;
+}
+
+.agriguide-launcher:active {
+  transform: translateY(0px) scale(0.98) !important;
+  box-shadow: 0 4px 12px rgba(20, 50, 35, 0.25) !important;
+}
+
+.agriguide-launcher:focus-visible {
+  outline: 2px solid var(--mint) !important;
+  outline-offset: 2px !important;
+}
+
+.agriguide-launcher-icon {
+  flex-shrink: 0;
+  color: #ffffff;
+}
+
+.agriguide-launcher-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+/* Compact circular close mode on desktop when panel is open */
+.agriguide-launcher.is-open {
+  width: 48px !important;
+  height: 48px !important;
+  min-height: 48px !important;
+  padding: 0 !important;
+  border-radius: 50% !important;
+  gap: 0 !important;
+}
+
+@keyframes agriBotPulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.035) translateY(-2px);
+    box-shadow: 0 10px 24px rgba(20, 50, 35, 0.38);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agriguide-launcher {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
+  .agriguide-launcher:hover,
+  .agriguide-launcher:active {
+    transform: none !important;
+  }
 }
 
 .agriguide-panel {
   position: fixed;
-  bottom: 80px;
-  right: 24px;
+  bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+  right: calc(24px + env(safe-area-inset-right, 0px));
   width: 360px;
   height: 520px;
-  max-height: calc(100vh - 100px);
+  max-height: calc(100vh - 110px);
   background: #ffffff;
   border: 1px solid var(--line);
   box-shadow: 0 14px 40px rgba(23, 53, 43, 0.2);
   display: flex;
   flex-direction: column;
-  z-index: 100000 !important;
+  z-index: 9999 !important;
   overflow: hidden;
+  border-radius: 6px;
 }
 
 .agriguide-header {
@@ -829,10 +901,28 @@ button { border:0; cursor:pointer; color:inherit; background:none; }
     right: 0;
     border: none;
     border-radius: 0;
+    z-index: 9999 !important;
   }
   .agriguide-launcher {
-    bottom: 20px;
-    right: 20px;
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px)) !important;
+    right: calc(16px + env(safe-area-inset-right, 0px)) !important;
+    padding: 10px 16px !important;
+    font-size: 13px !important;
+    min-height: 46px !important;
+    gap: 7px !important;
+    max-width: calc(100vw - 32px) !important;
+  }
+  .agriguide-launcher-label {
+    font-size: 13px;
+  }
+  .agriguide-launcher.is-open {
+    display: none !important;
+  }
+  .footer {
+    padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  main, .dashboard-page, .farm-detail-page {
+    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
   }
   .lightbox-prev-btn {
     left: 8px !important;
@@ -854,6 +944,19 @@ button { border:0; cursor:pointer; color:inherit; background:none; }
   .rating-bar-row {
     grid-template-columns: 120px 1fr 30px !important;
     gap: 8px !important;
+  }
+}
+
+@media (max-width: 360px) {
+  .agriguide-launcher {
+    padding: 8px 12px !important;
+    font-size: 12px !important;
+    min-height: 44px !important;
+    gap: 5px !important;
+    max-width: calc(100vw - 20px) !important;
+  }
+  .agriguide-launcher-label {
+    font-size: 12px;
   }
 }
 

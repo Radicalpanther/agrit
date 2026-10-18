@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
-import { MessageSquare, X, Send } from 'lucide-react'
+import { Bot, X, Send } from 'lucide-react'
 import { useLocale, useTranslations } from 'next-intl'
 
 interface Message {
@@ -173,21 +173,35 @@ export function AgriGuide() {
       {/* Floating Launcher Button */}
       <button
         type="button"
-        className="agriguide-launcher"
+        className={`agriguide-launcher ${isOpen ? 'is-open' : ''}`}
         onClick={() => setIsOpen(!isOpen)}
-        aria-label={isOpen ? t('closeAriaLabel') : t('openAriaLabel')}
-        title={t('launcherTitle')}
+        aria-label={
+          isOpen
+            ? t('closeAriaLabel')
+            : 'Open AgriGuide chat, Ask the agri bot'
+        }
+        aria-expanded={isOpen}
+        aria-controls="agriguide-chat-panel"
+        title="Ask the agri bot!"
       >
         {isOpen ? (
-          <X size={20} strokeWidth={2} />
+          <X size={20} strokeWidth={2.2} />
         ) : (
-          <MessageSquare size={20} strokeWidth={2} />
+          <>
+            <Bot size={18} strokeWidth={2.2} className="agriguide-launcher-icon" />
+            <span className="agriguide-launcher-label">Ask the agri bot!</span>
+          </>
         )}
       </button>
 
       {/* Chat Panel */}
       {isOpen && (
-        <div className="agriguide-panel" role="dialog" aria-label={t('openAriaLabel')}>
+        <div
+          id="agriguide-chat-panel"
+          className="agriguide-panel"
+          role="dialog"
+          aria-label={t('openAriaLabel')}
+        >
           {/* Header */}
           <div className="agriguide-header">
             <div>
