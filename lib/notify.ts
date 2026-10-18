@@ -29,6 +29,65 @@ export interface NotificationDispatchRecord {
   error?: string | null
 }
 
+export interface FarmerBookingMessagePayload {
+  id: string
+  visit_type?: string
+  nights?: number
+  check_in?: string
+  arrival_time?: string | null
+  guests?: number
+  total_paise?: number
+  discount_pct?: number
+  farm?: { name?: string }
+  tourist?: { full_name?: string; phone?: string | null }
+}
+
+export function buildFarmerBookingMessage(
+  booking: FarmerBookingMessagePayload,
+  reservedProductsText?: string,
+): { text: string; replyMarkup: { inline_keyboard: { text: string; callback_data: string }[][] } } {
+  const visitTypeStr = booking.visit_type === 'day' ? 'Day visit' : `${booking.nights || 1} nights stay`
+  const formattedTotal = formatRupees(booking.total_paise || 0)
+  const discountNote = Number(booking.discount_pct) > 0 ? ` (${booking.discount_pct}% package discount applied)` : ''
+  const farmName = booking.farm?.name || 'Farm Stay'
+  const guestName = booking.tourist?.full_name || 'Guest'
+
+  const lines = [
+    `New booking request: ${farmName}`,
+    `Reference: ${booking.id}`,
+    `Guest: ${guestName}`,
+  ]
+  if (booking.tourist?.phone) {
+    lines.push(`Phone: ${booking.tourist.phone}`)
+  }
+  lines.push(
+    `Visit type: ${visitTypeStr}`,
+    `Check-in date: ${booking.check_in || 'Scheduled'}`,
+  )
+  if (booking.arrival_time) {
+    lines.push(`Arrival time: ${booking.arrival_time}`)
+  }
+  lines.push(`Guests: ${booking.guests || 1}`)
+  if (reservedProductsText) {
+    lines.push(`Reserved products: ${reservedProductsText}`)
+  }
+  lines.push(`Total: ${formattedTotal}${discountNote}`)
+
+  const replyMarkup = {
+    inline_keyboard: [
+      [
+        { text: 'Accept', callback_data: `bk:${booking.id}:a` },
+        { text: 'Decline', callback_data: `bk:${booking.id}:d` },
+      ],
+    ],
+  }
+
+  return {
+    text: lines.join('\n'),
+    replyMarkup,
+  }
+}
+
 /**
  * Dispatches booking notifications across the configured channel:
  * Telegram (default), WhatsApp (legacy), or Mock mode.
@@ -102,38 +161,21 @@ export async function notifyBookingStatus(
       if (eventType === 'created') {
         // Message to farmer with inline Accept/Decline approval buttons
         const farmerChatId = farmerProfile?.telegram_chat_id
-        const farmerLines = [
-          `New booking request: ${farm.name || 'Farm Stay'}`,
-          `Reference: ${booking.id}`,
-          `Guest: ${tourist.full_name || 'Guest'}`,
-        ]
-        if (tourist.phone) {
-          farmerLines.push(`Phone: ${tourist.phone}`)
-        }
-        farmerLines.push(
-          `Visit type: ${visitTypeStr}`,
-          `Check-in date: ${booking.check_in || 'Scheduled'}`,
+        const { text: farmerText, replyMarkup: inlineKeyboard } = buildFarmerBookingMessage(
+          {
+            id: booking.id,
+            visit_type: booking.visit_type,
+            nights: booking.nights,
+            check_in: booking.check_in,
+            arrival_time: booking.arrival_time,
+            guests: booking.guests,
+            total_paise: booking.total_paise,
+            discount_pct: booking.discount_pct,
+            farm: { name: farm.name },
+            tourist: { full_name: tourist.full_name, phone: tourist.phone },
+          },
+          reservedProductsText,
         )
-        if (booking.arrival_time) {
-          farmerLines.push(`Arrival time: ${booking.arrival_time}`)
-        }
-        farmerLines.push(`Guests: ${booking.guests || 1}`)
-        if (reservedProductsText) {
-          farmerLines.push(`Reserved products: ${reservedProductsText}`)
-        }
-        farmerLines.push(`Total: ${formattedTotal}${discountNote}`)
-
-        const farmerText = farmerLines.join('\n')
-
-        // Inline keyboard for approval (under 64 bytes)
-        const inlineKeyboard = {
-          inline_keyboard: [
-            [
-              { text: 'Accept', callback_data: `bk:${booking.id}:a` },
-              { text: 'Decline', callback_data: `bk:${booking.id}:d` },
-            ],
-          ],
-        }
 
         // Send to farmer if chat ID is known (or log mock if not yet linked)
         const targetFarmerChat = farmerChatId || (channel === 'mock' ? 'demo-farmer-chat' : null)

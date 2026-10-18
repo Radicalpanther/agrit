@@ -129,6 +129,19 @@ If `TELEGRAM_BOT_TOKEN` is omitted or `NOTIFY_CHANNEL=mock`:
 - The message preview appears directly in the UI Message Preview panel.
 - Booking flows and status changes never fail due to notification dispatch.
 
+### Telegram Bot Commands
+
+The bot provides real-time interactive commands in private chats tailored to the user's role:
+
+| Command | Role | Description |
+|---|---|---|
+| `/bookings` | Tourist | Lists next 5 upcoming stays with farm name, check-in date, arrival time, guests, status, and direct link. |
+| `/bookings` | Farmer | Lists next 5 upcoming bookings for their farms with tourist name, date, guests, and status. |
+| `/pending` | Farmer | Resends up to 5 pending booking requests with interactive Accept and Decline buttons. |
+| `/today` | Farmer | Lists today's confirmed arrivals (Asia/Kolkata date) with guest names, arrival times, and reserved produce. |
+| `/stop` | All | Disconnects Telegram from your AgriTrails account. |
+| `/help` | All | Displays the role-specific command reference (also sent automatically upon `/start` linking). |
+
 ---
 
 ## Outbound WhatsApp Cloud API & Template Messages (Legacy)
