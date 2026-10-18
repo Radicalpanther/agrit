@@ -1365,3 +1365,208 @@ button { border:0; cursor:pointer; color:inherit; background:none; }
   font-weight: 700;
   color: var(--ink);
 }
+
+/* ==========================================================================
+   "A day at the farm" Flowchart & Two-Column Layout Styles
+   ========================================================================== */
+.farm-hero-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 36px;
+  align-items: start;
+}
+
+@media (min-width: 901px) {
+  .farm-hero-layout {
+    grid-template-columns: 1.08fr 0.92fr;
+    gap: 48px;
+  }
+}
+
+.farm-flow-section {
+  font-family: Arial, sans-serif;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.farm-flow-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.farm-flow-tab-btn {
+  padding: 7px 16px;
+  border: 1px solid var(--line);
+  background: #ffffff;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  border-radius: 0;
+  transition: all 0.15s ease;
+  font-family: Arial, sans-serif;
+}
+
+.farm-flow-tab-btn.is-active {
+  background: var(--forest);
+  color: #ffffff;
+  border-color: var(--forest);
+}
+
+.farm-flow-timeline {
+  position: relative;
+  padding-left: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-sizing: border-box;
+}
+
+.farm-flow-spine {
+  position: absolute;
+  left: 5px;
+  top: 18px;
+  bottom: 18px;
+  width: 1px;
+  background: var(--line);
+  z-index: 1;
+}
+
+.farm-flow-node-wrap {
+  position: relative;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.farm-flow-marker {
+  position: absolute;
+  left: -28px;
+  top: 18px;
+  width: 11px;
+  height: 11px;
+  z-index: 2;
+  border-radius: 0;
+  box-sizing: border-box;
+}
+
+.farm-flow-marker.is-forest-filled {
+  background: var(--forest);
+  border: none;
+}
+
+.farm-flow-marker.is-activity {
+  background: #ffffff;
+  border: 2px solid var(--forest);
+}
+
+.farm-flow-marker.is-seasonal {
+  background: #ffffff;
+  border: 2px solid var(--line);
+}
+
+.farm-flow-chevron {
+  position: absolute;
+  left: -28px;
+  bottom: -13px;
+  z-index: 2;
+  width: 11px;
+  height: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.farm-flow-card {
+  border: 1px solid var(--line);
+  background: #ffffff;
+  padding: 13px 15px;
+  border-radius: 0;
+  box-shadow: none;
+  font-family: Arial, sans-serif;
+  transition: border-color 0.15s ease;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.farm-flow-card:hover {
+  border-color: var(--forest);
+}
+
+.farm-flow-card.is-seasonal {
+  opacity: 0.65;
+  background: #fbfdfa;
+}
+
+.farm-flow-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 5px;
+  flex-wrap: wrap;
+}
+
+.farm-flow-time {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.farm-flow-price {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--forest);
+}
+
+.farm-flow-kind-tag {
+  background: var(--mint);
+  color: var(--leaf);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 2px 7px;
+  border-radius: 0;
+}
+
+.farm-flow-seasonal-tag {
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 0;
+  background: #ffffff;
+}
+
+.farm-flow-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.farm-flow-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0;
+  letter-spacing: -0.2px;
+}
+
+.farm-flow-duration {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.farm-flow-desc {
+  font-size: 12px;
+  color: #53685d;
+  line-height: 1.45;
+  margin: 5px 0 0;
+}
