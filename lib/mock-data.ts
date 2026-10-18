@@ -81,7 +81,7 @@ export const FARMS: Farm[] = [
     pricePaise: 285000,
     rating: '4.9',
     reviews: 42,
-    image: 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=900&q=85',
+    image: 'https://i.ibb.co/CsKRHJv0/images.jpg',
     tag: 'Top rated',
     description: 'Wake up to birdsong, share a meal made from the morning harvest, and spend an unhurried day learning the rhythms of a real working farm in Ratnagiri.',
     amenities: ['Organic meals', 'Sleeps 4', 'Flexible check-in'],

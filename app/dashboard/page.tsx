@@ -96,7 +96,7 @@ export default function DashboardPage() {
   ])
   const [selectedCropIds, setSelectedCropIds] = useState<string[]>([])
   const [imageUrl, setImageUrl] = useState(
-    'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=900&q=85',
+    'https://i.ibb.co/CsKRHJv0/images.jpg',
   )
   const [lat, setLat] = useState(17.0016)
   const [lng, setLng] = useState(73.312)
@@ -209,7 +209,7 @@ export default function DashboardPage() {
     ])
     setSelectedCropIds([])
     setImageUrl(
-      'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=900&q=85',
+      'https://i.ibb.co/CsKRHJv0/images.jpg',
     )
     setLat(17.0016)
     setLng(73.312)

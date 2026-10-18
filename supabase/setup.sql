@@ -477,7 +477,7 @@ begin
     'Wake up to birdsong, share a meal made from the morning harvest, and spend an unhurried day learning the rhythms of a real working farm in Ratnagiri.',
     'Farm stay · Hurda party', array['organic','family','hurda-party'],
     285000, 4,
-    'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=900&q=85',
+    'https://i.ibb.co/CsKRHJv0/images.jpg',
     true, 90, 'Rajesh Patil', '+919800000002',
     array['Take NH66 towards Ratnagiri', 'Turn at Mirya phata', 'Follow the board at the mango grove'],
     'Near the old banyan tree at Mirya village',

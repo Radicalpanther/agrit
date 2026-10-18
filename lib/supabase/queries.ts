@@ -28,7 +28,7 @@ export function mapDbFarmToFarm(row: any): Farm {
     reviews: row.review_count ?? 0,
     image:
       row.image_url ||
-      'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=900&q=85',
+      'https://i.ibb.co/CsKRHJv0/images.jpg',
     tag: firstTag,
     description: row.description || '',
     amenities: tags.length > 0 ? tags.map((t) => t.replace('-', ' ')) : ['Organic meals', 'Farm tour'],
