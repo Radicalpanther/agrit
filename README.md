@@ -135,12 +135,14 @@ The bot provides real-time interactive commands in private chats tailored to the
 
 | Command | Role | Description |
 |---|---|---|
-| `/bookings` | Tourist | Lists next 5 upcoming stays with farm name, check-in date, arrival time, guests, status, and direct link. |
-| `/bookings` | Farmer | Lists next 5 upcoming bookings for their farms with tourist name, date, guests, and status. |
+| `/bookings` or `/booking` | Tourist | Lists next 5 upcoming stays (or recent if none in future) with farm name, check-in date, arrival time, guests, status, and direct link. |
+| `/bookings` or `/booking` | Farmer | Lists next 5 upcoming bookings for their farms with tourist name, guest phone, date, guests, and status. |
 | `/pending` | Farmer | Resends up to 5 pending booking requests with interactive Accept and Decline buttons. |
-| `/today` | Farmer | Lists today's confirmed arrivals (Asia/Kolkata date) with guest names, arrival times, and reserved produce. |
+| `/today` | Farmer | Lists today's confirmed arrivals (Asia/Kolkata date) with guest names, phone numbers, arrival times, and reserved produce. |
+| `/msg <phone> <text>` | All | Sends a direct Telegram message to a guest or host using their registered phone number. |
 | `/stop` | All | Disconnects Telegram from your AgriTrails account. |
 | `/help` | All | Displays the role-specific command reference (also sent automatically upon `/start` linking). |
+| Direct Phone Linking | All | Send your registered 10-digit phone number or share contact directly to the bot to link your account. |
 
 ---
 

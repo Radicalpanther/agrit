@@ -27,9 +27,10 @@ function getHelpMessage(role: string): string {
   if (role === 'farmer') {
     return [
       'Available commands:',
-      '/bookings - List your next 5 upcoming farm bookings',
+      '/bookings - List your farm bookings (upcoming and recent)',
       '/pending - Send pending booking requests with Accept and Decline buttons',
-      '/today - List today\'s confirmed visits and reserved products',
+      '/today - List today\'s confirmed visits with guest phone numbers and reserved produce',
+      '/msg <phone> <text> - Send a direct Telegram message to a guest by phone number',
       '/stop - Disconnect your Telegram account',
       '/help - Show this list of commands',
     ].join('\n')
@@ -37,7 +38,8 @@ function getHelpMessage(role: string): string {
 
   return [
     'Available commands:',
-    '/bookings - List your next 5 upcoming farm stays',
+    '/bookings - List your farm stays (upcoming and recent)',
+    '/msg <phone> <text> - Send a message to your host by phone number',
     '/stop - Disconnect your Telegram account',
     '/help - Show this list of commands',
   ].join('\n')
@@ -133,8 +135,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true })
     }
 
-    // 3. Handle Text Messages
-    if (body.message && body.message.text) {
+    // 3. Handle Text Messages and Contacts
+    if (body.message) {
       const msg = body.message
       const chat = msg.chat
 
@@ -144,8 +146,46 @@ export async function POST(request: Request) {
       }
 
       const chatId = chat.id
-      const text: string = msg.text.trim()
+      const text: string = (msg.text || '').trim()
       const command = text.split(' ')[0].toLowerCase().replace(/@\w+$/, '')
+
+      // Handle phone number input (via text or shared contact) to link account directly
+      const contactPhone = msg.contact?.phone_number
+      const trimmedText = text.replace(/\s+/g, '')
+      const isPhoneInput = Boolean(contactPhone) || (!text.startsWith('/') && /^\+?[0-9]{7,15}$/.test(trimmedText))
+
+      if (isPhoneInput) {
+        const rawDigits = (contactPhone || trimmedText).replace(/\D/g, '')
+        const last10 = rawDigits.slice(-10)
+
+        const { data: allProfiles } = await serviceClient
+          .from('profiles')
+          .select('id, full_name, role, phone, telegram_chat_id')
+
+        const matched = allProfiles?.find((p) => p.phone && p.phone.replace(/\D/g, '').endsWith(last10))
+
+        if (matched) {
+          await serviceClient
+            .from('profiles')
+            .update({
+              telegram_chat_id: chatId,
+              telegram_linked_at: new Date().toISOString(),
+            })
+            .eq('id', matched.id)
+
+          const roleName = matched.role === 'farmer' ? 'farm host' : 'tourist'
+          const welcome = `Found your account for ${matched.full_name} (${matched.phone}). Connected as ${roleName}.`
+          const help = getHelpMessage(matched.role)
+          await sendTelegramMessage(chatId, `${welcome}\n\n${help}`)
+          return NextResponse.json({ ok: true })
+        } else {
+          await sendTelegramMessage(
+            chatId,
+            `No account found in database with phone number ${contactPhone || trimmedText}. Please update your phone number on your AgriTrails profile or connect from the website: ${siteUrl}`,
+          )
+          return NextResponse.json({ ok: true })
+        }
+      }
 
       // Handle /start with token: "/start {token}"
       if (text.startsWith('/start ') && text.length > 7) {
@@ -183,13 +223,13 @@ export async function POST(request: Request) {
             telegram_linked_at: new Date().toISOString(),
           })
           .eq('id', tokenRow.user_id)
-          .select('role, full_name')
+          .select('role, full_name, phone')
           .maybeSingle()
 
         const isFarmer = updatedProfile?.role === 'farmer'
         const confirmationMessage = isFarmer
-          ? 'Your AgriTrails farmer account is connected. You will receive real-time booking requests here with instant Accept and Decline buttons.'
-          : 'Your AgriTrails tourist account is connected. You will receive booking confirmations, host contact details, directions, and pre-arrival reminders here.'
+          ? `Your AgriTrails farmer account (${updatedProfile?.full_name || 'Host'}) is connected. You will receive real-time booking requests here with instant Accept and Decline buttons.`
+          : `Your AgriTrails tourist account (${updatedProfile?.full_name || 'Guest'}) is connected. You will receive booking confirmations, host contact details, directions, and pre-arrival reminders here.`
 
         const helpList = getHelpMessage(updatedProfile?.role || 'tourist')
         await sendTelegramMessage(chatId, `${confirmationMessage}\n\n${helpList}`)
@@ -200,7 +240,7 @@ export async function POST(request: Request) {
       if (command === '/start') {
         await sendTelegramMessage(
           chatId,
-          `Welcome to AgriTrails. Connect your account from the website first: ${siteUrl}`,
+          `Welcome to AgriTrails. Connect your account from the website first (${siteUrl}) or send your 10-digit registered phone number directly here.`,
         )
         return NextResponse.json({ ok: true })
       }
@@ -208,7 +248,7 @@ export async function POST(request: Request) {
       // Look up user profile by telegram_chat_id
       const { data: userProfile } = await serviceClient
         .from('profiles')
-        .select('id, full_name, role, telegram_chat_id')
+        .select('id, full_name, role, phone, telegram_chat_id')
         .eq('telegram_chat_id', chatId)
         .maybeSingle()
 
@@ -240,7 +280,7 @@ export async function POST(request: Request) {
       if (!userProfile) {
         await sendTelegramMessage(
           chatId,
-          `Connect your account from the website first: ${siteUrl}`,
+          `Connect your account from the website first (${siteUrl}) or send your registered mobile number to link directly.`,
         )
         return NextResponse.json({ ok: true })
       }
@@ -248,11 +288,51 @@ export async function POST(request: Request) {
       const today = getTodayKolkata()
       const isFarmer = userProfile.role === 'farmer'
 
-      // Command: /bookings
-      if (command === '/bookings') {
+      // Command: /msg or /message <phone> <text> — message someone based on their phone number
+      if (command === '/msg' || command === '/message') {
+        const parts = text.split(' ')
+        if (parts.length < 3) {
+          await sendTelegramMessage(chatId, 'Usage: /msg <phone> <message>')
+          return NextResponse.json({ ok: true })
+        }
+
+        const targetPhone = parts[1].replace(/\D/g, '').slice(-10)
+        const messageBody = parts.slice(2).join(' ')
+
+        const { data: allProfiles } = await serviceClient
+          .from('profiles')
+          .select('id, full_name, phone, role, telegram_chat_id')
+
+        const recipient = allProfiles?.find((p) => p.phone && p.phone.replace(/\D/g, '').endsWith(targetPhone))
+
+        if (!recipient) {
+          await sendTelegramMessage(chatId, `No account found in database with phone number ${parts[1]}.`)
+          return NextResponse.json({ ok: true })
+        }
+
+        if (recipient.telegram_chat_id) {
+          await sendTelegramMessage(
+            recipient.telegram_chat_id,
+            `Message from ${userProfile.full_name} (${userProfile.phone || 'Host'}): ${messageBody}`,
+          )
+          await sendTelegramMessage(
+            chatId,
+            `Message sent on Telegram to ${recipient.full_name} (${recipient.phone}).`,
+          )
+        } else {
+          await sendTelegramMessage(
+            chatId,
+            `${recipient.full_name} (${recipient.phone}) has not connected Telegram yet. Please contact them directly at ${recipient.phone}.`,
+          )
+        }
+        return NextResponse.json({ ok: true })
+      }
+
+      // Command: /bookings or /booking
+      if (command === '/bookings' || command === '/booking') {
         if (!isFarmer) {
-          // Tourist: next 5 upcoming bookings (check-in date today or later, status pending or confirmed)
-          const { data: bookings } = await serviceClient
+          // Tourist: next 5 bookings
+          let { data: bookings } = await serviceClient
             .from('bookings')
             .select(`
               id,
@@ -260,7 +340,7 @@ export async function POST(request: Request) {
               arrival_time,
               guests,
               status,
-              farm:farms(name)
+              farm:farms(name, host_phone)
             `)
             .eq('tourist_id', userProfile.id)
             .gte('check_in', today)
@@ -268,23 +348,46 @@ export async function POST(request: Request) {
             .order('check_in', { ascending: true })
             .limit(5)
 
+          let isUpcoming = true
           if (!bookings || bookings.length === 0) {
-            await sendTelegramMessage(chatId, 'You have no upcoming bookings.')
+            // Fallback to recent bookings if none are in the future
+            const { data: recent } = await serviceClient
+              .from('bookings')
+              .select(`
+                id,
+                check_in,
+                arrival_time,
+                guests,
+                status,
+                farm:farms(name, host_phone)
+              `)
+              .eq('tourist_id', userProfile.id)
+              .in('status', ['pending', 'confirmed'])
+              .order('check_in', { ascending: false })
+              .limit(5)
+            bookings = recent
+            isUpcoming = false
+          }
+
+          if (!bookings || bookings.length === 0) {
+            await sendTelegramMessage(chatId, 'You have no bookings.')
             return NextResponse.json({ ok: true })
           }
 
+          const header = isUpcoming ? 'Upcoming farm stays:' : 'Recent farm stays:'
           const lines = bookings.map((b) => {
             const farmName = (b.farm as any)?.name || 'Farm Stay'
+            const hostPhone = (b.farm as any)?.host_phone ? ` (Host phone: ${(b.farm as any).host_phone})` : ''
             const arrivalTime = b.arrival_time ? b.arrival_time : 'Flexible'
             const statusText = b.status.charAt(0).toUpperCase() + b.status.slice(1)
             const bookingUrl = `${siteUrl}/dashboard?view=tourist`
-            return `${farmName}, ${b.check_in}, ${arrivalTime}, ${b.guests} guest${b.guests > 1 ? 's' : ''}, Status: ${statusText}, ${bookingUrl}`
+            return `${farmName}${hostPhone}, ${b.check_in}, ${arrivalTime}, ${b.guests} guest${b.guests > 1 ? 's' : ''}, Status: ${statusText}, ${bookingUrl}`
           })
 
-          await sendTelegramMessage(chatId, lines.join('\n'))
+          await sendTelegramMessage(chatId, `${header}\n${lines.join('\n')}`)
           return NextResponse.json({ ok: true })
         } else {
-          // Farmer: next 5 upcoming bookings for their farms with tourist name, date, guests and status
+          // Farmer: bookings for their farms with tourist name and phone
           const { data: farms } = await serviceClient
             .from('farms')
             .select('id')
@@ -292,18 +395,19 @@ export async function POST(request: Request) {
 
           const farmIds = farms?.map((f) => f.id) || []
           if (farmIds.length === 0) {
-            await sendTelegramMessage(chatId, 'You have no upcoming bookings.')
+            await sendTelegramMessage(chatId, 'You have no farm listings registered.')
             return NextResponse.json({ ok: true })
           }
 
-          const { data: bookings } = await serviceClient
+          let { data: bookings } = await serviceClient
             .from('bookings')
             .select(`
               id,
               check_in,
               guests,
               status,
-              tourist:profiles(full_name)
+              farm:farms(name),
+              tourist:profiles(full_name, phone)
             `)
             .in('farm_id', farmIds)
             .gte('check_in', today)
@@ -311,18 +415,42 @@ export async function POST(request: Request) {
             .order('check_in', { ascending: true })
             .limit(5)
 
+          let isUpcoming = true
           if (!bookings || bookings.length === 0) {
-            await sendTelegramMessage(chatId, 'You have no upcoming bookings.')
+            // Fallback to recent bookings if none are in the future
+            const { data: recent } = await serviceClient
+              .from('bookings')
+              .select(`
+                id,
+                check_in,
+                guests,
+                status,
+                farm:farms(name),
+                tourist:profiles(full_name, phone)
+              `)
+              .in('farm_id', farmIds)
+              .in('status', ['pending', 'confirmed'])
+              .order('check_in', { ascending: false })
+              .limit(5)
+            bookings = recent
+            isUpcoming = false
+          }
+
+          if (!bookings || bookings.length === 0) {
+            await sendTelegramMessage(chatId, 'You have no bookings.')
             return NextResponse.json({ ok: true })
           }
 
+          const header = isUpcoming ? 'Upcoming farm bookings:' : 'Recent farm bookings:'
           const lines = bookings.map((b) => {
             const touristName = (b.tourist as any)?.full_name || 'Guest'
+            const touristPhone = (b.tourist as any)?.phone ? ` (Phone: ${(b.tourist as any).phone})` : ''
+            const farmName = (b.farm as any)?.name ? ` at ${(b.farm as any).name}` : ''
             const statusText = b.status.charAt(0).toUpperCase() + b.status.slice(1)
-            return `${touristName}, ${b.check_in}, ${b.guests} guest${b.guests > 1 ? 's' : ''}, Status: ${statusText}`
+            return `${touristName}${touristPhone}${farmName}, ${b.check_in}, ${b.guests} guest${b.guests > 1 ? 's' : ''}, Status: ${statusText}`
           })
 
-          await sendTelegramMessage(chatId, lines.join('\n'))
+          await sendTelegramMessage(chatId, `${header}\n${lines.join('\n')}`)
           return NextResponse.json({ ok: true })
         }
       }
@@ -439,7 +567,7 @@ export async function POST(request: Request) {
             arrival_time,
             guests,
             farm:farms(name),
-            tourist:profiles(full_name)
+            tourist:profiles(full_name, phone)
           `)
           .in('farm_id', farmIds)
           .eq('check_in', today)
@@ -463,11 +591,12 @@ export async function POST(request: Request) {
             : 'None'
 
           const touristName = (b.tourist as any)?.full_name || 'Guest'
+          const touristPhone = (b.tourist as any)?.phone ? ` (Phone: ${(b.tourist as any).phone})` : ''
           const arrival = b.arrival_time ? b.arrival_time : 'Flexible'
-          lines.push(`${touristName}, Arrival: ${arrival}, Guests: ${b.guests}, Reserved products: ${productsText}`)
+          lines.push(`${touristName}${touristPhone}, Arrival: ${arrival}, Guests: ${b.guests}, Reserved products: ${productsText}`)
         }
 
-        await sendTelegramMessage(chatId, lines.join('\n'))
+        await sendTelegramMessage(chatId, `Today's confirmed visits:\n${lines.join('\n')}`)
         return NextResponse.json({ ok: true })
       }
 

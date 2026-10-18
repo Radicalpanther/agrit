@@ -158,9 +158,51 @@ export async function notifyBookingStatus(
     // TELEGRAM CHANNEL (ACTIVE DEFAULT)
     // ──────────────────────────────────────────────────────────────────────────
     if (channel === 'telegram' || channel === 'mock') {
+      // Resolve farmer Telegram chat ID (direct or via phone number)
+      let farmerChatId = farmerProfile?.telegram_chat_id
+      if (!farmerChatId) {
+        const fPhone = farmerProfile?.phone || farm.host_phone
+        if (fPhone) {
+          const last10 = fPhone.replace(/\D/g, '').slice(-10)
+          if (last10) {
+            const { data: mFarmer } = await serviceClient
+              .from('profiles')
+              .select('id, telegram_chat_id')
+              .ilike('phone', `%${last10}%`)
+              .not('telegram_chat_id', 'is', null)
+              .maybeSingle()
+            if (mFarmer?.telegram_chat_id) {
+              farmerChatId = mFarmer.telegram_chat_id
+              if (farmerProfile?.id) {
+                await serviceClient.from('profiles').update({ telegram_chat_id: farmerChatId }).eq('id', farmerProfile.id)
+              }
+            }
+          }
+        }
+      }
+
+      // Resolve tourist Telegram chat ID (direct or via phone number)
+      let touristChatId = tourist.telegram_chat_id
+      if (!touristChatId && tourist.phone) {
+        const last10 = tourist.phone.replace(/\D/g, '').slice(-10)
+        if (last10) {
+          const { data: mTourist } = await serviceClient
+            .from('profiles')
+            .select('id, telegram_chat_id')
+            .ilike('phone', `%${last10}%`)
+            .not('telegram_chat_id', 'is', null)
+            .maybeSingle()
+          if (mTourist?.telegram_chat_id) {
+            touristChatId = mTourist.telegram_chat_id
+            if (tourist.id) {
+              await serviceClient.from('profiles').update({ telegram_chat_id: touristChatId }).eq('id', tourist.id)
+            }
+          }
+        }
+      }
+
       if (eventType === 'created') {
         // Message to farmer with inline Accept/Decline approval buttons
-        const farmerChatId = farmerProfile?.telegram_chat_id
         const { text: farmerText, replyMarkup: inlineKeyboard } = buildFarmerBookingMessage(
           {
             id: booking.id,
@@ -227,7 +269,6 @@ export async function notifyBookingStatus(
         }
 
         // Message to tourist: Request received
-        const touristChatId = tourist.telegram_chat_id
         const touristLines = [
           `Booking request received: ${farm.name || 'Farm Stay'}`,
           `Reference: ${booking.id}`,
@@ -280,7 +321,6 @@ export async function notifyBookingStatus(
         }
       } else if (eventType === 'confirmed') {
         // Message to tourist: Booking confirmed
-        const touristChatId = tourist.telegram_chat_id
         const lines = [
           `Booking confirmed: ${farm.name || 'Farm Stay'}`,
           `Reference: ${booking.id}`,
@@ -331,7 +371,6 @@ export async function notifyBookingStatus(
         }
       } else if (eventType === 'declined') {
         // Message to tourist: Booking declined (polite, suggesting other stays)
-        const touristChatId = tourist.telegram_chat_id
         const text = [
           `Booking request update: ${farm.name || 'Farm Stay'}`,
           `Reference: ${booking.id}`,
@@ -375,7 +414,6 @@ export async function notifyBookingStatus(
         }
       } else if (eventType === 'reminder') {
         // Pre-arrival reminder day before visit
-        const touristChatId = tourist.telegram_chat_id
         const lines = [
           `Reminder: Your farm stay at ${farm.name || 'Farm Stay'} begins tomorrow (${booking.check_in})`,
           `Reference: ${booking.id}`,
