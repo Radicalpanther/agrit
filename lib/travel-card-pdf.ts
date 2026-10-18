@@ -77,6 +77,11 @@ export interface TravelCardPdfOptions {
     steps?: any[]
     geometry?: any
   } | null
+  mapImage?: {
+    dataUrl: string
+    width: number
+    height: number
+  } | null
 }
 
 // ============================================================================
@@ -185,26 +190,6 @@ export function computeSuggestedDeparture(
   }).format(departureDate)
 
   return `Latest suggested departure: ${timeStr}, ${dayStr} (estimate)`
-}
-
-function extractCoordinates(geometry: any): Array<[number, number]> {
-  if (!geometry) return []
-  if (Array.isArray(geometry)) {
-    return geometry
-      .map((pt: any): [number, number] | null => {
-        if (Array.isArray(pt) && pt.length >= 2) return [Number(pt[0]), Number(pt[1])]
-        if (pt && typeof pt.lat === 'number' && typeof pt.lng === 'number') {
-          return [pt.lat, pt.lng]
-        }
-        return null
-      })
-      .filter((p): p is [number, number] => p !== null)
-  }
-  if (geometry.type === 'LineString' && Array.isArray(geometry.coordinates)) {
-    // GeoJSON is [lng, lat] -> convert to [lat, lng]
-    return geometry.coordinates.map((coord: [number, number]) => [coord[1], coord[0]])
-  }
-  return []
 }
 
 // ============================================================================
@@ -670,6 +655,7 @@ export async function generateTravelSafetyCardPdf(
     bookingStatus = 'Confirmed',
     source,
     routeInfo,
+    mapImage,
   } = options
 
   const destLat = Number(farm.lat) || 17.0016
@@ -692,12 +678,6 @@ export async function generateTravelSafetyCardPdf(
   const nearbyServices = farm.nearby_services || farm.nearbyServices || {}
 
   const dms = formatDms(destLat, destLng)
-
-  const directionsUrl = source
-    ? `https://www.google.com/maps/dir/?api=1&origin=${source.lat},${source.lng}&destination=${destLat},${destLng}&travelmode=driving`
-    : `https://www.google.com/maps/dir/?api=1&destination=${destLat},${destLng}&travelmode=driving`
-
-  const destinationUrl = `https://www.google.com/maps/search/?api=1&query=${destLat},${destLng}`
   const bookingRefShort = bookingId
     ? bookingId.replace(/-/g, '').slice(0, 8).toUpperCase()
     : 'CONFIRMED'
@@ -875,10 +855,10 @@ export async function generateTravelSafetyCardPdf(
   )
 
   // ============================================================================
-  // 4. NAVIGATION BOX: Farm Gate GPS & Clickable Buttons
+  // 4. NAVIGATION BOX: Farm Gate GPS Coordinates
   // ============================================================================
   flow.drawBox((box) => {
-    box.addText('FARM GATE NAVIGATION & COORDINATES', {
+    box.addText('FARM GATE LOCATION & COORDINATES', {
       bold: true,
       fontSize: 9,
       color: [20, 50, 35],
@@ -886,17 +866,8 @@ export async function generateTravelSafetyCardPdf(
     box.addKeyValue(
       'GPS Coordinates:',
       `${destLat.toFixed(6)}° N, ${destLng.toFixed(6)}° E  (DMS: ${dms.text})`,
-      { labelWidth: 32 },
+      { labelWidth: 35 },
     )
-
-    box.addClickableButtonWithUrl('Open route in Google Maps', directionsUrl, {
-      isPrimary: true,
-      buttonHeight: 6.2,
-    })
-    box.addClickableButtonWithUrl('Open farm gate pin', destinationUrl, {
-      isPrimary: false,
-      buttonHeight: 6.2,
-    })
   })
 
   // ============================================================================
@@ -943,169 +914,81 @@ export async function generateTravelSafetyCardPdf(
     })
   }
 
-  // ============================================================================
-  // 6. ROUTE MAP: Single Reliable Vector Map in PDF
-  // ============================================================================
-  const mapBoxH = 68
-  flow.ensureSpace(mapBoxH + 4)
-
-  const mapX = flow.margin
-  const mapY = flow.y
-
-  // Background box
-  doc.setFillColor(252, 252, 249)
-  doc.setDrawColor(212, 222, 208)
-  doc.setLineWidth(0.35)
-  doc.roundedRect(mapX, mapY, flow.contentWidth, mapBoxH, 2, 2, 'FD')
-
-  const rawCoords = extractCoordinates(routeInfo?.geometry)
-  const hasRouteGeometry = Boolean(source && rawCoords.length >= 2)
-
-  // Filter qualifying landmarks for waypoint dots
+  // Filter qualifying landmarks for Section 7 on Page 2
   const qualifyingLandmarks = filterMajorLandmarks(
     routeInfo?.steps || [],
     farmLandmarks,
     Number(distanceKm) || 0,
   )
 
-  if (hasRouteGeometry && source) {
-    const lats = rawCoords.map((c) => c[0]).concat([source.lat, destLat])
-    const lngs = rawCoords.map((c) => c[1]).concat([source.lng, destLng])
+  // ============================================================================
+  // 6. ROUTE MAP: Captured Rendered Map Image or Destination Coordinates Fallback
+  // ============================================================================
+  flow.sectionTitle('Route & Location Map')
 
-    const minLat = Math.min(...lats)
-    const maxLat = Math.max(...lats)
-    const minLng = Math.min(...lngs)
-    const maxLng = Math.max(...lngs)
-
-    const midLat = (minLat + maxLat) / 2
-    const cosLat = Math.cos((midLat * Math.PI) / 180)
-
-    const spanLng = (maxLng - minLng) * cosLat
-    const spanLat = maxLat - minLat
-
-    // 8% padding
-    const padX = flow.contentWidth * 0.08
-    const padY = mapBoxH * 0.08
-    const availW = flow.contentWidth - 2 * padX
-    const availH = mapBoxH - 2 * padY
-
-    const scale = Math.min(
-      availW / Math.max(spanLng, 0.0001),
-      availH / Math.max(spanLat, 0.0001),
-    )
-
-    const fittedW = spanLng * scale
-    const fittedH = spanLat * scale
-
-    const ox = mapX + padX + (availW - fittedW) / 2
-    const oy = mapY + padY + (availH - fittedH) / 2
-
-    const project = (lat: number, lng: number) => {
-      const px = ox + (lng - minLng) * cosLat * scale
-      const py = oy + (maxLat - lat) * scale
-      return { x: px, y: py }
-    }
-
-    // Subsample coordinates if too dense for smooth vector line
-    const stepSample = Math.max(1, Math.floor(rawCoords.length / 200))
-    const sampled: Array<[number, number]> = []
-    for (let i = 0; i < rawCoords.length; i += stepSample) {
-      sampled.push(rawCoords[i])
-    }
-    if (rawCoords.length > 0) {
-      sampled.push(rawCoords[rawCoords.length - 1])
-    }
-
-    // Draw Route Polyline
-    doc.setDrawColor(30, 106, 56) // Thick green #1e6a38
-    doc.setLineWidth(0.8)
-
-    for (let i = 0; i < sampled.length - 1; i++) {
-      const p1 = project(sampled[i][0], sampled[i][1])
-      const p2 = project(sampled[i + 1][0], sampled[i + 1][1])
-      doc.line(p1.x, p1.y, p2.x, p2.y)
-    }
-
-    // Draw 3 to 5 labeled major waypoints
-    const waypointCandidates = qualifyingLandmarks
-      .filter((lm) => typeof lm.lat === 'number' && typeof lm.lng === 'number')
-      .slice(0, 4)
-
-    doc.setFont('NotoSans', 'normal')
-    doc.setFontSize(7.5)
-    doc.setTextColor(30, 70, 45)
-
-    waypointCandidates.forEach((wp) => {
-      if (wp.lat === undefined || wp.lng === undefined) return
-      const p = project(wp.lat, wp.lng)
-      doc.setFillColor(255, 255, 255)
-      doc.setDrawColor(20, 50, 35)
-      doc.setLineWidth(0.3)
-      doc.circle(p.x, p.y, 1.1, 'FD')
-
-      doc.text(wp.shortLabel, p.x + 2, p.y + 0.9)
+  function drawCoordinatesFallback() {
+    flow.drawBox((box) => {
+      box.addText('DESTINATION GPS & ACCESS COORDINATES', {
+        bold: true,
+        fontSize: 9,
+        color: [20, 50, 35],
+      })
+      box.addKeyValue(
+        'Farm Gate Coordinates:',
+        `${destLat.toFixed(6)}° N, ${destLng.toFixed(6)}° E  (DMS: ${dms.text})`,
+        { labelWidth: 42 },
+      )
+      if (source?.name) {
+        box.addKeyValue(
+          'Driving Origin:',
+          `${source.name} (${distanceKm ? `${distanceKm} km` : 'Direct'})`,
+          { labelWidth: 42 },
+        )
+      }
+      box.addText(
+        'Offline Note: Use your vehicle GPS or enter decimal coordinates into offline maps navigation before leaving network coverage.',
+        { fontSize: 8, color: [80, 95, 85] },
+      )
     })
-
-    // Start Dot (Origin City)
-    const pStart = project(source.lat, source.lng)
-    doc.setFillColor(20, 50, 35)
-    doc.circle(pStart.x, pStart.y, 2.0, 'F')
-    doc.setFillColor(255, 255, 255)
-    doc.circle(pStart.x, pStart.y, 0.8, 'F')
-
-    doc.setFont('NotoSans', 'bold')
-    doc.setFontSize(8)
-    doc.setTextColor(20, 50, 35)
-    doc.text(source.name, pStart.x + 3.0, pStart.y + 1)
-
-    // End Pin (Farm Destination)
-    const pEnd = project(destLat, destLng)
-    doc.setFillColor(180, 40, 40) // Red pin
-    doc.circle(pEnd.x, pEnd.y, 2.2, 'F')
-    doc.setFillColor(255, 255, 255)
-    doc.circle(pEnd.x, pEnd.y, 0.9, 'F')
-
-    doc.setFont('NotoSans', 'bold')
-    doc.setFontSize(8)
-    doc.setTextColor(180, 40, 40)
-    doc.text(farmName, pEnd.x + 3.2, pEnd.y + 1)
-
-    // North Indicator at top right of map
-    doc.setFont('NotoSans', 'bold')
-    doc.setFontSize(7)
-    doc.setTextColor(130, 145, 135)
-    doc.text('N ↑', mapX + flow.contentWidth - 8, mapY + 5)
-  } else {
-    // Missing origin / no route geometry: draw destination pin only
-    const centerX = mapX + flow.contentWidth / 2
-    const centerY = mapY + mapBoxH / 2 - 4
-
-    doc.setFillColor(180, 40, 40)
-    doc.circle(centerX, centerY, 2.5, 'F')
-    doc.setFillColor(255, 255, 255)
-    doc.circle(centerX, centerY, 1.0, 'F')
-
-    doc.setFont('NotoSans', 'bold')
-    doc.setFontSize(8.5)
-    doc.setTextColor(20, 50, 35)
-    const labelW = doc.getTextWidth(farmName)
-    doc.text(farmName, centerX - labelW / 2, centerY + 5.5)
-
-    doc.setFont('NotoSans', 'normal')
-    doc.setFontSize(8)
-    doc.setTextColor(80, 95, 85)
-    const coordStr = `${destLat.toFixed(4)}° N, ${destLng.toFixed(4)}° E`
-    const coordW = doc.getTextWidth(coordStr)
-    doc.text(coordStr, centerX - coordW / 2, centerY + 9.5)
-
-    doc.setFontSize(8)
-    doc.setTextColor(110, 120, 115)
-    const note = 'Select your starting city on the booking page to see the full route.'
-    const noteW = doc.getTextWidth(note)
-    doc.text(note, centerX - noteW / 2, centerY + 14.5)
   }
 
-  flow.y += mapBoxH + 3.5
+  if (mapImage && mapImage.dataUrl) {
+    const origW = mapImage.width || 800
+    const origH = mapImage.height || 360
+    const aspect = origW / Math.max(origH, 1)
+
+    // Fit across content width (180mm), keeping aspect ratio
+    let imgW = flow.contentWidth
+    let imgH = imgW / aspect
+
+    // Cap maximum height to 70mm so it fits comfortably on Page 1
+    if (imgH > 70) {
+      imgH = 70
+      imgW = imgH * aspect
+    }
+
+    const imgX = flow.margin + (flow.contentWidth - imgW) / 2
+    const totalBoxH = imgH + 7 // image + caption + padding
+
+    flow.ensureSpace(totalBoxH)
+
+    try {
+      doc.addImage(mapImage.dataUrl, 'JPEG', imgX, flow.y, imgW, imgH)
+      flow.y += imgH + 2.5
+
+      doc.setFont('NotoSans', 'normal')
+      doc.setFontSize(7.5)
+      doc.setTextColor(110, 120, 115)
+      doc.text('Map data (c) OpenStreetMap contributors', flow.margin, flow.y)
+      flow.y += 6
+    } catch (e) {
+      console.warn('Failed to embed map image in PDF, drawing coordinates:', e)
+      drawCoordinatesFallback()
+    }
+  } else {
+    // If map is not on page or capture fails: skip image and show destination coordinates only. Never leave a blank box.
+    drawCoordinatesFallback()
+  }
 
   // Start Page 2 cleanly after the Page 1 Route Map
   flow.doc.addPage()

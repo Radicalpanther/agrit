@@ -18,6 +18,7 @@ import {
 import { useTranslations } from 'next-intl'
 import { haversineDistanceKm } from '@/lib/geo'
 import { downloadTravelSafetyCardPdf } from '@/lib/travel-card-pdf'
+import { toJpeg } from 'html-to-image'
 
 export interface TripMapProps {
   farm: {
@@ -150,6 +151,7 @@ export const TripMap = memo(
     const mapRef = useRef<L.Map | null>(null)
     const sourceMarkerRef = useRef<L.Marker | null>(null)
     const routeLayerRef = useRef<L.Layer | null>(null)
+    const tileLayerRef = useRef<L.TileLayer | null>(null)
 
     // Navigation URLs
     const googleMapsUrl = source
@@ -204,12 +206,13 @@ export const TripMap = memo(
         zoomControl: true,
       })
 
-      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      const tileLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
         attribution:
           '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         crossOrigin: true,
       }).addTo(map)
+      tileLayerRef.current = tileLayer
 
       // Destination Marker
       const destIcon = L.divIcon({
@@ -247,6 +250,7 @@ export const TripMap = memo(
         map.off('movestart zoomstart dragstart', handleMapUserAction)
         map.remove()
         mapRef.current = null
+        tileLayerRef.current = null
       }
     }, [destLat, destLng, farm.name, onInteraction])
 
@@ -428,10 +432,117 @@ export const TripMap = memo(
       }
     }
 
+    // Capture on-screen rendered map for PDF
+    const captureMapImage = async (): Promise<{
+      dataUrl: string
+      width: number
+      height: number
+    } | null> => {
+      try {
+        const container = mapContainerRef.current
+        const map = mapRef.current
+        if (!container || !map) return null
+
+        // 1. Make sure map is mounted and visible
+        if (
+          !container.isConnected ||
+          container.clientWidth === 0 ||
+          container.clientHeight === 0
+        ) {
+          return null
+        }
+
+        // 2. Call fitBounds on the route with padding
+        if (routeLayerRef.current) {
+          const bounds = (routeLayerRef.current as any).getBounds?.()
+          if (bounds && bounds.isValid?.()) {
+            map.fitBounds(bounds, { padding: [35, 35], animate: false })
+          }
+        } else {
+          map.setView([destLat, destLng], 12, { animate: false })
+        }
+        map.invalidateSize()
+
+        // 3. Wait until all tiles have loaded (the "load" event on the tile layer, plus a short delay)
+        const tileLayer = tileLayerRef.current
+        if (tileLayer) {
+          await new Promise<void>((resolve) => {
+            if (!tileLayer.isLoading()) {
+              setTimeout(resolve, 200)
+              return
+            }
+            let resolved = false
+            const timer = setTimeout(() => {
+              if (!resolved) {
+                resolved = true
+                tileLayer.off('load', onLoad)
+                resolve()
+              }
+            }, 3000)
+
+            const onLoad = () => {
+              if (!resolved) {
+                resolved = true
+                clearTimeout(timer)
+                tileLayer.off('load', onLoad)
+                setTimeout(resolve, 250)
+              }
+            }
+
+            tileLayer.once('load', onLoad)
+          })
+        } else {
+          await new Promise((resolve) => setTimeout(resolve, 250))
+        }
+
+        // 4. Capture map container (html-to-image toJpeg, scale 2)
+        // Exclude zoom buttons, attribution box and any overlay buttons
+        const filter = (node: HTMLElement) => {
+          if (!node || !node.classList) return true
+          const cls = typeof node.className === 'string' ? node.className : ''
+          if (
+            cls.includes('leaflet-control-zoom') ||
+            cls.includes('leaflet-control-attribution') ||
+            cls.includes('leaflet-control') ||
+            cls.includes('leaflet-bar')
+          ) {
+            return false
+          }
+          if (node.tagName === 'BUTTON') {
+            return false
+          }
+          return true
+        }
+
+        const width = container.clientWidth
+        const height = container.clientHeight
+
+        const dataUrl = await toJpeg(container, {
+          quality: 0.8,
+          pixelRatio: 2,
+          width,
+          height,
+          filter,
+          cacheBust: true,
+          skipFonts: true,
+        })
+
+        return {
+          dataUrl,
+          width,
+          height,
+        }
+      } catch (err) {
+        console.warn('Map capture skipped/failed:', err)
+        return null
+      }
+    }
+
     // Download Redesigned 2-Page A4 PDF
     const handleDownloadPdf = async () => {
       setIsGeneratingPdf(true)
       try {
+        const mapImage = await captureMapImage()
         await downloadTravelSafetyCardPdf({
           farm,
           bookingId,
@@ -443,6 +554,7 @@ export const TripMap = memo(
           reservations,
           source,
           routeInfo,
+          mapImage,
         })
       } catch (err) {
         console.error('Failed to generate PDF:', err)
