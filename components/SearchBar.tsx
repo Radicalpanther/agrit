@@ -32,7 +32,7 @@ export function SearchBar() {
           <span>Where</span>
           <input
             name="where"
-            placeholder="Maharashtra, Kerala, Punjab..."
+            placeholder="Himachal, Kashmir, Coorg, Assam..."
             defaultValue=""
           />
         </label>
@@ -51,6 +51,10 @@ export function SearchBar() {
           <select name="experience" defaultValue="">
             <option value="">Any activity</option>
             <option value="farm stay">Farm stay</option>
+            <option value="apple orchard">Apple orchard</option>
+            <option value="tea plantation">Tea plantation</option>
+            <option value="coffee estate">Coffee estate</option>
+            <option value="saffron">Saffron fields</option>
             <option value="fruit picking">Fruit picking</option>
             <option value="hurda">Hurda party</option>
             <option value="jaggery">Jaggery making</option>

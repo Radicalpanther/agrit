@@ -7,7 +7,7 @@ import { FarmGrid } from '@/components/FarmGrid'
 import { fetchBrowserFarmsWithCrops } from '@/lib/supabase/queries'
 import type { Farm, CropData } from '@/lib/mock-data'
 
-type FilterKey = 'all' | 'top-rated' | 'budget' | 'fruit-season' | 'coast'
+type FilterKey = 'all' | 'top-rated' | 'budget' | 'fruit-season' | 'coast' | 'mountains' | 'tea-coffee'
 type SortKey = 'recommended' | 'price-asc' | 'rating'
 
 function ExploreContent() {
@@ -142,6 +142,23 @@ function ExploreContent() {
           f.description.toLowerCase().includes('konkan') ||
           f.description.toLowerCase().includes('coastal'),
       )
+    } else if (currentFilter === 'mountains') {
+      result = result.filter(
+        (f) =>
+          f.region.toLowerCase().includes('himachal') ||
+          f.region.toLowerCase().includes('kashmir') ||
+          f.region.toLowerCase().includes('uttarakhand') ||
+          f.type.toLowerCase().includes('mountain') ||
+          f.description.toLowerCase().includes('himalayan'),
+      )
+    } else if (currentFilter === 'tea-coffee') {
+      result = result.filter(
+        (f) =>
+          f.type.toLowerCase().includes('tea') ||
+          f.type.toLowerCase().includes('coffee') ||
+          f.name.toLowerCase().includes('tea') ||
+          f.name.toLowerCase().includes('coffee'),
+      )
     }
 
     // 4. Sorting
@@ -231,6 +248,20 @@ function ExploreContent() {
           type="button"
         >
           Near the coast
+        </button>
+        <button
+          className={currentFilter === 'mountains' ? 'filter-active' : ''}
+          onClick={() => updateQuery('filter', 'mountains')}
+          type="button"
+        >
+          Himalayas &amp; Hills
+        </button>
+        <button
+          className={currentFilter === 'tea-coffee' ? 'filter-active' : ''}
+          onClick={() => updateQuery('filter', 'tea-coffee')}
+          type="button"
+        >
+          Tea &amp; Coffee
         </button>
 
         {/* Sort Control */}
