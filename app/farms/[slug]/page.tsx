@@ -164,6 +164,7 @@ export default async function FarmDetailPage({
                     <Link
                       key={prod.id}
                       href={`/farms/${prod.farm.slug}`}
+                      className="nearby-prod-link"
                       style={{
                         border: '1px solid var(--line)',
                         background: '#ffffff',
@@ -174,12 +175,6 @@ export default async function FarmDetailPage({
                         textDecoration: 'none',
                         color: 'inherit',
                         transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.borderColor = 'var(--forest)'
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.borderColor = 'var(--line)'
                       }}
                     >
                       <div>

@@ -14,6 +14,47 @@ export function getProductCategory(name: string): string {
   return 'Farm produce'
 }
 
+export function getProduceImage(name: string, customImage?: string | null): string {
+  if (customImage && customImage.trim() && !customImage.includes('placeholder')) {
+    return customImage
+  }
+  const lower = name.toLowerCase()
+  if (lower.includes('kesar')) {
+    return 'https://images.unsplash.com/photo-1591073113125-e46713c829ed?auto=format&fit=crop&w=800&q=85'
+  }
+  if (lower.includes('mango') || lower.includes('alphonso')) {
+    return 'https://images.unsplash.com/photo-1601493700631-2b16ec4b4716?auto=format&fit=crop&w=800&q=85'
+  }
+  if (lower.includes('saffron')) {
+    return 'https://images.unsplash.com/photo-1548013146-72479768bada?auto=format&fit=crop&w=800&q=85'
+  }
+  if (lower.includes('apple')) {
+    return 'https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?auto=format&fit=crop&w=800&q=85'
+  }
+  if (lower.includes('chai') || lower.includes('tea') || lower.includes('pekoe')) {
+    return 'https://images.unsplash.com/photo-1594631252845-29fc4cc8cde9?auto=format&fit=crop&w=800&q=85'
+  }
+  if (lower.includes('coffee') || lower.includes('arabica')) {
+    return 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&w=800&q=85'
+  }
+  if (lower.includes('ghee') || lower.includes('milk') || lower.includes('butter')) {
+    return 'https://images.unsplash.com/photo-1628088062854-d1870b4553da?auto=format&fit=crop&w=800&q=85'
+  }
+  if (lower.includes('honey')) {
+    return 'https://images.unsplash.com/photo-1587049352851-8d4e89133924?auto=format&fit=crop&w=800&q=85'
+  }
+  if (lower.includes('jaggery') || lower.includes('gur') || lower.includes('kakvi')) {
+    return 'https://images.unsplash.com/photo-1587049352846-4a222e784d38?auto=format&fit=crop&w=800&q=85'
+  }
+  if (lower.includes('cardamom') || lower.includes('pepper') || lower.includes('spice') || lower.includes('clove') || lower.includes('turmeric') || lower.includes('masala')) {
+    return 'https://images.unsplash.com/photo-1599940824399-b87987ceb72a?auto=format&fit=crop&w=800&q=85'
+  }
+  if (lower.includes('rice') || lower.includes('flour') || lower.includes('jowar') || lower.includes('wheat') || lower.includes('grain')) {
+    return 'https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=800&q=85'
+  }
+  return 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?auto=format&fit=crop&w=800&q=85'
+}
+
 export function hasRealImage(url?: string | null): boolean {
   if (!url || !url.trim()) return false
   if (url.includes('photo-1553279768-865429fa0078')) return false // default watermelon photo
@@ -109,11 +150,11 @@ export async function ProduceSection() {
           const category = getProductCategory(item.name)
           const plate = getPlateColors(category, idx)
           const farmHref = `/farms/${item.farm.slug}`
-          const hasRealImg = hasRealImage(item.image)
+          const imageUrl = getProduceImage(item.name, item.image)
 
           return (
             <article className="produce-card-vertical" key={item.id}>
-              {/* 150px Top: Real image or colour plate with furrow lines */}
+              {/* 150px Top: Real harvest photo with category tag */}
               <div
                 style={{
                   height: '150px',
@@ -121,77 +162,39 @@ export async function ProduceSection() {
                   position: 'relative',
                   overflow: 'hidden',
                   backgroundColor: plate.bg,
-                  backgroundImage: hasRealImg ? undefined : plate.furrow,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between',
-                  padding: '14px',
-                  boxSizing: 'border-box',
                 }}
               >
-                {hasRealImg ? (
-                  <>
-                    <img
-                      src={item.image}
-                      alt={item.name}
-                      style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'cover',
-                      }}
-                    />
-                    <span
-                      style={{
-                        position: 'relative',
-                        zIndex: 2,
-                        alignSelf: 'flex-start',
-                        fontSize: '10px',
-                        fontWeight: 800,
-                        letterSpacing: '1.2px',
-                        textTransform: 'uppercase',
-                        color: '#ffffff',
-                        background: 'rgba(23, 57, 45, 0.85)',
-                        padding: '3px 8px',
-                        borderRadius: 0,
-                      }}
-                    >
-                      {category}
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <span
-                      style={{
-                        fontSize: '10px',
-                        fontWeight: 800,
-                        letterSpacing: '1.2px',
-                        textTransform: 'uppercase',
-                        color: plate.textColor,
-                        background: plate.badgeBg,
-                        padding: '3px 8px',
-                        borderRadius: 0,
-                        alignSelf: 'flex-start',
-                      }}
-                    >
-                      {category}
-                    </span>
-                    <div
-                      style={{
-                        fontSize: '10.5px',
-                        letterSpacing: '0.8px',
-                        textTransform: 'uppercase',
-                        color: plate.textColor,
-                        opacity: 0.85,
-                        fontWeight: 600,
-                      }}
-                    >
-                      Direct farm harvest
-                    </div>
-                  </>
-                )}
+                <img
+                  src={imageUrl}
+                  alt={item.name}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                  }}
+                />
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: '12px',
+                    left: '12px',
+                    zIndex: 2,
+                    fontSize: '10px',
+                    fontWeight: 800,
+                    letterSpacing: '1.2px',
+                    textTransform: 'uppercase',
+                    color: '#ffffff',
+                    background: 'rgba(23, 57, 45, 0.88)',
+                    padding: '3px 8px',
+                    borderRadius: 0,
+                    pointerEvents: 'none',
+                  }}
+                >
+                  {category}
+                </span>
               </div>
 
               {/* Card Body */}
