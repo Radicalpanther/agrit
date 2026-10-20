@@ -21,12 +21,24 @@ export interface ChatMessage {
   content: string
 }
 
+export interface FarmCardData {
+  slug: string
+  name: string
+  place: string
+  state: string
+  price: number
+  rating: number
+  reviewCount: number
+  photoUrl: string | null
+}
+
 export interface ChatStreamEvent {
   type: 'status' | 'delta' | 'done' | 'error'
   status?: string
   text?: string
   chips?: string[]
   links?: { label: string; url: string }[]
+  farms?: FarmCardData[]
 }
 
 /**
@@ -271,6 +283,45 @@ export function buildDeterministicAnswer(
 }
 
 /**
+ * Resolves compact farm metadata from links for client-side farm cards.
+ */
+export async function getFarmCardsForLinks(links: { label: string; url: string }[]): Promise<FarmCardData[]> {
+  const farmSlugs = links
+    .map((l) => {
+      const match = l.url.match(/\/farms\/([a-zA-Z0-9_-]+)/)
+      return match ? match[1] : null
+    })
+    .filter((s): s is string => Boolean(s))
+
+  if (farmSlugs.length === 0) return []
+
+  try {
+    const supabase = await createServiceClient()
+    const { data: farms } = await supabase
+      .from('farms')
+      .select('slug, name, place, state, price_per_night, rating_avg, review_count, photos')
+      .in('slug', farmSlugs)
+      .eq('is_published', true)
+
+    if (!farms || farms.length === 0) return []
+
+    return farms.map((f: any) => ({
+      slug: f.slug,
+      name: f.name,
+      place: f.place,
+      state: f.state,
+      price: Math.round((f.price_per_night || 0) / 100),
+      rating: Number(f.rating_avg || 0),
+      reviewCount: Number(f.review_count || 0),
+      photoUrl: Array.isArray(f.photos) && f.photos.length > 0 ? f.photos[0] : null,
+    }))
+  } catch (err) {
+    console.warn('[getFarmCardsForLinks Error]:', err)
+    return []
+  }
+}
+
+/**
  * Main coordinator function that processes the chat conversation:
  * 1. Rewrites user query and extracts search filters
  * 2. Runs hybrid RAG retrieval
@@ -449,21 +500,25 @@ export async function* streamChatWorkflow(
       yield { type: 'delta', text: (i === 0 ? '' : ' ') + words[i] }
       await new Promise((r) => setTimeout(r, 20))
     }
+    const fallbackFarms = await getFarmCardsForLinks(fallback.links)
     yield {
       type: 'done',
       chips: fallback.chips,
       links: fallback.links,
+      farms: fallbackFarms,
     }
     return
   }
 
-  // 9. Send Done event with extracted links and follow-up chips
+  // 9. Send Done event with extracted links, follow-up chips, and farm cards
   const links = extractLinks(fullStreamedText)
   const chips = generateFollowUpChips(standaloneQuery, fullStreamedText, locale)
+  const farms = await getFarmCardsForLinks(links)
 
   yield {
     type: 'done',
     chips,
     links,
+    farms,
   }
 }

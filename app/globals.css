@@ -706,27 +706,41 @@ button { border:0; cursor:pointer; color:inherit; background:none; }
   position: fixed;
   bottom: calc(84px + env(safe-area-inset-bottom, 0px));
   right: calc(24px + env(safe-area-inset-right, 0px));
-  width: 360px;
-  height: 520px;
-  max-height: calc(100vh - 110px);
+  width: 390px;
+  max-width: calc(100vw - 32px);
+  height: 580px;
+  max-height: min(640px, calc(100dvh - 7rem));
   background: #ffffff;
   border: 1px solid var(--line);
-  box-shadow: 0 14px 40px rgba(23, 53, 43, 0.2);
+  box-shadow: 0 16px 44px rgba(23, 53, 43, 0.22);
   display: flex;
   flex-direction: column;
   z-index: 9999 !important;
   overflow: hidden;
-  border-radius: 6px;
+  border-radius: 8px;
 }
 
 .agriguide-header {
   background: var(--forest);
   color: #ffffff;
-  padding: 13px 16px;
+  padding: 12px 14px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   border-bottom: 1px solid #173a2d;
+  flex-shrink: 0;
+  min-height: 56px;
+}
+
+.agriguide-header-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.agriguide-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .agriguide-title {
@@ -737,23 +751,75 @@ button { border:0; cursor:pointer; color:inherit; background:none; }
 }
 
 .agriguide-subtitle {
-  font-size: 10.5px;
+  font-size: 11px;
   color: #cbe0c5;
-  margin: 2px 0 0;
+  margin: 1px 0 0;
 }
 
-.agriguide-close-btn {
+.agriguide-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.agriguide-header-btn {
   color: #ffffff;
-  opacity: 0.8;
-  padding: 4px;
+  opacity: 0.85;
+  background: transparent;
+  border: none;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 6px;
+  border-radius: 4px;
   display: grid;
   place-items: center;
+  cursor: pointer;
+  transition: opacity 0.15s, background 0.15s;
+}
+
+.agriguide-header-btn:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.agriguide-confirm-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 8px;
+}
+
+.agriguide-confirm-text {
+  font-size: 11.5px;
+  color: #ffffff;
+  line-height: 1.3;
+}
+
+.agriguide-confirm-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.agriguide-confirm-btn {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: none;
   cursor: pointer;
   transition: opacity 0.15s;
 }
 
-.agriguide-close-btn:hover {
-  opacity: 1;
+.agriguide-confirm-btn.confirm-clear {
+  background: #dc2626;
+  color: #ffffff;
+}
+
+.agriguide-confirm-btn.confirm-cancel {
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
 }
 
 .agriguide-messages {
@@ -763,12 +829,32 @@ button { border:0; cursor:pointer; color:inherit; background:none; }
   background: #fbfcf9;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
+  position: relative;
 }
 
 .agriguide-bubble-row {
   display: flex;
   width: 100%;
+  gap: 8px;
+  animation: bubbleFadeIn 0.2s ease-out;
+}
+
+@keyframes bubbleFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agriguide-bubble-row {
+    animation: none !important;
+  }
 }
 
 .agriguide-bubble-row.user {
@@ -777,47 +863,86 @@ button { border:0; cursor:pointer; color:inherit; background:none; }
 
 .agriguide-bubble-row.assistant {
   justify-content: flex-start;
+  align-items: flex-start;
+}
+
+.agriguide-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--mint);
+  color: var(--forest);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.agriguide-bubble-container {
+  max-width: 86%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .agriguide-bubble {
-  max-width: 86%;
-  padding: 10px 13px;
-  font-size: 12.5px;
-  line-height: 1.5;
+  padding: 10px 14px;
+  font-size: 14px;
+  line-height: 1.55;
+  position: relative;
+  word-break: break-word;
 }
 
 .agriguide-bubble.user {
   background: var(--forest);
   color: #ffffff;
-  border-radius: 4px 4px 0 4px;
+  border-radius: 8px 8px 2px 8px;
+  max-width: 86%;
+  margin-left: auto;
 }
 
 .agriguide-bubble.assistant {
   background: #ffffff;
   color: var(--ink);
   border: 1px solid var(--line);
-  border-radius: 4px 4px 4px 0;
+  border-radius: 8px 8px 8px 2px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
-.agriguide-bubble.thinking {
+.agriguide-bubble.error-bubble {
+  border-color: #fecaca;
+  background: #fffafa;
+}
+
+.agriguide-bubble-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  font-style: italic;
+  padding: 2px 0;
+}
+
+.agriguide-thinking-dots {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 10px 14px;
+  gap: 4px;
 }
 
-.agriguide-bubble.thinking .dot {
-  width: 6px;
-  height: 6px;
+.agriguide-thinking-dots .dot {
+  width: 5px;
+  height: 5px;
   background: var(--leaf);
   border-radius: 50%;
   animation: pulseDot 1.2s infinite ease-in-out both;
 }
 
-.agriguide-bubble.thinking .dot:nth-child(1) {
+.agriguide-thinking-dots .dot:nth-child(1) {
   animation-delay: -0.32s;
 }
-.agriguide-bubble.thinking .dot:nth-child(2) {
+.agriguide-thinking-dots .dot:nth-child(2) {
   animation-delay: -0.16s;
 }
 
@@ -832,125 +957,45 @@ button { border:0; cursor:pointer; color:inherit; background:none; }
   }
 }
 
-.agriguide-prompts {
-  padding: 8px 12px;
-  background: #f5f8f2;
-  border-top: 1px solid var(--line);
+.agriguide-formatted-text {
+  line-height: 1.55;
 }
 
-.prompts-label {
-  display: block;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.6px;
-  color: var(--muted);
-  margin-bottom: 6px;
+.agriguide-para {
+  margin: 0 0 6px 0;
 }
 
-.prompts-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+.agriguide-para:last-child {
+  margin-bottom: 0;
 }
 
-.prompt-chip {
-  background: #ffffff;
-  border: 1px solid var(--line);
+.agriguide-ul {
+  margin: 4px 0 6px 18px;
+  padding: 0;
+  list-style-type: disc;
+}
+
+.agriguide-li {
+  margin-bottom: 3px;
+  line-height: 1.5;
+}
+
+.agriguide-link {
   color: var(--forest);
-  padding: 5px 9px;
-  font-size: 11px;
-  font-weight: 600;
-  text-align: left;
-  border-radius: 2px;
-  cursor: pointer;
-  transition: all 0.15s;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: color 0.15s;
 }
 
-.prompt-chip:hover {
-  background: var(--mint);
-  border-color: var(--leaf);
-}
-
-.agriguide-input-form {
-  display: flex;
-  border-top: 1px solid var(--line);
-  background: #ffffff;
-  padding: 8px 10px;
-  gap: 6px;
-  align-items: center;
-}
-
-.agriguide-input {
-  flex: 1;
-  border: 1px solid var(--line);
-  padding: 9px 12px;
-  font-size: 12.5px;
-  outline: none;
-  background: #ffffff;
-  color: var(--ink);
-  border-radius: 2px;
-}
-
-.agriguide-input:focus {
-  border-color: var(--forest);
-}
-
-.agriguide-send-btn {
-  background: var(--forest);
-  color: #ffffff;
-  width: 36px;
-  height: 36px;
-  border-radius: 2px;
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: background 0.15s;
-}
-
-.agriguide-send-btn:hover:not(:disabled) {
-  background: #194030;
-}
-
-.agriguide-send-btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.agriguide-stop-btn {
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  color: #dc2626;
-  width: 36px;
-  height: 36px;
-  border-radius: 2px;
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: background 0.15s;
-}
-
-.agriguide-stop-btn:hover {
-  background: #fee2e2;
-}
-
-.agriguide-status-line {
-  font-size: 11px;
-  color: var(--muted);
-  font-style: italic;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 4px 8px;
-  margin-bottom: 4px;
+.agriguide-link:hover {
+  color: var(--leaf);
 }
 
 .agriguide-cursor {
   display: inline-block;
   width: 2px;
-  height: 1em;
+  height: 1.1em;
   background-color: var(--forest);
   vertical-align: text-bottom;
   margin-left: 2px;
@@ -962,26 +1007,343 @@ button { border:0; cursor:pointer; color:inherit; background:none; }
   50% { opacity: 0; }
 }
 
-.agriguide-chips-row {
+.agriguide-copy-btn {
+  align-self: flex-start;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+
+.agriguide-copy-btn:hover {
+  color: var(--forest);
+  background: var(--mint);
+}
+
+.agriguide-copy-btn .copied-icon {
+  color: var(--forest);
+}
+
+.agriguide-farm-cards-list {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 6px;
   margin-top: 8px;
 }
 
-/* Full-screen on mobile */
+.agriguide-farm-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.agriguide-farm-card:hover {
+  border-color: var(--leaf);
+  box-shadow: 0 2px 8px rgba(39, 87, 63, 0.08);
+}
+
+.agriguide-farm-thumb {
+  width: 58px;
+  height: 58px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #f0f4ee;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.agriguide-farm-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.agriguide-farm-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+}
+
+.agriguide-farm-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.agriguide-farm-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.agriguide-farm-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.agriguide-farm-rating {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--forest);
+  flex-shrink: 0;
+}
+
+.agriguide-farm-location {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+}
+
+.agriguide-farm-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 2px;
+}
+
+.agriguide-farm-price {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--forest);
+}
+
+.agriguide-farm-price .per-guest {
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.agriguide-farm-btn {
+  font-size: 11px;
+  font-weight: 600;
+  color: #ffffff;
+  background: var(--forest);
+  padding: 4px 10px;
+  border-radius: 4px;
+  text-decoration: none;
+  transition: background 0.15s;
+}
+
+.agriguide-farm-btn:hover {
+  background: var(--leaf);
+}
+
+.agriguide-retry-row {
+  margin-top: 6px;
+}
+
+.agriguide-retry-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #dc2626;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 4px;
+  padding: 4px 8px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.agriguide-retry-btn:hover {
+  background: #fee2e2;
+}
+
+.agriguide-chips-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.prompt-chip {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  color: var(--forest);
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+  line-height: 1.35;
+}
+
+.prompt-chip:hover:not(:disabled) {
+  background: var(--mint);
+  border-color: var(--leaf);
+}
+
+.prompt-chip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.agriguide-scroll-bottom-btn {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  color: var(--forest);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.15s, background 0.15s;
+  z-index: 10;
+}
+
+.agriguide-scroll-bottom-btn:hover {
+  background: var(--mint);
+  transform: translateY(-2px);
+}
+
+.agriguide-input-form {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--line);
+  background: #ffffff;
+  padding: 8px 10px;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.agriguide-input-row {
+  display: flex;
+  gap: 6px;
+  align-items: flex-end;
+}
+
+.agriguide-textarea {
+  flex: 1;
+  border: 1px solid var(--line);
+  padding: 8px 12px;
+  font-size: 13.5px;
+  line-height: 1.4;
+  outline: none;
+  background: #ffffff;
+  color: var(--ink);
+  border-radius: 6px;
+  resize: none;
+  min-height: 38px;
+  max-height: 100px;
+  font-family: inherit;
+  transition: border-color 0.15s;
+}
+
+.agriguide-textarea:focus {
+  border-color: var(--forest);
+}
+
+.agriguide-textarea:disabled {
+  background: #f9faf8;
+  cursor: not-allowed;
+}
+
+.agriguide-char-counter {
+  font-size: 10.5px;
+  color: var(--muted);
+  text-align: right;
+  padding-right: 4px;
+}
+
+.agriguide-send-btn {
+  background: var(--forest);
+  color: #ffffff;
+  width: 38px;
+  height: 38px;
+  border-radius: 6px;
+  border: none;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s, opacity 0.15s;
+}
+
+.agriguide-send-btn:hover:not(:disabled) {
+  background: #194030;
+}
+
+.agriguide-send-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.agriguide-stop-btn {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #dc2626;
+  width: 38px;
+  height: 38px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.agriguide-stop-btn:hover {
+  background: #fee2e2;
+}
+
+/* Full-screen sheet on mobile */
 @media (max-width: 640px) {
   .agriguide-panel {
     position: fixed;
     inset: 0;
     width: 100%;
-    height: 100%;
-    max-height: 100vh;
+    height: 100dvh;
+    max-height: 100dvh;
     bottom: 0;
     right: 0;
     border: none;
     border-radius: 0;
     z-index: 9999 !important;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
   .agriguide-launcher {
     bottom: calc(16px + env(safe-area-inset-bottom, 0px)) !important;

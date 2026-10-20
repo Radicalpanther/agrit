@@ -105,6 +105,13 @@ export async function POST(request: Request) {
 
             const payload = `data: ${JSON.stringify(event)}\n\n`
             controller.enqueue(encoder.encode(payload))
+
+            if (event.type === 'done') {
+              const totalDuration = Date.now() - startTime
+              console.info(`[Chat Completed]: Total duration ${totalDuration}ms`)
+              controller.close()
+              return
+            }
           }
 
           const totalDuration = Date.now() - startTime
