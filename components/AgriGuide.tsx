@@ -16,6 +16,7 @@ import {
 import { useLocale, useTranslations } from 'next-intl'
 
 export interface FarmCardData {
+  id: string
   slug: string
   name: string
   place: string
@@ -23,22 +24,50 @@ export interface FarmCardData {
   price: number
   rating: number
   reviewCount: number
-  photoUrl: string | null
+  imageUrl: string | null
 }
 
 interface Message {
   id: string
   role: 'user' | 'assistant'
   content: string
+  status?: 'streaming' | 'complete' | 'stopped' | 'error'
+  statusText?: string
   chips?: string[]
   farms?: FarmCardData[]
-  isStreaming?: boolean
-  status?: string
-  isError?: boolean
+}
+
+/**
+ * Trims incomplete markdown links or bracket sequences while streaming,
+ * preventing raw "[...](..." syntax or UI flickering until link is complete.
+ */
+export function trimIncompleteMarkdownLink(text: string, isStreaming: boolean): string {
+  if (!isStreaming || !text) return text
+
+  // 1. Unclosed link URL: [Label](...
+  const unclosedUrl = text.match(/\[([^\]]+)\]\([^\)]*$/)
+  if (unclosedUrl && unclosedUrl.index !== undefined) {
+    return text.substring(0, unclosedUrl.index)
+  }
+
+  // 2. Closed label without opening URL yet: [Label]
+  const labelOnly = text.match(/\[[^\]]+\]$/)
+  if (labelOnly && labelOnly.index !== undefined) {
+    return text.substring(0, labelOnly.index)
+  }
+
+  // 3. Unclosed bracket label: [Label...
+  const unclosedBracket = text.match(/\[[^\]]*$/)
+  if (unclosedBracket && unclosedBracket.index !== undefined) {
+    return text.substring(0, unclosedBracket.index)
+  }
+
+  return text
 }
 
 /**
  * Parses inline bold **text** and markdown links [Label](/farms/slug).
+ * Sets prefetch={false} on all Next.js Links to prevent background fetching.
  */
 function renderInlineTokens(raw: string) {
   const regex = /(\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/g
@@ -65,6 +94,7 @@ function renderInlineTokens(raw: string) {
           <Link
             key={`link-${match.index}`}
             href={linkMatch[2]}
+            prefetch={false}
             className="agriguide-link"
           >
             {linkMatch[1]}
@@ -85,8 +115,9 @@ function renderInlineTokens(raw: string) {
 }
 
 /**
- * Renders structured markdown: bullet points, paragraphs, links, bold,
- * and a blinking cursor strictly while this message is actively receiving text.
+ * Renders structured markdown: bullet points, paragraphs, bold, links.
+ * Cursor is rendered strictly as a CSS pseudo-element on the last inline element
+ * only while the message status is 'streaming'.
  */
 function FormattedMessage({
   text,
@@ -95,7 +126,8 @@ function FormattedMessage({
   text: string
   isStreaming?: boolean
 }) {
-  const lines = text.split('\n')
+  const visibleText = trimIncompleteMarkdownLink(text, Boolean(isStreaming))
+  const lines = visibleText.split('\n')
   const elements: React.ReactNode[] = []
   let currentList: React.ReactNode[] = []
 
@@ -136,35 +168,46 @@ function FormattedMessage({
   flushList(`list-final`)
 
   return (
-    <div className="agriguide-formatted-text">
-      {elements.length > 0 ? elements : <span>{renderInlineTokens(text)}</span>}
-      {isStreaming && text.length > 0 && (
-        <span className="agriguide-cursor" aria-hidden="true" />
-      )}
+    <div
+      className={`agriguide-formatted-text ${isStreaming ? 'is-streaming' : ''}`}
+    >
+      {elements.length > 0 ? elements : <span>{renderInlineTokens(visibleText)}</span>}
     </div>
   )
 }
 
 /**
- * Compact Farm Stay preview card built strictly from "done" event farm metadata.
+ * Compact Farm Stay preview card with fixed 4:3 thumbnail, loading skeleton,
+ * error fallback, and prefetch={false}.
  */
 function FarmCard({ farm, viewLabel }: { farm: FarmCardData; viewLabel: string }) {
+  const [imageLoaded, setImageLoaded] = useState(false)
+  const [imageError, setImageError] = useState(false)
+
+  const hasImage = Boolean(farm.imageUrl) && !imageError
+
   return (
     <div className="agriguide-farm-card">
-      <div className="agriguide-farm-thumb">
-        {farm.photoUrl ? (
+      <div className="agriguide-farm-thumb-wrapper">
+        {!imageLoaded && hasImage && (
+          <div className="agriguide-farm-skeleton" aria-hidden="true" />
+        )}
+        {hasImage ? (
           <img
-            src={farm.photoUrl}
+            src={farm.imageUrl!}
             alt={farm.name}
-            className="agriguide-farm-img"
+            className={`agriguide-farm-img ${imageLoaded ? 'loaded' : 'loading'}`}
+            onLoad={() => setImageLoaded(true)}
+            onError={() => setImageError(true)}
             loading="lazy"
           />
         ) : (
-          <div className="agriguide-farm-placeholder">
-            <Bot size={20} style={{ opacity: 0.4 }} />
+          <div className="agriguide-farm-placeholder" aria-hidden="true">
+            <Bot size={18} style={{ opacity: 0.35 }} />
           </div>
         )}
       </div>
+
       <div className="agriguide-farm-info">
         <div className="agriguide-farm-header">
           <span className="agriguide-farm-name" title={farm.name}>
@@ -189,7 +232,11 @@ function FarmCard({ farm, viewLabel }: { farm: FarmCardData; viewLabel: string }
             ₹{farm.price.toLocaleString('en-IN')}{' '}
             <span className="per-guest">/ guest</span>
           </span>
-          <Link href={`/farms/${farm.slug}`} className="agriguide-farm-btn">
+          <Link
+            href={`/farms/${farm.slug}`}
+            prefetch={false}
+            className="agriguide-farm-btn"
+          >
             {viewLabel}
           </Link>
         </div>
@@ -259,6 +306,7 @@ export function AgriGuide() {
       id: 'welcome',
       role: 'assistant',
       content: t('welcome'),
+      status: 'complete',
       chips: [
         t('suggestedPrompts.prompt1'),
         t('suggestedPrompts.prompt2'),
@@ -289,9 +337,8 @@ export function AgriGuide() {
             content: String(m.content || ''),
             chips: Array.isArray(m.chips) ? m.chips : undefined,
             farms: Array.isArray(m.farms) ? m.farms : undefined,
-            isError: Boolean(m.isError),
-            isStreaming: false,
-            status: undefined,
+            status: m.status === 'error' ? 'error' : 'complete',
+            statusText: undefined,
           }))
           setMessages(sanitized)
         }
@@ -311,7 +358,7 @@ export function AgriGuide() {
           content: m.content,
           chips: m.chips,
           farms: m.farms,
-          isError: m.isError,
+          status: m.status,
         }))
         sessionStorage.setItem(STORAGE_KEY, JSON.stringify(toSave))
       } catch (e) {
@@ -329,6 +376,7 @@ export function AgriGuide() {
             id: 'welcome',
             role: 'assistant',
             content: t('welcome'),
+            status: 'complete',
             chips: [
               t('suggestedPrompts.prompt1'),
               t('suggestedPrompts.prompt2'),
@@ -456,8 +504,8 @@ export function AgriGuide() {
       if (updated.length > 0 && updated[updated.length - 1].role === 'assistant') {
         updated[updated.length - 1] = {
           ...updated[updated.length - 1],
-          isStreaming: false,
-          status: undefined,
+          status: 'stopped',
+          statusText: undefined,
         }
       }
       return updated
@@ -484,6 +532,7 @@ export function AgriGuide() {
         id: 'welcome',
         role: 'assistant',
         content: t('welcome'),
+        status: 'complete',
         chips: [
           t('suggestedPrompts.prompt1'),
           t('suggestedPrompts.prompt2'),
@@ -506,16 +555,14 @@ export function AgriGuide() {
 
     // Check offline status
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
-      const offlineMsgId = `err-${Date.now()}`
       setMessages((prev) => [
         ...prev,
         { id: `user-${Date.now()}`, role: 'user', content: textToSend },
         {
-          id: offlineMsgId,
+          id: `err-${Date.now()}`,
           role: 'assistant',
           content: t('offline'),
-          isError: true,
-          isStreaming: false,
+          status: 'error',
         },
       ])
       setInput('')
@@ -538,8 +585,8 @@ export function AgriGuide() {
       id: assistantMessageId,
       role: 'assistant',
       content: '',
-      status: initialStatus,
-      isStreaming: true,
+      status: 'streaming',
+      statusText: initialStatus,
     }
 
     setMessages([...updatedMessages, assistantPlaceholder])
@@ -547,6 +594,87 @@ export function AgriGuide() {
     setIsStreaming(true)
     setActiveStatus(initialStatus)
     isNearBottomRef.current = true
+
+    let accumulatedText = ''
+    let finalChips: string[] = []
+    let finalFarms: FarmCardData[] = []
+
+    const processEvent = (event: any) => {
+      if (process.env.NODE_ENV === 'development') {
+        console.debug('[AgriGuide SSE Event]:', event.type, event)
+      }
+
+      if (event.type === 'status') {
+        const newStatus = (event.status || '').trim()
+        if (newStatus) {
+          setActiveStatus(newStatus)
+          setMessages((prev) => {
+            const copy = [...prev]
+            if (copy.length > 0 && copy[copy.length - 1].role === 'assistant') {
+              copy[copy.length - 1] = {
+                ...copy[copy.length - 1],
+                statusText: newStatus,
+              }
+            }
+            return copy
+          })
+        }
+      } else if (event.type === 'delta') {
+        setActiveStatus('')
+        accumulatedText += event.text || ''
+        const currentText = accumulatedText
+
+        setMessages((prev) => {
+          const copy = [...prev]
+          if (copy.length > 0 && copy[copy.length - 1].role === 'assistant') {
+            copy[copy.length - 1] = {
+              ...copy[copy.length - 1],
+              content: currentText,
+              status: 'streaming',
+              statusText: undefined,
+            }
+          }
+          return copy
+        })
+        scrollToBottomIfNeeded()
+      } else if (event.type === 'done') {
+        finalChips = Array.isArray(event.chips) ? event.chips : []
+        finalFarms = Array.isArray(event.farms) ? event.farms : []
+
+        setMessages((prev) => {
+          const copy = [...prev]
+          if (copy.length > 0 && copy[copy.length - 1].role === 'assistant') {
+            copy[copy.length - 1] = {
+              ...copy[copy.length - 1],
+              content: accumulatedText,
+              chips: finalChips,
+              farms: finalFarms,
+              status: 'complete',
+              statusText: undefined,
+            }
+          }
+          return copy
+        })
+        setIsStreaming(false)
+        setCompletedAnnouncement(accumulatedText)
+        scrollToBottomIfNeeded()
+      } else if (event.type === 'error') {
+        accumulatedText = event.text || accumulatedText
+        setMessages((prev) => {
+          const copy = [...prev]
+          if (copy.length > 0 && copy[copy.length - 1].role === 'assistant') {
+            copy[copy.length - 1] = {
+              ...copy[copy.length - 1],
+              content: accumulatedText,
+              status: 'error',
+              statusText: undefined,
+            }
+          }
+          return copy
+        })
+        setIsStreaming(false)
+      }
+    }
 
     try {
       const response = await fetch('/api/chat', {
@@ -567,9 +695,8 @@ export function AgriGuide() {
               updated[updated.length - 1] = {
                 ...updated[updated.length - 1],
                 content: t('rateLimited'),
-                isStreaming: false,
-                isError: true,
-                status: undefined,
+                status: 'error',
+                statusText: undefined,
               }
             }
             return updated
@@ -585,9 +712,8 @@ export function AgriGuide() {
             updated[updated.length - 1] = {
               ...updated[updated.length - 1],
               content: errorMsg,
-              isStreaming: false,
-              isError: true,
-              status: undefined,
+              status: 'error',
+              statusText: undefined,
             }
           }
           return updated
@@ -602,13 +728,14 @@ export function AgriGuide() {
       const reader = response.body.getReader()
       const decoder = new TextDecoder()
       let buffer = ''
-      let accumulatedText = ''
-      let finalChips: string[] = []
-      let finalFarms: FarmCardData[] = []
 
       while (true) {
         const { done, value } = await reader.read()
-        if (done) break
+        if (done) {
+          // Flush TextDecoder of any residual bytes
+          buffer += decoder.decode()
+          break
+        }
 
         buffer += decoder.decode(value, { stream: true })
         const lines = buffer.split('\n')
@@ -617,106 +744,34 @@ export function AgriGuide() {
         for (const line of lines) {
           const trimmed = line.trim()
           if (!trimmed.startsWith('data:')) continue
-
           const jsonStr = trimmed.substring(5).trim()
           if (!jsonStr) continue
 
           try {
             const event = JSON.parse(jsonStr)
-
-            if (event.type === 'status') {
-              const newStatus = event.status || ''
-              setActiveStatus(newStatus)
-              setMessages((prev) => {
-                const copy = [...prev]
-                if (copy.length > 0) {
-                  copy[copy.length - 1] = {
-                    ...copy[copy.length - 1],
-                    status: newStatus,
-                  }
-                }
-                return copy
-              })
-            } else if (event.type === 'delta') {
-              setActiveStatus('')
-              accumulatedText += event.text || ''
-
-              window.requestAnimationFrame(() => {
-                setMessages((prev) => {
-                  const copy = [...prev]
-                  if (copy.length > 0) {
-                    copy[copy.length - 1] = {
-                      ...copy[copy.length - 1],
-                      content: accumulatedText,
-                      status: undefined,
-                      isStreaming: true,
-                    }
-                  }
-                  return copy
-                })
-                scrollToBottomIfNeeded()
-              })
-            } else if (event.type === 'done') {
-              finalChips = event.chips || []
-              finalFarms = event.farms || []
-
-              // Client immediately closes streaming state on done event
-              setMessages((prev) => {
-                const copy = [...prev]
-                if (copy.length > 0) {
-                  copy[copy.length - 1] = {
-                    ...copy[copy.length - 1],
-                    content: accumulatedText,
-                    chips: finalChips,
-                    farms: finalFarms,
-                    isStreaming: false,
-                    status: undefined,
-                  }
-                }
-                return copy
-              })
-              setIsStreaming(false)
-              setCompletedAnnouncement(accumulatedText)
-            } else if (event.type === 'error') {
-              accumulatedText = event.text || accumulatedText
-              setMessages((prev) => {
-                const copy = [...prev]
-                if (copy.length > 0) {
-                  copy[copy.length - 1] = {
-                    ...copy[copy.length - 1],
-                    content: accumulatedText,
-                    isStreaming: false,
-                    isError: true,
-                    status: undefined,
-                  }
-                }
-                return copy
-              })
-              setIsStreaming(false)
-            }
-          } catch {
-            // Ignore partial SSE lines
+            processEvent(event)
+          } catch (parseErr) {
+            console.warn('[AgriGuide SSE parse error]:', parseErr)
           }
         }
       }
 
-      // Final safety check: ensure isStreaming is turned off
-      setMessages((prev) => {
-        const copy = [...prev]
-        if (copy.length > 0 && copy[copy.length - 1].isStreaming) {
-          copy[copy.length - 1] = {
-            ...copy[copy.length - 1],
-            content: accumulatedText || copy[copy.length - 1].content,
-            chips: finalChips,
-            farms: finalFarms,
-            isStreaming: false,
-            status: undefined,
+      // Process any residual data remaining in buffer after stream closes
+      if (buffer.trim()) {
+        const remainingLines = buffer.split('\n')
+        for (const line of remainingLines) {
+          const trimmed = line.trim()
+          if (!trimmed.startsWith('data:')) continue
+          const jsonStr = trimmed.substring(5).trim()
+          if (!jsonStr) continue
+
+          try {
+            const event = JSON.parse(jsonStr)
+            processEvent(event)
+          } catch (parseErr) {
+            console.warn('[AgriGuide residual SSE parse error]:', parseErr)
           }
         }
-        return copy
-      })
-      if (accumulatedText) {
-        setCompletedAnnouncement(accumulatedText)
       }
     } catch (err: any) {
       if (err.name === 'AbortError') {
@@ -728,9 +783,8 @@ export function AgriGuide() {
           copy[copy.length - 1] = {
             ...copy[copy.length - 1],
             content: t('connectionError'),
-            isStreaming: false,
-            isError: true,
-            status: undefined,
+            status: 'error',
+            statusText: undefined,
           }
         }
         return copy
@@ -739,23 +793,40 @@ export function AgriGuide() {
       setIsStreaming(false)
       setActiveStatus('')
       abortControllerRef.current = null
+
+      // Guaranteed cleanup: message status is set to 'complete' if still marked 'streaming'
+      setMessages((prev) => {
+        const copy = [...prev]
+        if (copy.length > 0 && copy[copy.length - 1].role === 'assistant') {
+          const last = copy[copy.length - 1]
+          if (last.status === 'streaming') {
+            copy[copy.length - 1] = {
+              ...last,
+              content: accumulatedText || last.content,
+              chips: finalChips.length > 0 ? finalChips : last.chips,
+              farms: finalFarms.length > 0 ? finalFarms : last.farms,
+              status: 'complete',
+              statusText: undefined,
+            }
+          }
+        }
+        return copy
+      })
       scrollToBottomIfNeeded()
     }
   }
 
   // 10. Retry on Failed Message
   const handleRetry = () => {
-    // Find last user message
     const lastUser = [...messages].reverse().find((m) => m.role === 'user')
     if (!lastUser) return
 
-    // Remove the failed assistant bubble
     setMessages((prev) => {
       const filtered = [...prev]
       if (
         filtered.length > 0 &&
         filtered[filtered.length - 1].role === 'assistant' &&
-        filtered[filtered.length - 1].isError
+        filtered[filtered.length - 1].status === 'error'
       ) {
         filtered.pop()
       }
@@ -773,7 +844,6 @@ export function AgriGuide() {
     }
   }
 
-  // Conversation is empty if only the pristine welcome message exists
   const isConversationEmpty =
     messages.length === 1 && messages[0].role === 'assistant'
 
@@ -893,10 +963,12 @@ export function AgriGuide() {
                 !isConversationEmpty &&
                 isLatestMessage &&
                 m.role === 'assistant' &&
-                !m.isStreaming &&
+                m.status === 'complete' &&
                 !isStreaming &&
                 m.chips &&
                 m.chips.length > 0
+
+              const isMessageStreaming = m.status === 'streaming'
 
               return (
                 <div
@@ -911,9 +983,9 @@ export function AgriGuide() {
 
                   <div className="agriguide-bubble-container">
                     <div
-                      className={`agriguide-bubble ${m.role} ${m.isError ? 'error-bubble' : ''}`}
+                      className={`agriguide-bubble ${m.role} ${m.status === 'error' ? 'error-bubble' : ''}`}
                     >
-                      {/* Single assistant bubble shows typing dots + status text until text arrives */}
+                      {/* Single assistant bubble: shows typing dots + status text until first delta */}
                       {m.role === 'assistant' && m.content.length === 0 ? (
                         <div className="agriguide-bubble-status">
                           <span className="agriguide-thinking-dots">
@@ -922,19 +994,19 @@ export function AgriGuide() {
                             <span className="dot" />
                           </span>
                           <span className="status-label">
-                            {m.status || activeStatus || t('searching')}
+                            {m.statusText || activeStatus || t('searching')}
                           </span>
                         </div>
                       ) : (
                         <>
                           <FormattedMessage
                             text={m.content}
-                            isStreaming={m.isStreaming}
+                            isStreaming={isMessageStreaming}
                           />
 
-                          {/* Farm Preview Cards if present in done event */}
+                          {/* Compact Farm Preview Cards from done event */}
                           {m.farms && m.farms.length > 0 && (
-                            <div className="agriguide-farm-cards-list">
+                            <div className="agriguide-farm-cards-container">
                               {m.farms.map((farm, fIdx) => (
                                 <FarmCard
                                   key={`${farm.slug}-${fIdx}`}
@@ -946,7 +1018,7 @@ export function AgriGuide() {
                           )}
 
                           {/* Retry button on failed messages */}
-                          {m.isError && (
+                          {m.status === 'error' && (
                             <div className="agriguide-retry-row">
                               <button
                                 type="button"
@@ -964,9 +1036,8 @@ export function AgriGuide() {
 
                     {/* Copy button for completed assistant messages */}
                     {m.role === 'assistant' &&
-                      !m.isStreaming &&
-                      m.content.length > 0 &&
-                      !m.isError && (
+                      m.status === 'complete' &&
+                      m.content.length > 0 && (
                         <CopyButton
                           text={m.content}
                           label={t('copy')}

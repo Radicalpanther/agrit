@@ -97,6 +97,11 @@ export async function POST(request: Request) {
       async start(controller) {
         try {
           for await (const event of streamChatWorkflow(cleanMessages, locale, userId)) {
+            // Never send empty status events
+            if (event.type === 'status' && (!event.status || !event.status.trim())) {
+              continue
+            }
+
             if (event.type === 'delta' && firstTokenTime === null) {
               firstTokenTime = Date.now()
               const ttft = firstTokenTime - startTime

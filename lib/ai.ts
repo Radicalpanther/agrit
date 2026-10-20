@@ -22,6 +22,7 @@ export interface ChatMessage {
 }
 
 export interface FarmCardData {
+  id: string
   slug: string
   name: string
   place: string
@@ -29,7 +30,7 @@ export interface FarmCardData {
   price: number
   rating: number
   reviewCount: number
-  photoUrl: string | null
+  imageUrl: string | null
 }
 
 export interface ChatStreamEvent {
@@ -283,40 +284,41 @@ export function buildDeterministicAnswer(
 }
 
 /**
- * Resolves compact farm metadata from links for client-side farm cards.
+ * Resolves compact farm metadata from slugs (deduped, published, max 3) for client-side farm cards.
  */
-export async function getFarmCardsForLinks(links: { label: string; url: string }[]): Promise<FarmCardData[]> {
-  const farmSlugs = links
-    .map((l) => {
-      const match = l.url.match(/\/farms\/([a-zA-Z0-9_-]+)/)
-      return match ? match[1] : null
-    })
-    .filter((s): s is string => Boolean(s))
+export async function getFarmCardsForSlugs(slugs: string[]): Promise<FarmCardData[]> {
+  const cleanSlugs = Array.from(new Set(slugs)).filter((s): s is string => Boolean(s && typeof s === 'string'))
+  const topSlugs = cleanSlugs.slice(0, 3)
 
-  if (farmSlugs.length === 0) return []
+  if (topSlugs.length === 0) return []
 
   try {
     const supabase = await createServiceClient()
-    const { data: farms } = await supabase
+    const { data: dbFarms, error: dbError } = await supabase
       .from('farms')
-      .select('slug, name, place, state, price_per_night, rating_avg, review_count, photos')
-      .in('slug', farmSlugs)
+      .select('id, slug, name, place, region, price_paise, rating_avg, review_count, image_url')
+      .in('slug', topSlugs)
       .eq('is_published', true)
 
-    if (!farms || farms.length === 0) return []
+    if (dbError || !dbFarms || dbFarms.length === 0) return []
 
-    return farms.map((f: any) => ({
-      slug: f.slug,
-      name: f.name,
-      place: f.place,
-      state: f.state,
-      price: Math.round((f.price_per_night || 0) / 100),
-      rating: Number(f.rating_avg || 0),
-      reviewCount: Number(f.review_count || 0),
-      photoUrl: Array.isArray(f.photos) && f.photos.length > 0 ? f.photos[0] : null,
-    }))
+    const farmMap = new Map(dbFarms.map((f: any) => [f.slug, f]))
+    return topSlugs
+      .map((slug) => farmMap.get(slug))
+      .filter((f): f is NonNullable<typeof f> => Boolean(f))
+      .map((f: any) => ({
+        id: f.id,
+        slug: f.slug,
+        name: f.name,
+        place: f.place,
+        state: f.region || '',
+        price: Math.round((f.price_paise || 0) / 100),
+        rating: Number(f.rating_avg || 0),
+        reviewCount: Number(f.review_count || 0),
+        imageUrl: f.image_url || null,
+      }))
   } catch (err) {
-    console.warn('[getFarmCardsForLinks Error]:', err)
+    console.warn('[getFarmCardsForSlugs Error]:', err)
     return []
   }
 }
@@ -356,6 +358,10 @@ export async function* streamChatWorkflow(
     console.warn('[RAG retrieve exception]:', err?.message)
   }
 
+  const retrievalSlugs = passages
+    .map((p) => p.slug || p.metadata?.slug)
+    .filter((s): s is string => Boolean(s))
+
   // 4. Compact Catalogue (Safety Net)
   let compactCatalogue = ''
   try {
@@ -377,10 +383,15 @@ export async function* streamChatWorkflow(
       yield { type: 'delta', text: (i === 0 ? '' : ' ') + words[i] }
       await new Promise((r) => setTimeout(r, 25))
     }
+    const mockLinkMatches = Array.from(fallback.answer.matchAll(/\/farms\/([a-zA-Z0-9_-]+)/g), (m) => m[1])
+    const mockSlugs = Array.from(new Set([...mockLinkMatches, ...retrievalSlugs])).filter(Boolean)
+    const mockFarms = await getFarmCardsForSlugs(mockSlugs)
+
     yield {
       type: 'done',
       chips: fallback.chips,
       links: fallback.links,
+      farms: mockFarms,
     }
     return
   }
@@ -398,6 +409,7 @@ export async function* streamChatWorkflow(
   let toolLoopCount = 0
   const maxToolLoops = 3
   let currentContents: GeminiContent[] = [...conversationHistory]
+  const toolSlugs: string[] = []
 
   yield { type: 'status', status: 'Checking farm details...' }
 
@@ -438,8 +450,14 @@ export async function* streamChatWorkflow(
     try {
       if (toolName === 'searchFarms') {
         toolResult = await searchFarms(toolArgs)
+        if (toolResult && Array.isArray(toolResult.farms)) {
+          toolResult.farms.forEach((f: any) => {
+            if (f.slug) toolSlugs.push(f.slug)
+          })
+        }
       } else if (toolName === 'getFarmDetails') {
         toolResult = await getFarmDetails({ slug: toolArgs.slug })
+        if (toolArgs.slug) toolSlugs.push(toolArgs.slug)
       } else if (toolName === 'getSeasonalCrops') {
         toolResult = await getSeasonalCrops(toolArgs)
       } else if (toolName === 'getProduceAvailability') {
@@ -471,8 +489,6 @@ export async function* streamChatWorkflow(
   }
 
   // 7. Stream Final Answer via streamGenerateContent
-  yield { type: 'status', status: '' } // Clear status to begin streaming text
-
   let fullStreamedText = ''
   let streamFailed = false
 
@@ -500,7 +516,10 @@ export async function* streamChatWorkflow(
       yield { type: 'delta', text: (i === 0 ? '' : ' ') + words[i] }
       await new Promise((r) => setTimeout(r, 20))
     }
-    const fallbackFarms = await getFarmCardsForLinks(fallback.links)
+    const fallbackLinkMatches = Array.from(fallback.answer.matchAll(/\/farms\/([a-zA-Z0-9_-]+)/g), (m) => m[1])
+    const fallbackSlugs = Array.from(new Set([...fallbackLinkMatches, ...retrievalSlugs])).filter(Boolean)
+    const fallbackFarms = await getFarmCardsForSlugs(fallbackSlugs)
+
     yield {
       type: 'done',
       chips: fallback.chips,
@@ -513,7 +532,9 @@ export async function* streamChatWorkflow(
   // 9. Send Done event with extracted links, follow-up chips, and farm cards
   const links = extractLinks(fullStreamedText)
   const chips = generateFollowUpChips(standaloneQuery, fullStreamedText, locale)
-  const farms = await getFarmCardsForLinks(links)
+  const linkMatches = Array.from(fullStreamedText.matchAll(/\/farms\/([a-zA-Z0-9_-]+)/g), (m) => m[1])
+  const candidateSlugs = Array.from(new Set([...linkMatches, ...toolSlugs, ...retrievalSlugs])).filter(Boolean)
+  const farms = await getFarmCardsForSlugs(candidateSlugs)
 
   yield {
     type: 'done',
