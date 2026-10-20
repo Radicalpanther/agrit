@@ -63,6 +63,14 @@ export async function PATCH(
     revalidatePath(`/farms/${farm.slug}`)
     revalidatePath('/dashboard')
 
+    // Invalidate RAG catalogue cache and reindex/remove this farm asynchronously
+    import('@/lib/rag/sources.agritrails').then(({ agritrailsSourceConfig, invalidateCatalogueCache }) => {
+      invalidateCatalogueCache()
+      import('@/lib/rag/core').then(({ indexEntity }) => {
+        indexEntity(agritrailsSourceConfig, 'farms', id).catch(() => {})
+      })
+    }).catch(() => {})
+
     return NextResponse.json({ success: true, published: targetPublished })
   } catch (err: any) {
     return NextResponse.json(

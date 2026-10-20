@@ -221,6 +221,15 @@ export async function POST(request: Request) {
         .eq('id', parsed.data.farmId)
     }
 
+    // Invalidate RAG catalogue cache and reindex review & farm asynchronously
+    import('@/lib/rag/sources.agritrails').then(({ agritrailsSourceConfig, invalidateCatalogueCache }) => {
+      invalidateCatalogueCache()
+      import('@/lib/rag/core').then(({ indexEntity }) => {
+        indexEntity(agritrailsSourceConfig, 'reviews', insertedReview.id).catch(() => {})
+        indexEntity(agritrailsSourceConfig, 'farms', parsed.data.farmId).catch(() => {})
+      })
+    }).catch(() => {})
+
     return NextResponse.json({
       success: true,
       review: {

@@ -1,20 +1,23 @@
 'use client'
 
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { Bot, X, Send } from 'lucide-react'
+import { Bot, X, Send, Square, Sparkles } from 'lucide-react'
 import { useLocale, useTranslations } from 'next-intl'
 
 interface Message {
   role: 'user' | 'assistant'
   content: string
+  chips?: string[]
+  isStreaming?: boolean
+  status?: string
 }
 
 /**
  * Renders message text with clickable markdown links [Label](/farms/slug).
+ * Handles partial markdown gracefully while streaming.
  */
-function FormattedMessage({ text }: { text: string }) {
-  // Regex matches [Label](url)
+function FormattedMessage({ text, isStreaming }: { text: string; isStreaming?: boolean }) {
   const parts: (string | React.ReactNode)[] = []
   const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g
   let lastIndex = 0
@@ -28,7 +31,7 @@ function FormattedMessage({ text }: { text: string }) {
     const url = match[2]
     parts.push(
       <Link
-        key={match.index}
+        key={`${match.index}-${url}`}
         href={url}
         className="agriguide-link"
         style={{
@@ -51,6 +54,7 @@ function FormattedMessage({ text }: { text: string }) {
   return (
     <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.55 }}>
       {parts.length > 0 ? parts : text}
+      {isStreaming && <span className="agriguide-cursor" aria-hidden="true" />}
     </div>
   )
 }
@@ -60,106 +64,264 @@ export function AgriGuide() {
   const t = useTranslations('agriGuide')
   const [isOpen, setIsOpen] = useState(false)
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', content: t('welcome') },
+    {
+      role: 'assistant',
+      content: t('welcome'),
+      chips: [
+        t('suggestedPrompts.prompt1'),
+        t('suggestedPrompts.prompt2'),
+        t('suggestedPrompts.prompt3'),
+      ],
+    },
   ])
   const [input, setInput] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
+  const [isStreaming, setIsStreaming] = useState(false)
+  const [activeStatus, setActiveStatus] = useState<string>('')
+
+  const messagesContainerRef = useRef<HTMLDivElement | null>(null)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
+  const isNearBottomRef = useRef(true)
 
   // Update welcome message if language switches while no conversation has occurred
   useEffect(() => {
     setMessages((prev) => {
       if (prev.length === 1 && prev[0].role === 'assistant') {
-        return [{ role: 'assistant', content: t('welcome') }]
+        return [
+          {
+            role: 'assistant',
+            content: t('welcome'),
+            chips: [
+              t('suggestedPrompts.prompt1'),
+              t('suggestedPrompts.prompt2'),
+              t('suggestedPrompts.prompt3'),
+            ],
+          },
+        ]
       }
       return prev
     })
   }, [locale, t])
 
-  const suggestedPrompts = [
-    t('suggestedPrompts.prompt1'),
-    t('suggestedPrompts.prompt2'),
-    t('suggestedPrompts.prompt3'),
-  ]
+  // Track if user is scrolled near bottom
+  const handleScroll = useCallback(() => {
+    const el = messagesContainerRef.current
+    if (!el) return
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+    isNearBottomRef.current = distanceFromBottom < 80
+  }, [])
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }
+  // Auto-scroll only when user is near bottom
+  const scrollToBottomIfNeeded = useCallback(() => {
+    if (isNearBottomRef.current && messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [])
 
   useEffect(() => {
-    if (isOpen) {
-      scrollToBottom()
-      setTimeout(() => inputRef.current?.focus(), 100)
-    }
-  }, [isOpen, messages, isLoading])
+    scrollToBottomIfNeeded()
+  }, [messages, activeStatus, scrollToBottomIfNeeded])
 
+  // Focus input when panel opens
+  useEffect(() => {
+    if (isOpen) {
+      setTimeout(() => inputRef.current?.focus(), 120)
+    } else {
+      // Abort active stream if panel is closed
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+        abortControllerRef.current = null
+        setIsStreaming(false)
+        setActiveStatus('')
+      }
+    }
+  }, [isOpen])
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+      }
+    }
+  }, [])
+
+  // Abort / Stop generation handler
+  const handleStop = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+      abortControllerRef.current = null
+    }
+    setIsStreaming(false)
+    setActiveStatus('')
+    setMessages((prev) => {
+      const updated = [...prev]
+      if (updated.length > 0 && updated[updated.length - 1].role === 'assistant') {
+        updated[updated.length - 1].isStreaming = false
+      }
+      return updated
+    })
+  }
+
+  // Send message handler
   const handleSend = async (messageText?: string) => {
     const textToSend = (messageText ?? input).trim()
-    if (!textToSend || isLoading) return
+    if (!textToSend || isStreaming) return
 
-    const newMessages: Message[] = [...messages, { role: 'user', content: textToSend }]
-    setMessages(newMessages)
+    // Cancel any prior stream
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+
+    const controller = new AbortController()
+    abortControllerRef.current = controller
+
+    const userMessage: Message = { role: 'user', content: textToSend }
+    const updatedMessages = [...messages, userMessage]
+
+    setMessages(updatedMessages)
     setInput('')
-    setIsLoading(true)
+    setIsStreaming(true)
+    setActiveStatus(t('searching') || 'Searching farms...')
+    isNearBottomRef.current = true
+
+    // Add empty assistant response to stream into
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: 'assistant',
+        content: '',
+        isStreaming: true,
+      },
+    ])
 
     try {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: newMessages, locale }),
+        body: JSON.stringify({
+          messages: updatedMessages.map((m) => ({ role: m.role, content: m.content })),
+          locale,
+        }),
+        signal: controller.signal,
       })
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        const errMessage =
-          errorData.error || `Server returned error (${response.status})`
-        setMessages((prev) => [
-          ...prev,
-          { role: 'assistant', content: errMessage },
-        ])
-        return
-      }
-
-      if (!response.body) {
-        throw new Error('No readable stream received from server')
-      }
-
-      // Append blank assistant response to stream into
-      setMessages((prev) => [...prev, { role: 'assistant', content: '' }])
-
-      const reader = response.body.getReader()
-      const decoder = new TextDecoder()
-      let accumulated = ''
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        const chunk = decoder.decode(value, { stream: true })
-        accumulated += chunk
-
+        const errJson = await response.json().catch(() => ({}))
+        const errorMsg = errJson?.error || `Server error (${response.status})`
         setMessages((prev) => {
           const updated = [...prev]
           if (updated.length > 0) {
             updated[updated.length - 1] = {
               role: 'assistant',
-              content: accumulated,
+              content: errorMsg,
+              isStreaming: false,
             }
           }
           return updated
         })
+        return
       }
+
+      if (!response.body) {
+        throw new Error('No streaming body received')
+      }
+
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let accumulatedText = ''
+      let finalChips: string[] = []
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+
+        for (const line of lines) {
+          const trimmed = line.trim()
+          if (!trimmed.startsWith('data:')) continue
+
+          const jsonStr = trimmed.substring(5).trim()
+          if (!jsonStr) continue
+
+          try {
+            const event = JSON.parse(jsonStr)
+
+            if (event.type === 'status') {
+              if (event.status) {
+                setActiveStatus(event.status)
+              } else {
+                setActiveStatus('')
+              }
+            } else if (event.type === 'delta') {
+              setActiveStatus('')
+              accumulatedText += event.text || ''
+
+              // Batch UI update via requestAnimationFrame
+              window.requestAnimationFrame(() => {
+                setMessages((prev) => {
+                  const copy = [...prev]
+                  if (copy.length > 0) {
+                    copy[copy.length - 1] = {
+                      role: 'assistant',
+                      content: accumulatedText,
+                      isStreaming: true,
+                    }
+                  }
+                  return copy
+                })
+                scrollToBottomIfNeeded()
+              })
+            } else if (event.type === 'done') {
+              finalChips = event.chips || []
+            } else if (event.type === 'error') {
+              accumulatedText = event.text || accumulatedText
+            }
+          } catch {
+            // Ignore partial SSE lines
+          }
+        }
+      }
+
+      // Finalize the completed message
+      setMessages((prev) => {
+        const copy = [...prev]
+        if (copy.length > 0) {
+          copy[copy.length - 1] = {
+            role: 'assistant',
+            content: accumulatedText,
+            chips: finalChips,
+            isStreaming: false,
+          }
+        }
+        return copy
+      })
     } catch (err: any) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: t('connectionError'),
-        },
-      ])
+      if (err.name === 'AbortError') {
+        // User stopped generation manually
+        return
+      }
+      setMessages((prev) => {
+        const copy = [...prev]
+        if (copy.length > 0) {
+          copy[copy.length - 1] = {
+            role: 'assistant',
+            content: t('connectionError'),
+            isStreaming: false,
+          }
+        }
+        return copy
+      })
     } finally {
-      setIsLoading(false)
+      setIsStreaming(false)
+      setActiveStatus('')
+      abortControllerRef.current = null
+      scrollToBottomIfNeeded()
     }
   }
 
@@ -170,7 +332,7 @@ export function AgriGuide() {
 
   return (
     <>
-      {/* Floating Launcher Button */}
+      {/* Floating Dark Green Pill Launcher */}
       <button
         type="button"
         className={`agriguide-launcher ${isOpen ? 'is-open' : ''}`}
@@ -194,13 +356,14 @@ export function AgriGuide() {
         )}
       </button>
 
-      {/* Chat Panel */}
+      {/* Chat Assistant Panel (accessible, responsive at 320px) */}
       {isOpen && (
         <div
           id="agriguide-chat-panel"
           className="agriguide-panel"
           role="dialog"
           aria-label={t('openAriaLabel')}
+          aria-modal="false"
         >
           {/* Header */}
           <div className="agriguide-header">
@@ -220,25 +383,51 @@ export function AgriGuide() {
             </button>
           </div>
 
-          {/* Messages Area */}
-          <div className="agriguide-messages">
+          {/* Messages Container */}
+          <div
+            className="agriguide-messages"
+            ref={messagesContainerRef}
+            onScroll={handleScroll}
+          >
             {messages.map((m, idx) => (
               <div
                 key={idx}
                 className={`agriguide-bubble-row ${m.role === 'user' ? 'user' : 'assistant'}`}
               >
                 <div className={`agriguide-bubble ${m.role}`}>
-                  <FormattedMessage text={m.content} />
+                  <FormattedMessage text={m.content} isStreaming={m.isStreaming} />
+
+                  {/* Follow-up suggestion chips */}
+                  {m.role === 'assistant' && !m.isStreaming && m.chips && m.chips.length > 0 && (
+                    <div className="agriguide-chips-row">
+                      {m.chips.map((chip, cIdx) => (
+                        <button
+                          key={cIdx}
+                          type="button"
+                          className="prompt-chip"
+                          onClick={() => handleSend(chip)}
+                          disabled={isStreaming}
+                        >
+                          <Sparkles size={11} style={{ opacity: 0.7 }} />
+                          <span>{chip}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
 
-            {isLoading && (
+            {/* Live Status Indicator (e.g. Searching farms...) */}
+            {activeStatus && (
               <div className="agriguide-bubble-row assistant">
-                <div className="agriguide-bubble assistant thinking">
-                  <span className="dot" />
-                  <span className="dot" />
-                  <span className="dot" />
+                <div className="agriguide-status-line">
+                  <span className="agriguide-bubble thinking" style={{ padding: '4px 8px', background: 'transparent' }}>
+                    <span className="dot" />
+                    <span className="dot" />
+                    <span className="dot" />
+                  </span>
+                  <span>{activeStatus}</span>
                 </div>
               </div>
             )}
@@ -246,27 +435,7 @@ export function AgriGuide() {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Suggested Prompts (shown when conversation is new) */}
-          {messages.length <= 2 && (
-            <div className="agriguide-prompts">
-              <span className="prompts-label">{t('suggestedLabel')}</span>
-              <div className="prompts-list">
-                {suggestedPrompts.map((prompt, pIdx) => (
-                  <button
-                    key={pIdx}
-                    type="button"
-                    className="prompt-chip"
-                    onClick={() => handleSend(prompt)}
-                    disabled={isLoading}
-                  >
-                    {prompt}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Input Form */}
+          {/* Input Form with Stop & Send controls */}
           <form className="agriguide-input-form" onSubmit={handleSubmit}>
             <input
               ref={inputRef}
@@ -274,17 +443,32 @@ export function AgriGuide() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder={t('inputPlaceholder')}
-              disabled={isLoading}
+              disabled={isStreaming}
               className="agriguide-input"
+              aria-label={t('inputPlaceholder')}
             />
-            <button
-              type="submit"
-              disabled={isLoading || !input.trim()}
-              className="agriguide-send-btn"
-              aria-label={t('sendAriaLabel')}
-            >
-              <Send size={15} />
-            </button>
+
+            {isStreaming ? (
+              <button
+                type="button"
+                onClick={handleStop}
+                className="agriguide-stop-btn"
+                aria-label={t('stopAriaLabel') || 'Stop generating response'}
+                title={t('stop') || 'Stop'}
+              >
+                <Square size={14} fill="#dc2626" />
+              </button>
+            ) : (
+              <button
+                type="submit"
+                disabled={!input.trim()}
+                className="agriguide-send-btn"
+                aria-label={t('sendAriaLabel')}
+                title="Send"
+              >
+                <Send size={15} />
+              </button>
+            )}
           </form>
         </div>
       )}

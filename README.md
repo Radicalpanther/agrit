@@ -12,7 +12,7 @@ A production-grade Next.js 16 (App Router, TypeScript, Tailwind 4) authentic rur
 - **Supabase** — PostgreSQL with Row Level Security (RLS), Auth triggers, triggers for live rating averages
 - **PWA (Progressive Web App)** — Manifest, service worker, and local vector/tile caching for offline rural travel safety cards
 - **WhatsApp Cloud API** — Meta Graph API outbound template messages with graceful UI mock fallback
-- **AgriGuide AI Assistant** — Floating rural advisor backed by Claude / Gemini or database-driven tool streaming
+- **AgriGuide AI Assistant & RAG** — Multilingual rural advisor (English, Hindi, Marathi) powered by Google Gemini (gemini-3.5-flash) and pgvector hybrid search (vector embeddings + PostgreSQL full-text search) with real-time SSE streaming and zero hallucinations
 
 ---
 
@@ -212,16 +212,62 @@ To enable live dispatch to phones with `whatsapp_opt_in = true`, configure the f
 
 ---
 
-## AgriGuide Conversational Assistant
+## AgriGuide Conversational Assistant & RAG Module
 
-AgriGuide (`components/AgriGuide.tsx`, `app/api/chat/route.ts`) is a floating conversational assistant anchored at the bottom-right of every page.
-- **Provider Abstraction:** Works with Claude (`ANTHROPIC_API_KEY`), Gemini free tier (`GEMINI_API_KEY`), or built-in database-driven mock stream.
-- **Strict Database Tools:** The assistant never hallucinates; it queries:
-  - `searchFarms`: Filters stays by budget in paise, region, month, and guest count.
+AgriGuide (`components/AgriGuide.tsx`, `app/api/chat/route.ts`) is a high-performance, multilingual floating rural travel advisor anchored at the bottom-right of every page. It combines Google Gemini 3.5 tool-calling with a reusable pgvector hybrid RAG pipeline.
+
+### Architecture & Capabilities
+- **Google Gemini Provider:** Powered by `gemini-3.5-flash` with automatic retry and backoff, fallback to `gemini-3.5-flash-lite`, and a deterministic offline mock stream mode (`CHAT_MOCK=true`).
+- **Server-Sent Events (SSE):** True word-by-word streaming using `streamGenerateContent?alt=sse` with unbuffered delivery (`X-Accel-Buffering: no`, `Cache-Control: no-cache, no-transform`), requestAnimationFrame batching, blinking cursor, and client stop controls.
+- **Strict Database Tools:** The assistant never invents prices or availability. It uses Gemini function declarations for 5 tools:
+  - `searchFarms`: Filters active stays by budget, region, month, and guest count.
   - `getFarmDetails`: Retrieves rules, amenities, and check-in guidelines.
-  - `getSeasonalCrops`: Retrieves active regional harvest schedules.
-- **System Constraints:** Replies are short, contain zero emojis, recommend 1 to 3 stays with markdown links (`[Name](/farms/[slug])`), and state plainly if no match exists.
-- **Rate Limited:** 20 requests/min per IP via sliding window (`lib/rate-limit.ts`).
+  - `getSeasonalCrops`: Retrieves active regional harvest calendars.
+  - `getProduceAvailability`: Checks farm-fresh stock levels and pricing.
+  - `getMyBookings`: Authenticated tool showing the signed-in user's own reservations.
+- **Multilingual Support:** Seamless conversation in English, Hindi, and Marathi (`en`, `hi`, `mr`), preserving verified farm names, INR pricing, and `/farms/[slug]` markdown links. Zero emoji output.
+- **Rate Limiting & Safety:** Per-IP sliding window (25 req/min), signed-in user limit (40 req/min), daily safety cap (`CHAT_DAILY_LIMIT`), prompt injection guards, and automatic conversation history windowing (last 8 turns).
+
+### Reusable RAG Module (`lib/rag/`)
+The RAG module is fully decoupled from AgriTrails-specific schemas:
+- `lib/rag/core.ts`: Project-agnostic indexing engine (`index`) and hybrid retriever (`retrieve`). Runs vector search (cosine distance via `gemini-embedding-001` at 768 dimensions) in parallel with PostgreSQL full-text search (`tsvector`), merged using Reciprocal Rank Fusion (RRF, $k=60$).
+- `lib/rag/sources.agritrails.ts`: Defines AgriTrails data sources (`farms`, `activities`, `products`, `crops`, `reviews`), chunk builders with localized translations, and compact farm catalogue caching (10-minute TTL).
+- `supabase/migrations/006_rag.sql`: Enables `pgvector`, creates `rag_chunks` with HNSW index (`m=16, ef_construction=64`), GIN tsvector index, composite uniqueness constraint, and the `match_chunks` RPC function.
+
+### Indexing & Re-indexing
+- **Bulk Indexing:** Run `pnpm rag:index` to idempotently generate embeddings in batches with rate-limit backoff, skip unchanged chunks via SHA-256 hashes, and purge deleted or unpublished entities.
+- **Real-Time Re-indexing:** Hooked into farm creation, updates, publish status toggles, and review submissions in the background without blocking API responses.
+- **Reindex Webhook:** Protected endpoint at `POST /api/rag/reindex?secret=<RAG_REINDEX_SECRET>` for manual or external webhook triggers.
+
+### Chat Evaluation Suite
+Run the automated offline evaluation suite across 25 realistic scenarios covering Hindi, Marathi, budget filters, produce questions, seasonal crops, and off-topic safety queries:
+```bash
+pnpm chat:eval
+```
+
+### Environment Configuration
+```bash
+# Google Gemini API key from Google AI Studio
+GEMINI_API_KEY=your-gemini-api-key
+
+# Primary conversational model
+GEMINI_MODEL=gemini-3.5-flash
+
+# Fallback conversational model
+GEMINI_FALLBACK_MODEL=gemini-3.5-flash-lite
+
+# Embeddings model (768 dimensions)
+GEMINI_EMBED_MODEL=gemini-embedding-001
+
+# Enable deterministic mock stream without Gemini credits
+CHAT_MOCK=false
+
+# Daily message limit
+CHAT_DAILY_LIMIT=5000
+
+# Secret token for /api/rag/reindex
+RAG_REINDEX_SECRET=your-secure-rag-reindex-secret
+```
 
 ---
 

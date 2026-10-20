@@ -1,4 +1,5 @@
 import { createServiceClient } from '@/lib/supabase/server'
+import { GeminiFunctionDeclaration } from './gemini'
 
 export interface SearchFarmsParams {
   budget_max_paise?: number
@@ -17,9 +18,19 @@ export interface GetSeasonalCropsParams {
   region?: string
 }
 
+export interface GetProduceAvailabilityParams {
+  slug?: string
+  region?: string
+}
+
+export interface GetMyBookingsParams {
+  userId?: string
+}
+
 /**
  * Tool 1: searchFarms
  * Queries database farms matching budget, region, month, experience, and guest count.
+ * Only returns published farms.
  */
 export async function searchFarms(params: SearchFarmsParams = {}) {
   try {
@@ -41,11 +52,13 @@ export async function searchFarms(params: SearchFarmsParams = {}) {
         tags,
         description,
         max_guests,
+        published,
         farm_crops (
           crop:crops (*)
         ),
         activities (*)
       `)
+      .eq('published', true)
       .order('rating_avg', { ascending: false })
 
     if (error || !farms) {
@@ -65,13 +78,14 @@ export async function searchFarms(params: SearchFarmsParams = {}) {
       )
     }
 
-    // Region filter
+    // Region / place filter
     if (params.region) {
       const qRegion = params.region.trim().toLowerCase()
       filtered = filtered.filter(
         (f) =>
           f.region?.toLowerCase().includes(qRegion) ||
-          f.place?.toLowerCase().includes(qRegion),
+          f.place?.toLowerCase().includes(qRegion) ||
+          (f.tags || []).some((t: string) => t.toLowerCase().includes(qRegion)),
       )
     }
 
@@ -155,10 +169,11 @@ export async function getFarmDetails({ slug }: GetFarmDetailsParams) {
         )
       `)
       .eq('slug', slug)
+      .eq('published', true)
       .maybeSingle()
 
     if (error || !farm) {
-      return { error: `Farm with slug "${slug}" not found in database.` }
+      return { error: `Farm with slug "${slug}" not found in database or is not published.` }
     }
 
     // Compute review breakdown
@@ -269,18 +284,8 @@ export async function getSeasonalCrops({ month, region }: GetSeasonalCropsParams
     }
 
     const monthNames = [
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December',
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December',
     ]
 
     return {
@@ -300,3 +305,201 @@ export async function getSeasonalCrops({ month, region }: GetSeasonalCropsParams
     return { error: err.message, active_crops: [] }
   }
 }
+
+/**
+ * Tool 4: getProduceAvailability
+ * Returns artisanal products and fresh harvests available at farms.
+ */
+export async function getProduceAvailability({ slug, region }: GetProduceAvailabilityParams = {}) {
+  try {
+    const serviceClient = await createServiceClient()
+
+    let query = serviceClient
+      .from('products')
+      .select('id, name, detail, unit, price_paise, stock, farm:farms(name, slug, place, region, published)')
+      .gt('stock', 0)
+
+    if (slug) {
+      query = query.eq('farm.slug', slug)
+    }
+
+    const { data: products, error } = await query
+
+    if (error || !products) {
+      return { products: [], count: 0 }
+    }
+
+    const published = products.filter((p: any) => p.farm && p.farm.published !== false)
+    const filtered = region
+      ? published.filter(
+          (p: any) =>
+            p.farm.region?.toLowerCase().includes(region.toLowerCase()) ||
+            p.farm.place?.toLowerCase().includes(region.toLowerCase()),
+        )
+      : published
+
+    return {
+      count: filtered.length,
+      products: filtered.slice(0, 8).map((p: any) => ({
+        name: p.name,
+        farm_name: p.farm?.name,
+        farm_url: `/farms/${p.farm?.slug}`,
+        price_inr: Math.round(p.price_paise / 100),
+        unit: p.unit,
+        stock: p.stock,
+        detail: p.detail,
+      })),
+    }
+  } catch (err: any) {
+    console.error('[AI Tool getProduceAvailability] Exception:', err)
+    return { error: err.message, products: [] }
+  }
+}
+
+/**
+ * Tool 5: getMyBookings
+ * Authorized tool to retrieve reservations for the signed-in user only.
+ */
+export async function getMyBookings({ userId }: GetMyBookingsParams = {}) {
+  if (!userId) {
+    return {
+      authenticated: false,
+      message: 'User is not currently signed in. Please sign in to view your personal booking reservations.',
+      bookings: [],
+    }
+  }
+
+  try {
+    const serviceClient = await createServiceClient()
+
+    const { data: bookings, error } = await serviceClient
+      .from('bookings')
+      .select(`
+        id,
+        check_in,
+        nights,
+        guests,
+        total_paise,
+        status,
+        visit_type,
+        farm:farms (name, slug, place)
+      `)
+      .eq('tourist_id', userId)
+      .order('check_in', { ascending: false })
+      .limit(5)
+
+    if (error || !bookings) {
+      return { authenticated: true, bookings: [] }
+    }
+
+    return {
+      authenticated: true,
+      total: bookings.length,
+      bookings: bookings.map((b: any) => ({
+        booking_ref: b.id.substring(0, 8),
+        farm_name: b.farm?.name || 'Farm Stay',
+        farm_url: `/farms/${b.farm?.slug}`,
+        check_in: b.check_in,
+        nights: b.nights,
+        guests: b.guests,
+        stay_type: b.visit_type === 'day' ? 'Day Visit' : `${b.nights} Night(s)`,
+        total_inr: Math.round(b.total_paise / 100),
+        status: b.status,
+      })),
+    }
+  } catch (err: any) {
+    console.error('[AI Tool getMyBookings] Exception:', err)
+    return { error: err.message, bookings: [] }
+  }
+}
+
+/**
+ * Gemini Tool Function Declarations
+ */
+export const GEMINI_TOOL_DECLARATIONS: GeminiFunctionDeclaration[] = [
+  {
+    name: 'searchFarms',
+    description: 'Search for farm stays matching budget (in paise, e.g. 300000 for ₹3,000), place or region, calendar month (0-11), experience or guests.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        budget_max_paise: {
+          type: 'number',
+          description: 'Maximum budget per guest in paise (e.g. 300000 for ₹3,000).',
+        },
+        region: {
+          type: 'string',
+          description: 'State or place name in India (e.g. Maharashtra, Himachal Pradesh, Ratnagiri, Shimla, Coonoor, Kashmir, Assam).',
+        },
+        month: {
+          type: 'number',
+          description: 'Calendar month index (0 for January to 11 for December).',
+        },
+        experience: {
+          type: 'string',
+          description: 'Activity, harvest or experience keyword (e.g. mango, tea, pottery, apple, farming, river).',
+        },
+        guests: {
+          type: 'number',
+          description: 'Number of guests travelling.',
+        },
+      },
+    },
+  },
+  {
+    name: 'getFarmDetails',
+    description: 'Retrieve complete verified details, amenities, rules, check-in policies, and ratings breakdown for a specific farm by its slug.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        slug: {
+          type: 'string',
+          description: 'The unique slug identifier of the farm stay (e.g. kokan-roots-farmstay, himachal-apple-highlands).',
+        },
+      },
+      required: ['slug'],
+    },
+  },
+  {
+    name: 'getSeasonalCrops',
+    description: 'Query active crop harvest and sowing seasons across Indian regions for a specific calendar month.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        month: {
+          type: 'number',
+          description: 'Month index (0 for January to 11 for December). Defaults to current month.',
+        },
+        region: {
+          type: 'string',
+          description: 'Optional region filter (e.g. Maharashtra, Himachal Pradesh, Kashmir).',
+        },
+      },
+    },
+  },
+  {
+    name: 'getProduceAvailability',
+    description: 'Check available artisanal farm products, pantry produce, and prices ready for guest pickup.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        slug: {
+          type: 'string',
+          description: 'Optional farm slug to check produce for a specific farm.',
+        },
+        region: {
+          type: 'string',
+          description: 'Optional region to check produce available in that area.',
+        },
+      },
+    },
+  },
+  {
+    name: 'getMyBookings',
+    description: "Look up the signed-in tourist's own farm stay booking reservations and trip status.",
+    parameters: {
+      type: 'OBJECT',
+      properties: {},
+    },
+  },
+]

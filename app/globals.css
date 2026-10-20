@@ -918,6 +918,57 @@ button { border:0; cursor:pointer; color:inherit; background:none; }
   cursor: not-allowed;
 }
 
+.agriguide-stop-btn {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #dc2626;
+  width: 36px;
+  height: 36px;
+  border-radius: 2px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.agriguide-stop-btn:hover {
+  background: #fee2e2;
+}
+
+.agriguide-status-line {
+  font-size: 11px;
+  color: var(--muted);
+  font-style: italic;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  margin-bottom: 4px;
+}
+
+.agriguide-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background-color: var(--forest);
+  vertical-align: text-bottom;
+  margin-left: 2px;
+  animation: cursorBlink 0.8s infinite;
+}
+
+@keyframes cursorBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.agriguide-chips-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
 /* Full-screen on mobile */
 @media (max-width: 640px) {
   .agriguide-panel {

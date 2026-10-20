@@ -132,6 +132,14 @@ export async function PUT(
     revalidatePath(`/farms/${existingFarm.slug}`)
     revalidatePath('/dashboard')
 
+    // Invalidate RAG catalogue cache and reindex this farm asynchronously
+    import('@/lib/rag/sources.agritrails').then(({ agritrailsSourceConfig, invalidateCatalogueCache }) => {
+      invalidateCatalogueCache()
+      import('@/lib/rag/core').then(({ indexEntity }) => {
+        indexEntity(agritrailsSourceConfig, 'farms', id).catch(() => {})
+      })
+    }).catch(() => {})
+
     return NextResponse.json({
       success: true,
       farm: updated,
@@ -193,6 +201,14 @@ export async function DELETE(
     revalidatePath('/')
     revalidatePath('/explore')
     revalidatePath('/dashboard')
+
+    // Invalidate RAG catalogue cache and remove farm chunks asynchronously
+    import('@/lib/rag/sources.agritrails').then(({ agritrailsSourceConfig, invalidateCatalogueCache }) => {
+      invalidateCatalogueCache()
+      import('@/lib/rag/core').then(({ indexEntity }) => {
+        indexEntity(agritrailsSourceConfig, 'farms', id).catch(() => {})
+      })
+    }).catch(() => {})
 
     return NextResponse.json({ success: true })
   } catch (err: any) {

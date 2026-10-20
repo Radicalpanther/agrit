@@ -146,6 +146,14 @@ export async function POST(request: Request) {
     revalidatePath(`/farms/${uniqueSlug}`)
     revalidatePath('/dashboard')
 
+    // Invalidate RAG catalogue cache and reindex this farm asynchronously
+    import('@/lib/rag/sources.agritrails').then(({ agritrailsSourceConfig, invalidateCatalogueCache }) => {
+      invalidateCatalogueCache()
+      import('@/lib/rag/core').then(({ indexEntity }) => {
+        indexEntity(agritrailsSourceConfig, 'farms', newFarm.id).catch(() => {})
+      })
+    }).catch(() => {})
+
     return NextResponse.json({
       success: true,
       farm: newFarm,

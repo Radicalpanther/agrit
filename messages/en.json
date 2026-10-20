@@ -624,16 +624,19 @@
     "subtitle": "Rural farm stays and harvest advisor",
     "suggestedLabel": "Suggested:",
     "suggestedPrompts": {
-      "prompt1": "Weekend stay under ₹2,500",
-      "prompt2": "What is in season this month?",
-      "prompt3": "Farm rules and check-in"
+      "prompt1": "Farm stays under 3000",
+      "prompt2": "What is in season now?",
+      "prompt3": "Best for families"
     },
     "inputPlaceholder": "Ask about farm stays, harvest seasons...",
     "sendAriaLabel": "Send message",
     "openAriaLabel": "Open AgriGuide Assistant",
     "closeAriaLabel": "Close AgriGuide",
     "launcherTitle": "AgriGuide rural assistant",
-    "connectionError": "Unable to connect to AgriGuide service. Please try again shortly."
+    "connectionError": "Unable to connect to AgriGuide service. Please try again shortly.",
+    "stop": "Stop",
+    "stopAriaLabel": "Stop response generation",
+    "searching": "Searching farms..."
   },
   "notifications": {
     "farmerNewBooking": {
@@ -703,5 +706,3 @@
     }
   }
 }
-
-
